@@ -52,9 +52,16 @@ func MakeTCPServer(address string, readFunc TCPReadFunc, useEncryption bool, enc
 
 func (tcp *TCPServer) Start() bool {
 	tcp.selfStop = false
+	//Create TCP address
+	address, err2 := net.ResolveTCPAddr("tcp", tcp.address)
+	if err2 != nil {
+		tcp.Logger.Log(3, "Error listening to: "+err2.Error())
+		return false
+	}
+
 	//Open TCP listener
 	var err error
-	tcp.listener, err = net.Listen("tcp", tcp.address)
+	tcp.listener, err = net.ListenTCP("tcp", address)
 	if err != nil {
 		tcp.Logger.Log(3, "Error listening to: "+err.Error())
 		return false
@@ -77,7 +84,7 @@ func (tcp *TCPServer) Start() bool {
 			}
 		}
 
-		go tcp.handleTCPServerConnection(conn, tcp.readFunc)
+		go tcp.handleTCPServerConnection(conn)
 	}
 
 	//Stop
@@ -154,9 +161,9 @@ func (tcp *TCPServer) WriteToClient(conn net.Conn, message string) {
 	writeToTCP(conn, message, &tcp.Logger, tcp.useEncryption, tcp.encryptionPassword)
 }
 
-func (tcp *TCPServer) handleTCPServerConnection(conn net.Conn, readFunc TCPReadFunc) {
+func (tcp *TCPServer) handleTCPServerConnection(conn net.Conn) {
 	tcp.Logger.Log(1, "Connection from: "+conn.RemoteAddr().String())
-	handleTCPRead(conn, readFunc, &tcp.Logger, tcp.useEncryption, tcp.encryptionPassword)
+	handleTCPRead(conn, tcp.readFunc, &tcp.Logger, tcp.useEncryption, tcp.encryptionPassword)
 	//ServerWriteToTCPClient(conn, "Welcome to TCP server!")
 }
 

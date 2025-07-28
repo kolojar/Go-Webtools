@@ -7,7 +7,7 @@ import (
 /*
 HTTPProxy server that translates HTTP trafic from internet to local TCP and acts as TCP client
 */
-type HTTPProxyServer struct {
+type HTTPProxyServerTCP struct {
 	tcpServerAdress                   string
 	webSocketServer                   *WebSocketHTTPServer
 	connetionWebSocketToTCPTranslator map[*HTTPServerWebSocketConnection]*TCPClient
@@ -18,21 +18,21 @@ type HTTPProxyServer struct {
 /*
 Gets address of destination address - adress of proxy server
 */
-func (proxySv *HTTPProxyServer) GetAddress() string {
+func (proxySv *HTTPProxyServerTCP) GetAddress() string {
 	return proxySv.webSocketServer.GetAddress()
 }
 
 /*
 Returns if local websocket server is alive (AKA proxy server)
 */
-func (proxySv *HTTPProxyServer) IsAlive() bool {
+func (proxySv *HTTPProxyServerTCP) IsAlive() bool {
 	return proxySv.webSocketServer.IsAlive()
 }
 
 /*
 Read data Handler for TCP
 */
-func (proxySv *HTTPProxyServer) readFuncTCP(conn net.Conn, data string, ended bool) {
+func (proxySv *HTTPProxyServerTCP) readFuncTCP(conn net.Conn, data string, ended bool) {
 	if proxySv.connetionTCPToWebSocketTranslator[conn] == nil {
 		proxySv.Logger.Log(3, "Error writing to WebSocket - Connection does not exist!")
 		return
@@ -48,7 +48,7 @@ func (proxySv *HTTPProxyServer) readFuncTCP(conn net.Conn, data string, ended bo
 /*
 Read data Handler for WebSocket
 */
-func (proxySv *HTTPProxyServer) readFuncWebSocket(ws *HTTPServerWebSocketConnection, data string, ended bool) {
+func (proxySv *HTTPProxyServerTCP) readFuncWebSocket(ws *HTTPServerWebSocketConnection, data string, ended bool) {
 	if proxySv.connetionWebSocketToTCPTranslator[ws] == nil {
 		tcpClient := MakeTCPClient(proxySv.tcpServerAdress, proxySv.readFuncTCP, false, "")
 		tcpClient.Logger = proxySv.Logger
@@ -57,17 +57,17 @@ func (proxySv *HTTPProxyServer) readFuncWebSocket(ws *HTTPServerWebSocketConnect
 		proxySv.connetionTCPToWebSocketTranslator[tcpClient.connection] = ws
 	}
 	if !ended {
-		proxySv.connetionWebSocketToTCPTranslator[ws].WriteToTCPServer(data)
+		proxySv.connetionWebSocketToTCPTranslator[ws].WriteToServer(data)
 	} else {
 		proxySv.connetionWebSocketToTCPTranslator[ws].Close()
 	}
 }
 
 /*
-Constructs new instance of HTTPProxy Server but does not start it
+Constructs new instance of HTTPProxy Server for TCP but does not start it
 */
-func MakeHTTPProxyServer(tcpServerAdress string, proxyHostAddress string, dataPathPrefix string, sharedDataPathPrefix string, httpGetViewsFunc funcViews, httpPostViewsFunc funcViews, startWebBrowser bool) HTTPProxyServer {
-	httpProxyServer := HTTPProxyServer{tcpServerAdress: tcpServerAdress, connetionWebSocketToTCPTranslator: map[*HTTPServerWebSocketConnection]*TCPClient{}, connetionTCPToWebSocketTranslator: map[net.Conn]*HTTPServerWebSocketConnection{}, Logger: MakeConsoleLogger("HTTPProxyServer")}
+func MakeHTTPProxyServerTCP(tcpServerAdress string, proxyHostAddress string, dataPathPrefix string, sharedDataPathPrefix string, httpGetViewsFunc funcViews, httpPostViewsFunc funcViews, startWebBrowser bool) HTTPProxyServerTCP {
+	httpProxyServer := HTTPProxyServerTCP{tcpServerAdress: tcpServerAdress, connetionWebSocketToTCPTranslator: map[*HTTPServerWebSocketConnection]*TCPClient{}, connetionTCPToWebSocketTranslator: map[net.Conn]*HTTPServerWebSocketConnection{}, Logger: MakeConsoleLogger("HTTPProxyServerTCP")}
 	httpProxyServer.webSocketServer = NewWebSocketHTTPServer(proxyHostAddress, dataPathPrefix, sharedDataPathPrefix, httpGetViewsFunc, httpPostViewsFunc, httpProxyServer.readFuncWebSocket, nil, nil, startWebBrowser)
 	httpProxyServer.webSocketServer.HttpServer.Logger = httpProxyServer.Logger
 	httpProxyServer.webSocketServer.Logger = httpProxyServer.Logger
@@ -77,11 +77,11 @@ func MakeHTTPProxyServer(tcpServerAdress string, proxyHostAddress string, dataPa
 /*
 Starts HTTPProxy server
 */
-func (proxySv *HTTPProxyServer) Start() {
+func (proxySv *HTTPProxyServerTCP) Start() {
 	proxySv.Logger.Log(2, "Started proxying server from "+proxySv.tcpServerAdress+" to "+proxySv.webSocketServer.HttpServer.address)
 	proxySv.webSocketServer.Start()
 }
 
-func (proxySv HTTPProxyServer) Stop() {
+func (proxySv HTTPProxyServerTCP) Stop() {
 	proxySv.webSocketServer.Stop()
 }

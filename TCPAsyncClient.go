@@ -21,31 +21,38 @@ func MakeTCPClient(address string, readFunc TCPReadFunc, useEncryption bool, enc
 /*
 TCP Client connects to address and starts reading. Set prefix to "" for default
 */
-func (client *TCPClient) Connect() net.Conn {
+func (tcp *TCPClient) Connect() net.Conn {
+	//Create TCP address
+	address, err2 := net.ResolveTCPAddr("tcp", tcp.address)
+	if err2 != nil {
+		tcp.Logger.Log(3, "Error listening to: "+err2.Error())
+		return nil
+	}
+
 	//Connect to server
 	var err error
-	client.connection, err = net.Dial("tcp", client.address)
+	tcp.connection, err = net.DialTCP("tcp", nil, address)
 	if err != nil {
-		client.Logger.Log(3, "Error connecting to: "+client.address+" | Error: "+err.Error())
+		tcp.Logger.Log(3, "Error connecting to: "+tcp.address+" | Error: "+err.Error())
 		return nil
 	}
 
 	//Handle connection
-	client.Logger.Log(2, "Connected to server at "+client.address+"!")
-	go handleTCPRead(client.connection, client.readFunc, &client.Logger, client.useEncryption, client.encryptionPassword)
-	return client.connection
+	tcp.Logger.Log(2, "Connected to server at "+tcp.address+"!")
+	go handleTCPRead(tcp.connection, tcp.readFunc, &tcp.Logger, tcp.useEncryption, tcp.encryptionPassword)
+	return tcp.connection
 }
 
 /*
-TCP Client writes to connection (TCP server)
+Network Client writes to connection to TCP server
 */
-func (client *TCPClient) WriteToTCPServer(message string) {
-	writeToTCP(client.connection, message, &client.Logger, client.useEncryption, client.encryptionPassword)
+func (tcp *TCPClient) WriteToServer(message string) {
+	writeToTCP(tcp.connection, message, &tcp.Logger, tcp.useEncryption, tcp.encryptionPassword)
 }
 
-func (client *TCPClient) Close() error {
-	if client == nil || client.connection == nil {
+func (tcp *TCPClient) Close() error {
+	if tcp == nil || tcp.connection == nil {
 		return nil
 	}
-	return client.connection.Close()
+	return tcp.connection.Close()
 }

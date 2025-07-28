@@ -5,7 +5,7 @@ import "net"
 /*
 HTTPProxy client that translates HTTP trafic from internet to local TCP and hosts TCP server
 */
-type HTTPProxyClient struct {
+type HTTPProxyClientTCP struct {
 	proxyHostAddress                  string
 	tcpServer                         TCPServer
 	connetionWebSocketToTCPTranslator map[net.Conn]net.Conn
@@ -16,7 +16,7 @@ type HTTPProxyClient struct {
 /*
 Read data Handler for TCP
 */
-func (proxyCl *HTTPProxyClient) readFuncTCP(conn net.Conn, data string, ended bool) {
+func (proxyCl *HTTPProxyClientTCP) readFuncTCP(conn net.Conn, data string, ended bool) {
 	if proxyCl.connetionTCPToWebSocketTranslator[conn] == nil {
 		wsClient := MakeWebSocketClient(proxyCl.proxyHostAddress, proxyCl.readFuncWebSocket)
 		wsClient.Logger = proxyCl.Logger
@@ -35,7 +35,7 @@ func (proxyCl *HTTPProxyClient) readFuncTCP(conn net.Conn, data string, ended bo
 /*
 Read data Handler for WebSocket
 */
-func (proxyCl *HTTPProxyClient) readFuncWebSocket(conn net.Conn, data string, ended bool) {
+func (proxyCl *HTTPProxyClientTCP) readFuncWebSocket(conn net.Conn, data string, ended bool) {
 	if proxyCl.connetionWebSocketToTCPTranslator[conn] == nil {
 		proxyCl.Logger.Log(3, "Error writing to TCP - Connection does not exist!")
 		return
@@ -47,15 +47,15 @@ func (proxyCl *HTTPProxyClient) readFuncWebSocket(conn net.Conn, data string, en
 	}
 }
 
-func (proxyCl *HTTPProxyClient) GetProxyHostAddress() string {
+func (proxyCl *HTTPProxyClientTCP) GetProxyHostAddress() string {
 	return proxyCl.proxyHostAddress
 }
 
 /*
-Constructs new instance of HTTPProxy Client but does not start it
+Constructs new instance of HTTPProxy Client for TCP but does not start it
 */
-func MakeHTTPProxyClient(tcpServerAdress string, proxyHostAddress string) HTTPProxyClient {
-	httpProxyClient := HTTPProxyClient{proxyHostAddress: proxyHostAddress, connetionWebSocketToTCPTranslator: map[net.Conn]net.Conn{}, connetionTCPToWebSocketTranslator: map[net.Conn]*WebSocketClient{}, Logger: MakeConsoleLogger("HTTPProxyClient")}
+func MakeHTTPProxyClientTCP(tcpServerAdress string, proxyHostAddress string) HTTPProxyClientTCP {
+	httpProxyClient := HTTPProxyClientTCP{proxyHostAddress: proxyHostAddress, connetionWebSocketToTCPTranslator: map[net.Conn]net.Conn{}, connetionTCPToWebSocketTranslator: map[net.Conn]*WebSocketClient{}, Logger: MakeConsoleLogger("HTTPProxyClientTCP")}
 	httpProxyClient.tcpServer = MakeTCPServer(tcpServerAdress, httpProxyClient.readFuncTCP, false, "")
 	httpProxyClient.tcpServer.Logger = httpProxyClient.Logger
 	return httpProxyClient
@@ -64,19 +64,19 @@ func MakeHTTPProxyClient(tcpServerAdress string, proxyHostAddress string) HTTPPr
 /*
 Starts HTTPProxy client
 */
-func (proxyCl *HTTPProxyClient) Start() {
+func (proxyCl *HTTPProxyClientTCP) Start() {
 	proxyCl.Logger.Log(2, "Started proxying client from "+proxyCl.proxyHostAddress+" to "+proxyCl.tcpServer.address)
 	proxyCl.tcpServer.Start()
 }
 
-func (proxyCl *HTTPProxyClient) Stop() error {
+func (proxyCl *HTTPProxyClientTCP) Stop() error {
 	return proxyCl.tcpServer.Stop()
 }
 
-func (proxyCl *HTTPProxyClient) IsAlive() bool {
+func (proxyCl *HTTPProxyClientTCP) IsAlive() bool {
 	return proxyCl.tcpServer.IsAlive()
 }
 
-func (proxyCl *HTTPProxyClient) GetTCPServerIP() string {
+func (proxyCl *HTTPProxyClientTCP) GetTCPServerIP() string {
 	return proxyCl.tcpServer.GetAddress()
 }
