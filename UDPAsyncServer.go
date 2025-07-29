@@ -8,6 +8,15 @@ import (
 
 /*
 Standardized type of function
+*UDPClient = Source client, ignore on server side
+*net.UDPAddr = Address of connection
+String = message
+Bool = is ended
+*/
+type UDPReadFuncClient func(*UDPClient, *net.UDPAddr, string, bool)
+
+/*
+Standardized type of function
 *net.UDPAddr = Address of connection
 String = message
 Bool = is ended
@@ -53,7 +62,7 @@ func MakeUDPServer(address string, readFunc UDPReadFunc, useEncryption bool, enc
 func (udp *UDPServer) Start() bool {
 	udp.selfStop = false
 	//Create UDP address
-	address, err2 := net.ResolveUDPAddr("UDP", udp.address)
+	address, err2 := net.ResolveUDPAddr("udp", udp.address)
 	if err2 != nil {
 		udp.Logger.Log(3, "Error listening to: "+err2.Error())
 		return false
@@ -95,7 +104,7 @@ func handleUDPRead(udpConn *net.UDPConn, readFunc UDPReadFunc, logger *ConsoleLo
 		var err error
 		n, addr, err = udpConn.ReadFromUDP(buffer)
 		if err != nil {
-			if err.Error() != "EOF" && !strings.Contains(err.Error(), "use of closed network connection") {
+			if err.Error() != "EOF" && !strings.Contains(err.Error(), "use of closed network connection") && !strings.Contains(err.Error(), "i/o timeout") {
 				logger.Log(3, "Error reading from: "+addr.String()+" | Error: "+err.Error())
 			}
 			break
@@ -121,7 +130,9 @@ func handleUDPRead(udpConn *net.UDPConn, readFunc UDPReadFunc, logger *ConsoleLo
 			} else {
 				decrypt = text
 			}
-			readFunc(addr, decrypt, false)
+			if readFunc != nil {
+				readFunc(addr, decrypt, false)
+			}
 		}
 	}
 
@@ -136,7 +147,7 @@ func handleUDPRead(udpConn *net.UDPConn, readFunc UDPReadFunc, logger *ConsoleLo
 	//}
 }
 
-func writeToUDP(listener *net.UDPConn, addr *net.UDPAddr, message string, logger *ConsoleLogger, useEncryption bool, encryptionPassword string) {
+func writeToUDP(isServer bool, listener *net.UDPConn, addr *net.UDPAddr, message string, logger *ConsoleLogger, useEncryption bool, encryptionPassword string) {
 	var msg string
 	if useEncryption {
 		logger.Log(0, "Decrypted sending message: "+message)
@@ -150,14 +161,19 @@ func writeToUDP(listener *net.UDPConn, addr *net.UDPAddr, message string, logger
 	}
 
 	logger.Log(1, "Sending to: "+addr.String()+" | Data: "+msg)
-	_, err := listener.WriteToUDP([]byte(msg+string(rune(23))), addr)
+	var err error
+	if isServer {
+		_, err = listener.WriteToUDP([]byte(msg+string(rune(23))), addr)
+	} else {
+		_, err = listener.Write([]byte(msg + string(rune(23))))
+	}
 	if err != nil {
 		logger.Log(3, "Error senting to: "+addr.String()+" | Error: "+err.Error())
 	}
 }
 
 func (udp *UDPServer) WriteToClient(addr *net.UDPAddr, message string) {
-	writeToUDP(udp.listener, addr, message, &udp.Logger, udp.useEncryption, udp.encryptionPassword)
+	writeToUDP(true, udp.listener, addr, message, &udp.Logger, udp.useEncryption, udp.encryptionPassword)
 }
 
 func (udp *UDPServer) Stop() error {

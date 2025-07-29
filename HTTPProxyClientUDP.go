@@ -1,13 +1,16 @@
 package webtools
 
-import "net"
+import (
+	"fmt"
+	"net"
+)
 
 /*
 HTTPProxy client that translates HTTP trafic from internet to local TCP and hosts TCP server
 */
 type HTTPProxyClientUDP struct {
 	proxyHostAddress                  string
-	udpServer                         UDPServer
+	udpServer                         *UDPServer
 	connetionWebSocketToUDPTranslator map[net.Conn]*net.UDPAddr
 	connetionUDPToWebSocketTranslator map[*net.UDPAddr]*WebSocketClient
 	Logger                            ConsoleLogger
@@ -24,10 +27,14 @@ func (proxyCl *HTTPProxyClientUDP) readFuncUDP(addr *net.UDPAddr, data string, e
 		proxyCl.connetionUDPToWebSocketTranslator[addr] = &wsClient
 		proxyCl.connetionWebSocketToUDPTranslator[wsClient.connection] = addr
 	}
+	fmt.Println("Client count: ", len(proxyCl.connetionWebSocketToUDPTranslator))
 	if !ended {
 		proxyCl.connetionUDPToWebSocketTranslator[addr].WriteToServer(data)
 	} else {
-		proxyCl.connetionUDPToWebSocketTranslator[addr].Close()
+		conn := proxyCl.connetionUDPToWebSocketTranslator[addr].connection
+		delete(proxyCl.connetionWebSocketToUDPTranslator, conn)
+		delete(proxyCl.connetionUDPToWebSocketTranslator, addr)
+		conn.Close()
 	}
 
 }
@@ -44,6 +51,9 @@ func (proxyCl *HTTPProxyClientUDP) readFuncWebSocket(conn net.Conn, data string,
 		proxyCl.udpServer.WriteToClient(proxyCl.connetionWebSocketToUDPTranslator[conn], data)
 	} else {
 		//In UDP no closing needed
+		delete(proxyCl.connetionUDPToWebSocketTranslator, proxyCl.connetionWebSocketToUDPTranslator[conn])
+		delete(proxyCl.connetionWebSocketToUDPTranslator, conn)
+		fmt.Println("Client count: ", len(proxyCl.connetionWebSocketToUDPTranslator))
 	}
 }
 
@@ -56,7 +66,8 @@ Constructs new instance of HTTPProxy Client for UDP but does not start it
 */
 func MakeHTTPProxyClientUDP(tcpServerAdress string, proxyHostAddress string) HTTPProxyClientUDP {
 	httpProxyClient := HTTPProxyClientUDP{proxyHostAddress: proxyHostAddress, connetionWebSocketToUDPTranslator: map[net.Conn]*net.UDPAddr{}, connetionUDPToWebSocketTranslator: map[*net.UDPAddr]*WebSocketClient{}, Logger: MakeConsoleLogger("HTTPProxyClientUDP")}
-	httpProxyClient.udpServer = MakeUDPServer(tcpServerAdress, httpProxyClient.readFuncUDP, false, "")
+	udp := MakeUDPServer(tcpServerAdress, httpProxyClient.readFuncUDP, false, "")
+	httpProxyClient.udpServer = &udp
 	httpProxyClient.udpServer.Logger = httpProxyClient.Logger
 	return httpProxyClient
 }

@@ -402,7 +402,9 @@ Closes WebSocket connection
 */
 func (ws *HTTPServerWebSocketConnection) Close() {
 	//Close
-	ws.connection.Close()
+	if ws.connection != nil {
+		ws.connection.Close()
+	}
 
 	//Wait for exit
 	for !ws.exited {
