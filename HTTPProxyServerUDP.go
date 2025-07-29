@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-const UDP_CONN_DEADLINE = 5 * time.Second
+const UDP_CONN_DEADLINE = 10 * time.Second
 
 /*
 HTTPProxy UDP Frame

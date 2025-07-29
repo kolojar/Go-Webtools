@@ -53,15 +53,15 @@ func MakeTCPServer(address string, readFunc TCPReadFunc, useEncryption bool, enc
 func (tcp *TCPServer) Start() bool {
 	tcp.selfStop = false
 	//Create TCP address
-	address, err2 := net.ResolveTCPAddr("tcp", tcp.address)
-	if err2 != nil {
-		tcp.Logger.Log(3, "Error listening to: "+err2.Error())
-		return false
-	}
+	//address, err2 := net.ResolveTCPAddr("tcp", tcp.address)
+	//if err2 != nil {
+	//	tcp.Logger.Log(3, "Error listening to: "+err2.Error())
+	//	return false
+	//}
 
 	//Open TCP listener
 	var err error
-	tcp.listener, err = net.ListenTCP("tcp", address)
+	tcp.listener, err = net.Listen("tcp", tcp.address)
 	if err != nil {
 		tcp.Logger.Log(3, "Error listening to: "+err.Error())
 		return false
@@ -94,9 +94,23 @@ func (tcp *TCPServer) Start() bool {
 	return true
 }
 
+//func calcLenOfTextParts(textParts []string) int {
+//	lenOfParts := len(textParts)
+//	if len(textParts) == 1 && len(textParts[0]) > 0 && textParts[0] != string(rune(23)) {
+//		//Valid one part text
+//		lenOfParts++
+//	} else {
+//		if len(textParts[len(textParts)-1]) > 0 && textParts[len(textParts)-1] != string(rune(23)) {
+//			//Valid last part text
+//			lenOfParts++
+//		}
+//	}
+//	return lenOfParts
+//}
+
 func handleTCPRead(conn net.Conn, readFunc TCPReadFunc, logger *ConsoleLogger, useEncryption bool, encryptionPassword string) {
 	//Read data from TCP
-	buffer := make([]byte, 1024)
+	buffer := make([]byte, 16384)
 	//scanner := bufio.NewScanner()
 	//println("Created scanner!")
 	for {
@@ -108,23 +122,25 @@ func handleTCPRead(conn net.Conn, readFunc TCPReadFunc, logger *ConsoleLogger, u
 			break
 		}
 		//text := scanner.Text()
-		textParts := strings.Split(string(buffer[:n]), string(rune(23)))
-		for i := 0; i < len(textParts)-1; i++ {
-			text := textParts[i]
-			logger.Log(1, "Reading from: "+conn.RemoteAddr().String()+" | Data: "+text)
-			var decrypt string
-			var err error
-			if useEncryption {
-				decrypt, err = DecryptText(encryptionPassword, text)
-				if err != nil {
-					logger.Log(3, "Error decrypting message: "+err.Error())
-				}
-				logger.Log(0, "Decrypted received message: "+decrypt)
-			} else {
-				decrypt = text
+		//textParts := strings.Split(string(buffer[:n]), string(rune(23)))
+		//for i := 0; i < calcLenOfTextParts(textParts)-1; i++ {
+		//text := textParts[i]
+		//text := strings.Join(textParts[0:(calcLenOfTextParts(textParts)-1)], string(rune(23)))
+		text := string(buffer[:n])
+		logger.Log(1, "Reading from: "+conn.RemoteAddr().String()+" | Data: "+text)
+		var decrypt string
+		var err2 error
+		if useEncryption {
+			decrypt, err2 = DecryptText(encryptionPassword, text)
+			if err2 != nil {
+				logger.Log(3, "Error decrypting message: "+err2.Error())
 			}
-			readFunc(conn, decrypt, false)
+			logger.Log(0, "Decrypted received message: "+decrypt)
+		} else {
+			decrypt = text
 		}
+		readFunc(conn, decrypt, false)
+		//}
 	}
 
 	//Report error
@@ -151,7 +167,7 @@ func writeToTCP(conn net.Conn, message string, logger *ConsoleLogger, useEncrypt
 	}
 
 	logger.Log(1, "Sending to: "+conn.RemoteAddr().String()+" | Data: "+msg)
-	_, err := conn.Write([]byte(msg + string(rune(23))))
+	_, err := conn.Write([]byte(msg))
 	if err != nil {
 		logger.Log(3, "Error senting to: "+conn.RemoteAddr().String()+" | Error: "+err.Error())
 	}

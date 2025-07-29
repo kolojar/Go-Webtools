@@ -28,8 +28,8 @@ func (proxyCl *HTTPProxyClientTCP) readFuncTCP(conn net.Conn, data string, ended
 		proxyCl.connetionTCPToWebSocketTranslator[conn].WriteToServer(data)
 	} else {
 		conn2 := proxyCl.connetionTCPToWebSocketTranslator[conn].connection
-		delete(proxyCl.connetionWebSocketToTCPTranslator, conn2)
-		delete(proxyCl.connetionTCPToWebSocketTranslator, conn)
+		//delete(proxyCl.connetionWebSocketToTCPTranslator, conn2)
+		//delete(proxyCl.connetionTCPToWebSocketTranslator, conn)
 		conn2.Close()
 	}
 }
@@ -46,8 +46,8 @@ func (proxyCl *HTTPProxyClientTCP) readFuncWebSocket(conn net.Conn, data string,
 		proxyCl.tcpServer.WriteToClient(proxyCl.connetionWebSocketToTCPTranslator[conn], data)
 	} else {
 		conn2 := proxyCl.connetionWebSocketToTCPTranslator[conn]
-		delete(proxyCl.connetionTCPToWebSocketTranslator, conn2)
-		delete(proxyCl.connetionWebSocketToTCPTranslator, conn)
+		//delete(proxyCl.connetionTCPToWebSocketTranslator, conn2)
+		//delete(proxyCl.connetionWebSocketToTCPTranslator, conn)
 		conn2.Close()
 	}
 }

@@ -94,7 +94,7 @@ func (udp *UDPServer) Start() bool {
 
 func handleUDPRead(udpConn *net.UDPConn, readFunc UDPReadFunc, logger *ConsoleLogger, useEncryption bool, encryptionPassword string) {
 	//Read data from TCP
-	buffer := make([]byte, 1024)
+	buffer := make([]byte, 16384)
 	//scanner := bufio.NewScanner()
 	//println("Created scanner!")
 	var addr *net.UDPAddr
@@ -115,25 +115,27 @@ func handleUDPRead(udpConn *net.UDPConn, readFunc UDPReadFunc, logger *ConsoleLo
 		}
 
 		//text := scanner.Text()
-		textParts := strings.Split(string(buffer[:n]), string(rune(23)))
-		for i := 0; i < len(textParts)-1; i++ {
-			text := textParts[i]
-			logger.Log(1, "Reading from: "+addr.String()+" | Data: "+text)
-			var decrypt string
-			var err error
-			if useEncryption {
-				decrypt, err = DecryptText(encryptionPassword, text)
-				if err != nil {
-					logger.Log(3, "Error decrypting message: "+err.Error())
-				}
-				logger.Log(0, "Decrypted received message: "+decrypt)
-			} else {
-				decrypt = text
+		//textParts := strings.Split(string(buffer[:n]), string(rune(23)))
+		//for i := 0; i < calcLenOfTextParts(textParts)-1; i++ {
+		//text := textParts[i]
+		//text := strings.Join(textParts[0:(calcLenOfTextParts(textParts)-1)], string(rune(23)))
+		text := string(buffer[:n])
+		logger.Log(1, "Reading from: "+addr.String()+" | Data: "+text)
+		var decrypt string
+		var err2 error
+		if useEncryption {
+			decrypt, err2 = DecryptText(encryptionPassword, text)
+			if err2 != nil {
+				logger.Log(3, "Error decrypting message: "+err2.Error())
 			}
-			if readFunc != nil {
-				readFunc(addr, decrypt, false)
-			}
+			logger.Log(0, "Decrypted received message: "+decrypt)
+		} else {
+			decrypt = text
 		}
+		if readFunc != nil {
+			readFunc(addr, decrypt, false)
+		}
+		//}
 	}
 
 	//Report error
@@ -163,9 +165,9 @@ func writeToUDP(isServer bool, listener *net.UDPConn, addr *net.UDPAddr, message
 	logger.Log(1, "Sending to: "+addr.String()+" | Data: "+msg)
 	var err error
 	if isServer {
-		_, err = listener.WriteToUDP([]byte(msg+string(rune(23))), addr)
+		_, err = listener.WriteToUDP([]byte(msg), addr)
 	} else {
-		_, err = listener.Write([]byte(msg + string(rune(23))))
+		_, err = listener.Write([]byte(msg))
 	}
 	if err != nil {
 		logger.Log(3, "Error senting to: "+addr.String()+" | Error: "+err.Error())

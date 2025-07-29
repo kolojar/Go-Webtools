@@ -23,13 +23,33 @@ func main() {
 		}
 	case "ps":
 		{
-			proxyServer = webtools.MakeHTTPProxyServerUDP("127.0.0.1:1234", "127.0.0.1:5678", "", "", nil, nil, false)
+			proxyServer = webtools.MakeHTTPProxyServerUDP("127.0.0.1:7777", "127.0.0.1:5678", "", "", nil, nil, false)
 			proxyServer.Start()
 		}
-	case "pc":
+	case "pcu7777":
 		{
-			proxyClient := webtools.MakeHTTPProxyClientUDP("127.0.0.1:9012", "127.0.0.1:5678")
+			proxyClient := webtools.MakeHTTPProxyClientUDP("127.0.0.1:17777", "127.0.0.1:5678")
 			proxyClient.Start()
+		}
+	case "pct7777":
+		{
+			proxyClient := webtools.MakeHTTPProxyClientTCP("127.0.0.1:7777", "192.168.0.229:27777")
+			proxyClient.Start()
+		}
+	case "pct8888":
+		{
+			proxyClient := webtools.MakeHTTPProxyClientTCP("127.0.0.1:8888", "192.168.0.229:18888")
+			proxyClient.Start()
+		}
+	case "bt7777":
+		{
+			bridge := webtools.MakeTCPBridge("127.0.0.1:7777", "127.0.0.1:17777")
+			bridge.Start()
+		}
+	case "bu7777":
+		{
+			bridge := webtools.MakeUDPBridge("127.0.0.1:7777", "127.0.0.1:17777")
+			bridge.Start()
 		}
 	case "c":
 		{

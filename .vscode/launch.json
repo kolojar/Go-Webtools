@@ -9,8 +9,8 @@
             "type": "go",
             "request": "launch",
             "mode": "auto",
-            "program": "${fileDirname}/../main/main.go",
-            "args": ["pc"]
+            "program": "./main/main.go",
+            "args": ["b7777"]
         }
     ]
 }

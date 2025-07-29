@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"math/rand/v2"
 	"net"
@@ -100,15 +101,23 @@ func (ws *WebSocketHTTPServer) getViewsFunc(w http.ResponseWriter, r *http.Reque
 
 		//Start read
 		if ws != nil {
-			HandleWebSocketRead(conn, &ws.Logger, webSocket.onRead)
-			if ws.webSocketDisconnectFunc != nil {
-				ws.webSocketDisconnectFunc(webSocket)
-			}
+			//HandleWebSocketRead(conn, &ws.Logger, webSocket.onRead)
+			//if ws.webSocketDisconnectFunc != nil {
+			//	ws.webSocketDisconnectFunc(webSocket)
+			//}
+			ws.readRoutine(conn, webSocket)
 		}
 	} else {
 		if ws.httpGetViewsFunc != nil {
 			ws.httpGetViewsFunc(w, r, params)
 		}
+	}
+}
+
+func (ws *WebSocketHTTPServer) readRoutine(conn net.Conn, webSocket *HTTPServerWebSocketConnection) {
+	HandleWebSocketRead(conn, &ws.Logger, webSocket.onRead)
+	if ws.webSocketDisconnectFunc != nil {
+		ws.webSocketDisconnectFunc(webSocket)
 	}
 }
 
@@ -178,6 +187,7 @@ func HandleWebSocketRead(conn net.Conn, logger *ConsoleLogger, readFunc TCPReadF
 		//Unpack frame
 		msg, err := UnpackWebSocketFrame(conn, logger)
 		if err != nil {
+			fmt.Println("Err: ", err.Error())
 			if err.Error() != "EOF" && !strings.Contains(err.Error(), "use of closed network connection") {
 				logger.Log(3, "Error reading from: "+conn.RemoteAddr().String()+" | Error: "+err.Error())
 			}
@@ -205,6 +215,10 @@ Sources: https://en.wikipedia.org/wiki/WebSocket#Opcodes
 Some fixes applied from ChatGPT (big payloads)
 */
 func UnpackWebSocketFrame(conn net.Conn, logger *ConsoleLogger) (string, error) {
+	if conn == nil {
+		return "", io.EOF
+	}
+
 	//Read header of frame
 	header := make([]byte, 2)
 	_, err := conn.Read(header)

@@ -51,8 +51,10 @@ func (proxyCl *HTTPProxyClientUDP) readFuncWebSocket(conn net.Conn, data string,
 		proxyCl.udpServer.WriteToClient(proxyCl.connetionWebSocketToUDPTranslator[conn], data)
 	} else {
 		//In UDP no closing needed
-		delete(proxyCl.connetionUDPToWebSocketTranslator, proxyCl.connetionWebSocketToUDPTranslator[conn])
-		delete(proxyCl.connetionWebSocketToUDPTranslator, conn)
+		if conn != nil {
+			delete(proxyCl.connetionUDPToWebSocketTranslator, proxyCl.connetionWebSocketToUDPTranslator[conn])
+			delete(proxyCl.connetionWebSocketToUDPTranslator, conn)
+		}
 		fmt.Println("Client count: ", len(proxyCl.connetionWebSocketToUDPTranslator))
 	}
 }
