@@ -94,7 +94,13 @@ func udp() {
 		}
 
 		key := clientAddr.String()
-		sessionMap[key] = &session{clientAddr, time.Now()}
+		//sessionMap[key] = &session{clientAddr, time.Now()}
+		sess, ok := sessionMap[key]
+		if !ok {
+			sess = &session{clientAddr: clientAddr}
+			sessionMap[key] = sess
+		}
+		sess.lastSeen = time.Now()
 
 		_, err = serverConn.Write(buf[:n])
 		if err != nil {
