@@ -1,2 +1,21 @@
 # Go Web Tools
 - Go Web servers and clients
+- Needs complete rewrite
+
+# TODO
+- [ ] TCP Server
+- [ ] TCP Client
+- [ ] UDP Server
+- [ ] UDP Client
+- [ ] HTTP Server
+- [ ] HTTP Client
+- [ ] HTTP Internal WebSocket Server (no frames, encoding, ...)
+- [ ] HTTP Internal WebSocket Client
+- [ ] HTTP WebSocket Server
+- [ ] HTTP WebSocket Client
+- [ ] TCP Bridge
+- [ ] UDP Bridge
+- [ ] TCP HTTP Proxy Server
+- [ ] TCP HTTP Proxy Client
+- [ ] UDP HTTP Proxy Server
+- [ ] UDP HTTP Proxy Client
