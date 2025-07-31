@@ -64,7 +64,7 @@ func (logger *ConsoleLogger) LogWithSourceId(logType uint8, message string, sour
 		colorlogTypePrefix = ANSII_SET_TEXT_COLOR_SEQUENCE + "34m"
 	}
 	logMsg := "[" + time.Now().Format("02/01/2006 15:04:05.000") + " - " + logTypePrefix + " - " + logger.Prefix + "]: " + message
-	if logger.minPrintLevel >= logType {
+	if logType >= logger.minPrintLevel {
 		fmt.Println(colorlogTypePrefix + logMsg + ANSII_TOTAL_RESET_SEQUENCE)
 	}
 	if logger.LogReportFunction != nil {

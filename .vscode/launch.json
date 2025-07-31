@@ -10,7 +10,7 @@
             "request": "launch",
             "mode": "auto",
             "program": "./main/main.go",
-            "args": ["b7777"]
+            "args": ["s"]
         }
     ]
 }

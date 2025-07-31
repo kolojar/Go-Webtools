@@ -71,7 +71,7 @@ func NewUDPServer(address string, readFunc UDPReadFunc, reportTraffic bool) (*UD
 	if !reportTraffic {
 		level = 1
 	}
-	return &UDPServer{address: addressObj, readFunc: readFunc, logger: MakeConsoleLogger("UDPServer", level)}, nil
+	return &UDPServer{address: addressObj, readFunc: readFunc, logger: MakeConsoleLogger("UDPServer", level), conns: map[*net.UDPAddr]*UDPServerConn{}}, nil
 }
 
 /*
@@ -88,7 +88,7 @@ func (udp *UDPServer) Start() {
 
 	//Open listener
 	var err error
-	udp.listener, err = net.ListenUDP("tcp", udp.address)
+	udp.listener, err = net.ListenUDP("udp", udp.address)
 	if err != nil {
 		udp.logger.Log(3, "Error listening to "+udp.address.String()+" with error: "+err.Error())
 		return
@@ -208,6 +208,6 @@ func (udp *UDPServer) CleanupConnections(forceAll bool) {
 		}
 	}
 	current := len(udp.conns)
-	removed := current - oldCount
+	removed := oldCount - current
 	udp.logger.Log(0, "Connection cleanup done! Removed connections: "+strconv.Itoa(removed)+" / "+strconv.Itoa(oldCount))
 }
