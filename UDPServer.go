@@ -10,17 +10,11 @@ import (
 // Cleanup timeout in seconds
 const CLEANUP_TIMEOUT = 30
 
-type ServerConn interface {
-	Send([]byte)
-	Close()
-}
-
 /*
 UDP server connection object
 */
 type UDPServerConn struct {
 	origin   *UDPServer
-	conn     *net.TCPConn
 	address  *net.UDPAddr
 	lastSeen time.Time
 }
@@ -29,29 +23,27 @@ type UDPServerConn struct {
 Sends data to client
 */
 func (udpConn *UDPServerConn) Send(data []byte) {
-	udpConn.origin.WriteToClient(udpConn.conn, data)
+	udpConn.origin.WriteToClient(udpConn, data)
 }
 
 /*
 Closes connection to client
 */
 func (udpConn *UDPServerConn) Close() {
-	err := udpConn.conn.Close()
-	if err != nil {
-		udpConn.origin.logger.Log(3, "Error closing connection from: "+udpConn.conn.RemoteAddr().String()+" connected locally to: "+tcpConn.conn.LocalAddr().String()+" with error: "+err.Error())
-	} else {
-		delete(udpConn.origin.conns, udpConn.address)
-		udpConn.origin.logger.Log(0, "Closed connectin on "+udpConn.conn.RemoteAddr().String()+" connected locally to: "+tcpConn.conn.LocalAddr().String())
+	delete(udpConn.origin.conns, udpConn.address)
+	udpConn.origin.logger.Log(0, "Closed connectin on "+udpConn.address.String())
+	if udpConn.origin.readFunc != nil {
+		udpConn.origin.readFunc(udpConn, nil, true)
 	}
 }
 
 /*
 Standardized type of function
-*UDPReadFunc = Connection
+*UDPServerConn = Connection
 String = message
 Bool = is ended
 */
-type UDPReadFunc func(*UDPReadFunc, []byte, bool)
+type UDPReadFunc func(*UDPServerConn, []byte, bool)
 
 /*
 Basic UDP server
@@ -106,23 +98,7 @@ func (udp *UDPServer) Start() {
 
 	//Handle read and connection accept
 	udp.handleTCPRead()
-
-	//Listener loop
-	for !udp.requestedStop {
-		conn, err2 := udp.listener.AcceptTCP()
-		if err2 != nil {
-			if udp.requestedStop {
-				//Ignore all errors
-				break
-			} else {
-				udp.logger.Log(3, "Error accepting connection: "+err2.Error())
-			}
-		}
-
-		//Handle connection
-		udp.logger.Log(2, "Connection from: "+conn.RemoteAddr().String()+" connected locally to: "+conn.LocalAddr().String())
-
-	}
+	udp.isRunning = false
 }
 
 /*
@@ -130,69 +106,82 @@ Handles UDP Read
 */
 func (udp *UDPServer) handleTCPRead() {
 	buffer := make([]byte, BUFFER_SIZE)
-	udpConn := &UDPServerConn{origin: udp, conn: conn}
-	for {
-		n, err := conn.Read(buffer)
+	//Listener loop
+	for !udp.requestedStop {
+		//Get connection and data
+		n, addr, err := udp.listener.ReadFromUDP(buffer)
 		if err != nil {
-			//Exit on errors
-			//if err.Error() != "EOF" && !strings.Contains(err.Error(), "use of closed network connection") {
-			logger.Log(3, "Error reading from: "+conn.RemoteAddr().String()+" connected locally to: "+conn.LocalAddr().String()+" | Error: "+err.Error())
-			//}
-			break
+			if udp.requestedStop {
+				//Ignore all errors
+				break
+			} else {
+				if addr == nil {
+					udp.logger.Log(3, "Error getting UDP connection: from: "+err.Error())
+				} else {
+					udp.logger.Log(3, "Error reading from: "+addr.String()+" | Error: "+err.Error())
+				}
+			}
 		}
+
+		//Get connection association
+		var udpConn *UDPServerConn = udp.conns[addr]
+		if udpConn == nil {
+			//No connection, create new
+			udpConn = &UDPServerConn{origin: udp, address: addr, lastSeen: time.Now()}
+			udpConn.origin.conns[addr] = udpConn
+		}
+		udpConn.lastSeen = time.Now()
 
 		//Process read
-		if readFunc != nil {
+		if udp.readFunc != nil {
 			data := buffer[:n]
-			logger.Log(0, "Reading from: "+conn.RemoteAddr().String()+" connected locally to: "+conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data))
-			readFunc(udpConn, data, false)
+			udp.logger.Log(0, "Reading from: "+addr.String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data))
+			udp.readFunc(udpConn, data, false)
 		}
-	}
 
-	//Finished reading
-	logger.Log(2, "Disconneted from: "+conn.RemoteAddr().String()+" connected locally to: "+conn.LocalAddr().String())
-	readFunc(udpConn, nil, true)
-	defer conn.Close()
+		//Do cleanup
+		udp.CleanupConnections(false)
+	}
 }
 
 /*
 Handles TCP Write
 */
-func writeToTCP(conn *net.TCPConn, data []byte, logger *ConsoleLogger) {
+func writeToUDP(conn *UDPServerConn, data []byte, logger *ConsoleLogger) {
 	if conn == nil {
 		logger.Log(1, "Invalid connecting, cancelling write.")
 		return
 	}
 
 	//Write
-	logger.Log(0, "Writing to: "+conn.RemoteAddr().String()+" connected locally to: "+conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data))
-	_, err := conn.Write(data)
+	logger.Log(0, "Writing to: "+conn.address.String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data))
+	_, err := conn.origin.listener.WriteToUDP(data, conn.address)
 	if err != nil {
-		logger.Log(3, "Error writing to: "+conn.RemoteAddr().String()+" connected locally to: "+conn.LocalAddr().String()+" | Error: "+err.Error())
+		logger.Log(3, "Error writing to: "+conn.address.String()+" | Error: "+err.Error())
 	}
 }
 
 /*
 Writes to Client
 */
-func (tcp *TCPServer) WriteToClient(conn *net.TCPConn, data []byte) {
-	writeToTCP(conn, data, &tcp.logger)
+func (udp *UDPServer) WriteToClient(conn *UDPServerConn, data []byte) {
+	writeToUDP(conn, data, &udp.logger)
 }
 
 /*
-Stops TCP server
+Stops UDP server
 */
-func (tcp *TCPServer) Stop() {
-	if !tcp.isRunning {
+func (udp *UDPServer) Stop() {
+	if !udp.isRunning {
 		return
 	}
 
 	//Request stop
-	tcp.requestedStop = true
-	err := tcp.listener.Close()
+	udp.requestedStop = true
+	err := udp.listener.Close()
 	time.Sleep(1 * time.Second)
 	if err != nil {
-		tcp.logger.Log(3, "Error stopping TCP server: "+err.Error())
+		udp.logger.Log(3, "Error stopping UDP server: "+err.Error())
 	}
 }
 

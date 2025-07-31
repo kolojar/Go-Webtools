@@ -118,6 +118,7 @@ func (tcp *TCPServer) Start() {
 		tcp.logger.Log(2, "Connection from: "+conn.RemoteAddr().String()+" connected locally to: "+conn.LocalAddr().String())
 		go tcp.handleTCPRead(conn)
 	}
+	tcp.isRunning = false
 }
 
 /*
