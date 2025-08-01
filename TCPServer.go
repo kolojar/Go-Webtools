@@ -50,24 +50,25 @@ Standardized type of function
 String = message
 Bool = is ended
 */
-type TCPReadFunc func(*TCPServerConn, []byte, bool)
+type TCPServerReadFunc func(*TCPServerConn, []byte, bool)
 
 /*
 Basic TCP server
 */
 type TCPServer struct {
 	listener      *net.TCPListener
-	readFunc      TCPReadFunc
+	readFunc      TCPServerReadFunc
 	address       *net.TCPAddr
 	logger        ConsoleLogger
 	requestedStop bool
 	isRunning     bool
+	conns         map[*net.TCPConn]*TCPServerConn
 }
 
 /*
 Creates new TCP Server but does not starts it
 */
-func NewTCPServer(address string, readFunc TCPReadFunc, reportTraffic bool) (*TCPServer, error) {
+func NewTCPServer(address string, readFunc TCPServerReadFunc, reportTraffic bool) (*TCPServer, error) {
 	//Make address
 	addressObj, err := net.ResolveTCPAddr("tcp", address)
 	if err != nil {
@@ -77,7 +78,7 @@ func NewTCPServer(address string, readFunc TCPReadFunc, reportTraffic bool) (*TC
 	if !reportTraffic {
 		level = 1
 	}
-	return &TCPServer{address: addressObj, readFunc: readFunc, logger: MakeConsoleLogger("TCPServer", level)}, nil
+	return &TCPServer{address: addressObj, readFunc: readFunc, logger: MakeConsoleLogger("TCPServer", level), conns: map[*net.TCPConn]*TCPServerConn{}}, nil
 }
 
 /*
@@ -116,7 +117,7 @@ func (tcp *TCPServer) Start() {
 
 		//Handle connection
 		tcp.logger.Log(2, "Connection from: "+conn.RemoteAddr().String()+" connected locally to: "+conn.LocalAddr().String())
-		go tcp.handleTCPRead(conn)
+		go handleTCPRead(conn, &tcp.logger, tcp.readFuncLocal)
 	}
 	tcp.isRunning = false
 }
@@ -124,31 +125,44 @@ func (tcp *TCPServer) Start() {
 /*
 Handles TCP Read
 */
-func (tcp *TCPServer) handleTCPRead(conn *net.TCPConn) {
+func handleTCPRead(conn *net.TCPConn, logger *ConsoleLogger, readFunc func(*net.TCPConn, []byte, bool)) {
 	buffer := make([]byte, BUFFER_SIZE)
-	tcpConn := &TCPServerConn{origin: tcp, conn: conn}
 	for {
 		n, err := conn.Read(buffer)
 		if err != nil {
 			//Exit on errors
 			//if err.Error() != "EOF" && !strings.Contains(err.Error(), "use of closed network connection") {
-			tcp.logger.Log(3, "Error reading from: "+conn.RemoteAddr().String()+" connected locally to: "+conn.LocalAddr().String()+" | Error: "+err.Error())
+			logger.Log(3, "Error reading from: "+conn.RemoteAddr().String()+" connected locally to: "+conn.LocalAddr().String()+" | Error: "+err.Error())
 			//}
 			break
 		}
 
 		//Process read
-		if tcp.readFunc != nil {
+		if readFunc != nil {
 			data := buffer[:n]
-			tcp.logger.Log(0, "Reading from: "+conn.RemoteAddr().String()+" connected locally to: "+conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data))
-			tcp.readFunc(tcpConn, data, false)
+			readFunc(conn, data, false)
 		}
 	}
 
 	//Finished reading
-	tcp.logger.Log(2, "Disconneted from: "+conn.RemoteAddr().String()+" connected locally to: "+conn.LocalAddr().String())
-	tcp.readFunc(tcpConn, nil, true)
+	logger.Log(2, "Disconneted from: "+conn.RemoteAddr().String()+" connected locally to: "+conn.LocalAddr().String())
+	readFunc(conn, nil, true)
 	defer conn.Close()
+}
+
+func (tcp *TCPServer) readFuncLocal(conn *net.TCPConn, data []byte, ended bool) {
+	var tcpConn *TCPServerConn = tcp.conns[conn]
+	if tcpConn == nil {
+		tcpConn = &TCPServerConn{origin: tcp, conn: conn}
+		tcp.conns[conn] = tcpConn
+	}
+	//Process read
+	if tcp.readFunc != nil {
+		if !ended {
+			tcp.logger.Log(0, "Reading from: "+conn.RemoteAddr().String()+" connected locally to: "+conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data))
+		}
+		tcp.readFunc(tcpConn, data, ended)
+	}
 }
 
 /*
@@ -156,7 +170,7 @@ Handles TCP Write
 */
 func writeToTCP(conn *net.TCPConn, data []byte, logger *ConsoleLogger) {
 	if conn == nil {
-		logger.Log(1, "Invalid connecting, cancelling write.")
+		logger.Log(1, "Invalid connection, cancelling write.")
 		return
 	}
 

@@ -43,14 +43,14 @@ Standardized type of function
 String = message
 Bool = is ended
 */
-type UDPReadFunc func(*UDPServerConn, []byte, bool)
+type UDPServerReadFunc func(*UDPServerConn, []byte, bool)
 
 /*
 Basic UDP server
 */
 type UDPServer struct {
 	listener      *net.UDPConn
-	readFunc      UDPReadFunc
+	readFunc      UDPServerReadFunc
 	address       *net.UDPAddr
 	logger        ConsoleLogger
 	requestedStop bool
@@ -61,7 +61,7 @@ type UDPServer struct {
 /*
 Creates new UDP Server but does not starts it
 */
-func NewUDPServer(address string, readFunc UDPReadFunc, reportTraffic bool) (*UDPServer, error) {
+func NewUDPServer(address string, readFunc UDPServerReadFunc, reportTraffic bool) (*UDPServer, error) {
 	//Make address
 	addressObj, err := net.ResolveUDPAddr("udp", address)
 	if err != nil {
