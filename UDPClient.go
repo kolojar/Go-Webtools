@@ -8,33 +8,33 @@ import (
 
 /*
 Standardized type of function
-*TCPClient = Client
+*UDPClient = Client
 String = message
 Bool = is ended
 */
-type TCPClientReadFunc func(*TCPClient, []byte, bool)
+type UDPClientReadFunc func(*UDPClient, []byte, bool)
 
 /*
 Basic TCP Client
 */
-type TCPClient struct {
-	readFunc   TCPClientReadFunc
+type UDPClient struct {
+	readFunc   UDPClientReadFunc
 	logger     ConsoleLogger
-	connection *net.TCPConn
-	address    *net.TCPAddr
+	connection *net.UDPConn
+	address    *net.UDPAddr
 	isAlive    bool
 }
 
-func (udp *TCPClient) IsAlive() bool {
+func (udp *UDPClient) IsAlive() bool {
 	return udp.isAlive
 }
 
 /*
-Creates new TCP Client but does not starts it
+Creates new UDP Client but does not starts it
 */
-func NewTCPClient(address string, readFunc TCPClientReadFunc, reportTraffic bool) (*TCPClient, error) {
+func NewUDPClient(address string, readFunc UDPClientReadFunc, reportTraffic bool) (*UDPClient, error) {
 	//Make address
-	addressObj, err := net.ResolveTCPAddr("tcp", address)
+	addressObj, err := net.ResolveUDPAddr("udp", address)
 	if err != nil {
 		return nil, err
 	}
@@ -44,16 +44,16 @@ func NewTCPClient(address string, readFunc TCPClientReadFunc, reportTraffic bool
 	if !reportTraffic {
 		level = 1
 	}
-	return &TCPClient{address: addressObj, logger: MakeConsoleLogger("TCPClient", level), readFunc: readFunc}, nil
+	return &UDPClient{address: addressObj, logger: MakeConsoleLogger("UDPClient", level), readFunc: readFunc}, nil
 }
 
 /*
 Connects to TCP server and start reading loop, does not locks execution thread
 */
-func (udp *TCPClient) Connect() {
+func (udp *UDPClient) Connect() {
 	//Dial
 	var err error
-	udp.connection, err = net.DialTCP("tcp", nil, udp.address)
+	udp.connection, err = net.DialUDP("udp", nil, udp.address)
 	if err != nil {
 		udp.logger.Log(3, "Error connecting to: "+udp.address.String()+" | Error: "+err.Error())
 		return
@@ -62,16 +62,19 @@ func (udp *TCPClient) Connect() {
 	udp.isAlive = true
 	//Handle read
 	go func() {
-		handleTCPRead(udp.connection, &udp.logger, udp.readFuncLocal)
+		var ok bool = true
+		for ok {
+			ok = handleUDPRead(udp.connection, &udp.logger, udp.readFuncLocal)
+		}
 		udp.isAlive = false
 	}()
 }
 
-func (udp *TCPClient) readFuncLocal(conn *net.TCPConn, data []byte, ended bool) {
+func (udp *UDPClient) readFuncLocal(addr *net.UDPAddr, data []byte, ended bool) {
 	//Process read
 	if udp.readFunc != nil {
 		if !ended {
-			udp.logger.Log(0, "Reading from: "+conn.RemoteAddr().String()+" connected locally to: "+conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data))
+			udp.logger.Log(0, "Reading from: "+addr.String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data))
 		}
 		udp.readFunc(udp, data, ended)
 	}
@@ -80,14 +83,14 @@ func (udp *TCPClient) readFuncLocal(conn *net.TCPConn, data []byte, ended bool) 
 /*
 Sends data to server
 */
-func (udp *TCPClient) Send(data []byte) {
-	writeToTCP(udp.connection, data, &udp.logger)
+func (udp *UDPClient) Send(data []byte) {
+	writeToUDP(false, udp.connection, udp.address, data, &udp.logger)
 }
 
 /*
 Stops TCP client
 */
-func (udp *TCPClient) Stop() {
+func (udp *UDPClient) Stop() {
 	if udp.connection == nil || !udp.isAlive {
 		//Invalid connection
 		return

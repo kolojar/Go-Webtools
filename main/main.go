@@ -18,7 +18,22 @@ func main() {
 		}
 	case "tc":
 		{
-			client, _ := webtools.NewTCPClient("127.0.0.1:1234", readFuncTCPSCl, true)
+			client, _ := webtools.NewTCPClient("127.0.0.1:1234", readFuncTCPCl, true)
+			client.Connect()
+			client.Send([]byte("Test"))
+			for client.IsAlive() {
+				time.Sleep(1 * time.Second)
+			}
+		}
+	case "us":
+		{
+			server, _ := webtools.NewUDPServer("127.0.0.1:1234", readFuncUDPSv, true)
+			server.Start()
+			break
+		}
+	case "uc":
+		{
+			client, _ := webtools.NewUDPClient("127.0.0.1:1234", readFuncUDPCl, true)
 			client.Connect()
 			client.Send([]byte("Test"))
 			for client.IsAlive() {
@@ -29,10 +44,27 @@ func main() {
 }
 
 func readFuncTCPSv(conn *webtools.TCPServerConn, data []byte, ended bool) {
-	conn.Send(data)
+	if !ended {
+		conn.Send(data)
+	}
 }
 
-func readFuncTCPSCl(conn *webtools.TCPClient, data []byte, ended bool) {
+func readFuncTCPCl(conn *webtools.TCPClient, data []byte, ended bool) {
 	//conn.Send(data)
-	conn.Stop()
+	if !ended {
+		conn.Stop()
+	}
+}
+
+func readFuncUDPSv(conn *webtools.UDPServerConn, data []byte, ended bool) {
+	if !ended {
+		conn.Send(data)
+	}
+}
+
+func readFuncUDPCl(conn *webtools.UDPClient, data []byte, ended bool) {
+	//conn.Send(data)
+	if !ended {
+		conn.Stop()
+	}
 }

@@ -31,7 +31,7 @@ Closes connection to client
 */
 func (udpConn *UDPServerConn) Close() {
 	delete(udpConn.origin.conns, udpConn.address)
-	udpConn.origin.logger.Log(0, "Closed connectin on "+udpConn.address.String())
+	udpConn.origin.logger.Log(0, "Closed connection on "+udpConn.address.String())
 	if udpConn.origin.readFunc != nil {
 		udpConn.origin.readFunc(udpConn, nil, true)
 	}
@@ -96,68 +96,80 @@ func (udp *UDPServer) Start() {
 	udp.isRunning = true
 	udp.logger.Log(2, "Started listening on "+udp.address.String())
 
-	//Handle read and connection accept
-	udp.handleTCPRead()
+	//Listener loop
+	for !udp.requestedStop {
+		//Handle read and connection accept
+		handleUDPRead(udp.listener, &udp.logger, udp.readFuncLocal)
+	}
 	udp.isRunning = false
 }
 
 /*
 Handles UDP Read
 */
-func (udp *UDPServer) handleTCPRead() {
+func handleUDPRead(listener *net.UDPConn, logger *ConsoleLogger, readFunc func(*net.UDPAddr, []byte, bool)) bool {
 	buffer := make([]byte, BUFFER_SIZE)
-	//Listener loop
-	for !udp.requestedStop {
-		//Get connection and data
-		n, addr, err := udp.listener.ReadFromUDP(buffer)
-		if err != nil {
-			if udp.requestedStop {
-				//Ignore all errors
-				break
-			} else {
-				if addr == nil {
-					udp.logger.Log(3, "Error getting UDP connection: from: "+err.Error())
-				} else {
-					udp.logger.Log(3, "Error reading from: "+addr.String()+" | Error: "+err.Error())
-				}
-			}
+	//Get connection and data
+	n, addr, err := listener.ReadFromUDP(buffer)
+	if err != nil {
+		if addr == nil {
+			logger.Log(3, "Error getting UDP connection from: "+err.Error())
+		} else {
+			logger.Log(3, "Error reading from: "+addr.String()+" | Error: "+err.Error())
 		}
-
-		//Get connection association
-		var udpConn *UDPServerConn = udp.conns[addr]
-		if udpConn == nil {
-			//No connection, create new
-			udpConn = &UDPServerConn{origin: udp, address: addr, lastSeen: time.Now()}
-			udpConn.origin.conns[addr] = udpConn
-		}
-		udpConn.lastSeen = time.Now()
-
-		//Process read
-		if udp.readFunc != nil {
-			data := buffer[:n]
-			udp.logger.Log(0, "Reading from: "+addr.String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data))
-			udp.readFunc(udpConn, data, false)
-		}
-
-		//Do cleanup
-		udp.CleanupConnections(false)
+		return false
 	}
+
+	//Process read
+	if readFunc != nil {
+		data := buffer[:n]
+		readFunc(addr, data, false)
+	}
+	return true
+}
+
+/*
+Handles UDP Read for server
+*/
+func (udp *UDPServer) readFuncLocal(addr *net.UDPAddr, data []byte, ended bool) {
+	//Get connection association
+	var udpConn *UDPServerConn = udp.conns[addr]
+	if udpConn == nil {
+		//No connection, create new
+		udpConn = &UDPServerConn{origin: udp, address: addr, lastSeen: time.Now()}
+		udpConn.origin.conns[addr] = udpConn
+	}
+	udpConn.lastSeen = time.Now()
+
+	//Process read
+	if udp.readFunc != nil {
+		udp.logger.Log(0, "Reading from: "+addr.String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data))
+		udp.readFunc(udpConn, data, false)
+	}
+
+	//Do cleanup
+	udp.CleanupConnections(false)
 }
 
 /*
 Handles TCP Write
 */
-func writeToUDP(conn *UDPServerConn, data []byte, logger *ConsoleLogger) {
-	if conn == nil {
+func writeToUDP(isServer bool, listener *net.UDPConn, addr *net.UDPAddr, data []byte, logger *ConsoleLogger) {
+	if addr == nil {
 		logger.Log(1, "Invalid connecting, cancelling write.")
 		return
 	}
 
 	//Write
-	logger.Log(0, "Writing to: "+conn.address.String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data))
-	_, err := conn.origin.listener.WriteToUDP(data, conn.address)
+	logger.Log(0, "Writing to: "+addr.String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data))
+	var err error
+	if isServer {
+		_, err = listener.WriteToUDP(data, addr)
+	} else {
+		_, err = listener.Write(data)
+	}
 	if err != nil {
-		logger.Log(3, "Error writing to: "+conn.address.String()+" | Error: "+err.Error())
+		logger.Log(3, "Error writing to: "+addr.String()+" | Error: "+err.Error())
 	}
 }
 
@@ -165,7 +177,7 @@ func writeToUDP(conn *UDPServerConn, data []byte, logger *ConsoleLogger) {
 Writes to Client
 */
 func (udp *UDPServer) WriteToClient(conn *UDPServerConn, data []byte) {
-	writeToUDP(conn, data, &udp.logger)
+	writeToUDP(true, conn.origin.listener, conn.address, data, &udp.logger)
 }
 
 /*
