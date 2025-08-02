@@ -3,10 +3,10 @@
 - Needs complete rewrite
 
 # TODO
-- [ ] TCP Server
-- [ ] TCP Client
-- [ ] UDP Server
-- [ ] UDP Client
+- [X] TCP Server
+- [X] TCP Client
+- [X] UDP Server
+- [X] UDP Client
 - [ ] HTTP Server
 - [ ] HTTP Client
 - [ ] HTTP Internal WebSocket Server (no frames, encoding, ...)
