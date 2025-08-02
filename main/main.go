@@ -46,6 +46,20 @@ func main() {
 			sv.HostPaths["/test"] = "./test"
 			sv.Start()
 		}
+	case "hwts":
+		{
+			sv := webtools.NewHTTPWebTransportServer("127.0.0.1:5678", readFuncHTTPWTSv, true)
+			sv.Start()
+		}
+	case "hwtc":
+		{
+			cl, _ := webtools.NewHTTPWebTransportClient("127.0.0.1:5678", readFuncHTTPWTCl, true)
+			cl.Connect()
+			cl.Send([]byte("Test"))
+			for cl.IsAlive() {
+				time.Sleep(1 * time.Second)
+			}
+		}
 	}
 }
 
@@ -69,6 +83,20 @@ func readFuncUDPSv(conn *webtools.UDPServerConn, data []byte, ended bool) {
 }
 
 func readFuncUDPCl(conn *webtools.UDPClient, data []byte, ended bool) {
+	//conn.Send(data)
+	if !ended {
+		conn.Stop()
+	}
+}
+
+func readFuncHTTPWTSv(conn *webtools.HTTPWebTransportServerConn, data []byte, ended bool) {
+	//conn.Send(data)
+	if !ended {
+		conn.Send(data)
+	}
+}
+
+func readFuncHTTPWTCl(conn *webtools.HTTPWebTransportClient, data []byte, ended bool) {
 	//conn.Send(data)
 	if !ended {
 		conn.Stop()

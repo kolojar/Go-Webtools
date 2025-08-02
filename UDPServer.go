@@ -52,7 +52,7 @@ type UDPServer struct {
 	listener      *net.UDPConn
 	readFunc      UDPServerReadFunc
 	address       *net.UDPAddr
-	logger        ConsoleLogger
+	logger        *ConsoleLogger
 	requestedStop bool
 	isRunning     bool
 	conns         map[*net.UDPAddr]*UDPServerConn
@@ -71,7 +71,7 @@ func NewUDPServer(address string, readFunc UDPServerReadFunc, reportTraffic bool
 	if !reportTraffic {
 		level = 1
 	}
-	return &UDPServer{address: addressObj, readFunc: readFunc, logger: MakeConsoleLogger("UDPServer", level), conns: map[*net.UDPAddr]*UDPServerConn{}}, nil
+	return &UDPServer{address: addressObj, readFunc: readFunc, logger: NewConsoleLogger("UDPServer", level), conns: map[*net.UDPAddr]*UDPServerConn{}}, nil
 }
 
 /*
@@ -99,7 +99,7 @@ func (udp *UDPServer) Start() {
 	//Listener loop
 	for !udp.requestedStop {
 		//Handle read and connection accept
-		handleUDPRead(udp.listener, &udp.logger, udp.readFuncLocal)
+		handleUDPRead(udp.listener, udp.logger, udp.readFuncLocal)
 	}
 	udp.isRunning = false
 }
@@ -177,7 +177,7 @@ func writeToUDP(isServer bool, listener *net.UDPConn, addr *net.UDPAddr, data []
 Writes to Client
 */
 func (udp *UDPServer) WriteToClient(conn *UDPServerConn, data []byte) {
-	writeToUDP(true, conn.origin.listener, conn.address, data, &udp.logger)
+	writeToUDP(true, conn.origin.listener, conn.address, data, udp.logger)
 }
 
 /*

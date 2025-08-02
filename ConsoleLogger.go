@@ -32,8 +32,8 @@ type ConsoleLogger struct {
 /*
 Creates new logger class. Report error level: 0 = Nonspecific log; 1 = Information; 2 = Warning; 3 = Error;
 */
-func MakeConsoleLogger(Prefix string, minPrintLevel uint8) ConsoleLogger {
-	return ConsoleLogger{Prefix: Prefix, LogReportFunction: nil, minPrintLevel: minPrintLevel}
+func NewConsoleLogger(Prefix string, minPrintLevel uint8) *ConsoleLogger {
+	return &ConsoleLogger{Prefix: Prefix, LogReportFunction: nil, minPrintLevel: minPrintLevel}
 }
 
 /*

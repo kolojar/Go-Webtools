@@ -59,7 +59,7 @@ type TCPServer struct {
 	listener      *net.TCPListener
 	readFunc      TCPServerReadFunc
 	address       *net.TCPAddr
-	logger        ConsoleLogger
+	logger        *ConsoleLogger
 	requestedStop bool
 	isRunning     bool
 	conns         map[*net.TCPConn]*TCPServerConn
@@ -78,7 +78,7 @@ func NewTCPServer(address string, readFunc TCPServerReadFunc, reportTraffic bool
 	if !reportTraffic {
 		level = 1
 	}
-	return &TCPServer{address: addressObj, readFunc: readFunc, logger: MakeConsoleLogger("TCPServer", level), conns: map[*net.TCPConn]*TCPServerConn{}}, nil
+	return &TCPServer{address: addressObj, readFunc: readFunc, logger: NewConsoleLogger("TCPServer", level), conns: map[*net.TCPConn]*TCPServerConn{}}, nil
 }
 
 /*
@@ -117,7 +117,7 @@ func (tcp *TCPServer) Start() {
 
 		//Handle connection
 		tcp.logger.Log(2, "Connection from: "+conn.RemoteAddr().String()+" connected locally to: "+conn.LocalAddr().String())
-		go handleTCPRead(conn, &tcp.logger, tcp.readFuncLocal)
+		go handleTCPRead(conn, tcp.logger, tcp.readFuncLocal)
 	}
 	tcp.isRunning = false
 }
@@ -186,7 +186,7 @@ func writeToTCP(conn *net.TCPConn, data []byte, logger *ConsoleLogger) {
 Writes to Client
 */
 func (tcp *TCPServer) WriteToClient(conn *net.TCPConn, data []byte) {
-	writeToTCP(conn, data, &tcp.logger)
+	writeToTCP(conn, data, tcp.logger)
 }
 
 /*

@@ -28,7 +28,7 @@ type HTTPServer struct {
 	//This path is not handeled automatically
 	rootPath        string
 	address         string
-	logger          ConsoleLogger
+	Logger          *ConsoleLogger
 	server          http.Server
 	onAccessFunc    HTTPAccessFunc
 	startWebBrowser bool
@@ -39,7 +39,7 @@ type HTTPServer struct {
 Creates new HTTP server but does not starts it. Adds new host path to HTTP server (used for shared scripts, css, images)
 */
 func NewHTTPServer(address string, onAccessFunc HTTPAccessFunc, rootPath string, startWebBrowser bool) *HTTPServer {
-	return &HTTPServer{address: address, HostPaths: map[string]string{}, logger: MakeConsoleLogger("HTTPServer", 0), onAccessFunc: onAccessFunc, startWebBrowser: startWebBrowser, rootPath: rootPath}
+	return &HTTPServer{address: address, HostPaths: map[string]string{}, Logger: NewConsoleLogger("HTTPServer", 0), onAccessFunc: onAccessFunc, startWebBrowser: startWebBrowser, rootPath: rootPath}
 }
 
 /*
@@ -53,21 +53,21 @@ func (sv *HTTPServer) Start() {
 	sv.server = http.Server{Addr: sv.address, Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		sv.httpHandler(w, r)
 	})}
-	sv.logger.Log(2, "Started listening on: "+sv.address)
+	sv.Logger.Log(2, "Started listening on: "+sv.address)
 	sv.isAlive = true
 	err := sv.server.ListenAndServe()
 	sv.isAlive = false
 	if err != nil {
-		sv.logger.Log(3, "Error listening on: "+sv.address+" | Error: "+err.Error())
+		sv.Logger.Log(3, "Error listening on: "+sv.address+" | Error: "+err.Error())
 	}
-	sv.logger.Log(2, "Stopped listening on: "+sv.address)
+	sv.Logger.Log(2, "Stopped listening on: "+sv.address)
 }
 
 /*
 Handles and sorts HTTP requests
 */
 func (sv *HTTPServer) httpHandler(w http.ResponseWriter, r *http.Request) {
-	sv.logger.Log(1, r.RemoteAddr+" - "+r.Method+" - "+r.URL.String())
+	sv.Logger.Log(1, r.RemoteAddr+" - "+r.Method+" - "+r.URL.String())
 	if r.Method == http.MethodGet {
 		for k, v := range sv.HostPaths {
 			//Sort out hostPaths
@@ -75,7 +75,7 @@ func (sv *HTTPServer) httpHandler(w http.ResponseWriter, r *http.Request) {
 				err := HandleHTTPDirectoryGet(w, r, v, strings.TrimPrefix(r.URL.Path, k))
 				if err != nil && !errors.Is(err, os.ErrNotExist) {
 					//Invalid error
-					sv.logger.Log(3, "Error in GET request for: "+r.URL.Path+" | Error: "+err.Error())
+					sv.Logger.Log(3, "Error in GET request for: "+r.URL.Path+" | Error: "+err.Error())
 					return
 				}
 				if err == nil {
@@ -92,7 +92,8 @@ func (sv *HTTPServer) httpHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//Not found
-	sv.logger.Log(3, "NOT FOUND - "+r.RemoteAddr+" - "+r.Method+" - "+r.URL.String())
+	sv.Logger.Log(3, "NOT FOUND - "+r.RemoteAddr+" - "+r.Method+" - "+r.URL.String())
+	http.NotFound(w, r)
 }
 
 /*
@@ -224,6 +225,6 @@ func (sv *HTTPServer) Stop() {
 	}
 	err := sv.server.Close()
 	if err != nil {
-		sv.logger.Log(3, "Error stopping: "+err.Error())
+		sv.Logger.Log(3, "Error stopping: "+err.Error())
 	}
 }

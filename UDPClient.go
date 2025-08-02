@@ -19,7 +19,7 @@ Basic TCP Client
 */
 type UDPClient struct {
 	readFunc   UDPClientReadFunc
-	logger     ConsoleLogger
+	logger     *ConsoleLogger
 	connection *net.UDPConn
 	address    *net.UDPAddr
 	isAlive    bool
@@ -44,7 +44,7 @@ func NewUDPClient(address string, readFunc UDPClientReadFunc, reportTraffic bool
 	if !reportTraffic {
 		level = 1
 	}
-	return &UDPClient{address: addressObj, logger: MakeConsoleLogger("UDPClient", level), readFunc: readFunc}, nil
+	return &UDPClient{address: addressObj, logger: NewConsoleLogger("UDPClient", level), readFunc: readFunc}, nil
 }
 
 /*
@@ -64,7 +64,7 @@ func (udp *UDPClient) Connect() {
 	go func() {
 		var ok bool = true
 		for ok {
-			ok = handleUDPRead(udp.connection, &udp.logger, udp.readFuncLocal)
+			ok = handleUDPRead(udp.connection,udp.logger, udp.readFuncLocal)
 		}
 		udp.isAlive = false
 	}()
@@ -84,7 +84,7 @@ func (udp *UDPClient) readFuncLocal(addr *net.UDPAddr, data []byte, ended bool) 
 Sends data to server
 */
 func (udp *UDPClient) Send(data []byte) {
-	writeToUDP(false, udp.connection, udp.address, data, &udp.logger)
+	writeToUDP(false, udp.connection, udp.address, data, udp.logger)
 }
 
 /*
