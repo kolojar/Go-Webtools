@@ -2,9 +2,9 @@ package webtools
 
 import (
 	"encoding/hex"
+	"maps"
 	"math/rand/v2"
 	"strconv"
-	"sync"
 	"time"
 )
 
@@ -12,23 +12,6 @@ const HTTP_PROXY_FRAME_SEPARATOR = byte(rune(';'))
 const HTTP_PROXY_FRAME_TYPE_CONNECT = uint8(1)
 const HTTP_PROXY_FRAME_TYPE_CLOSE = uint8(2)
 const HTTP_PROXY_FRAME_TYPE_DATA = uint8(3)
-
-/*
-Copies sync.Map
-*/
-//func CopySyncMap(src sync.Map) sync.Map {
-//	var dest sync.Map = sync.Map{}
-//	src.Range(func(k, v any) bool {
-//		vMap, ok := v.(sync.Map)
-//		if ok {
-//			dest.Store(k, CopySyncMap(vMap))
-//		} else {
-//			dest.Store(k, v)
-//		}
-//		return true
-//	})
-//	return dest
-//}
 
 /*
 Packs HTTP Proxy frame
@@ -81,10 +64,8 @@ func UnpackHTTPProxyFrame(frame []byte, logger *ConsoleLogger) (uint8, []byte, [
 HTTP Proxy server for TCP object
 */
 type HTTPProxyServerTCP struct {
-	//idToClient       map[string]*HTTPProxyServerTCPConn
-	//clientToId       map[*TCPClient]string
-	idToClient       sync.Map
-	clientToId       sync.Map
+	idToClient       map[string]*HTTPProxyServerTCPConn
+	clientToId       map[*TCPClient]string
 	httpServer       *HTTPWebTransportServer
 	tcpServerAddress string
 	reportTrafic     bool
@@ -119,11 +100,11 @@ Closes connection to client
 */
 func (cl *HTTPProxyServerTCPConn) Close(isInitiator bool) {
 	cl.tcpClient.Stop()
-	cl.origin.idToClient.Delete(string(cl.id))
+	delete(cl.origin.idToClient, string(cl.id))
 	if isInitiator {
 		cl.SendToHTTP(HTTP_PROXY_FRAME_TYPE_CLOSE, nil)
 	}
-	cl.origin.clientToId.Delete(cl.tcpClient)
+	delete(cl.origin.clientToId, cl.tcpClient)
 }
 
 /*
@@ -137,7 +118,7 @@ func GenerateRandomId() string {
 Creates new HTTP Proxy Server for TCP but does not starts it
 */
 func NewHTTPProxyServerTCP(httpProxyAddress string, tcpServerAddress string, reportTraffic bool) *HTTPProxyServerTCP {
-	sv := &HTTPProxyServerTCP{tcpServerAddress: tcpServerAddress, clientToId: sync.Map{}, idToClient: sync.Map{}, reportTrafic: reportTraffic}
+	sv := &HTTPProxyServerTCP{tcpServerAddress: tcpServerAddress, clientToId: map[*TCPClient]string{}, idToClient: map[string]*HTTPProxyServerTCPConn{}, reportTrafic: reportTraffic}
 	sv.httpServer = NewHTTPWebTransportServer(httpProxyAddress, sv.handleWebTransportReadFunc, reportTraffic)
 	sv.httpServer.Logger.Prefix = "HTTPProxyServerTCP - " + sv.httpServer.Logger.Prefix
 	return sv
@@ -146,16 +127,16 @@ func NewHTTPProxyServerTCP(httpProxyAddress string, tcpServerAddress string, rep
 func (sv *HTTPProxyServerTCP) handleWebTransportReadFunc(conn *HTTPWebTransportServerConn, frame []byte, ended bool) {
 	if ended {
 		//Close all connections with this HTTP WebTransport Conn
-		sv.idToClient.Range(func(_, val any) bool {
-			v := val.(*HTTPProxyServerTCPConn)
+		var cp map[string]*HTTPProxyServerTCPConn = map[string]*HTTPProxyServerTCPConn{}
+		maps.Copy(cp, sv.idToClient)
+		for _, v := range cp {
 			if v == nil {
-				return true
+				continue
 			}
 			if v.source == conn {
 				v.Close(true)
 			}
-			return true
-		})
+		}
 		return
 	}
 
@@ -166,8 +147,7 @@ func (sv *HTTPProxyServerTCP) handleWebTransportReadFunc(conn *HTTPWebTransportS
 	}
 
 	//Sort connections
-	gcl, _ := sv.idToClient.Load(string(id))
-	if gcl == nil {
+	if sv.idToClient[string(id)] == nil {
 		if operation == HTTP_PROXY_FRAME_TYPE_CONNECT {
 			//Create new connection
 			id = []byte(GenerateRandomId())
@@ -178,17 +158,16 @@ func (sv *HTTPProxyServerTCP) handleWebTransportReadFunc(conn *HTTPWebTransportS
 				return
 			}
 			cl.Connect()
-			sv.idToClient.Store(string(id), &HTTPProxyServerTCPConn{tcpClient: cl, id: id, source: conn, origin: sv})
-			sv.clientToId.Store(cl, string(id))
-			gcl, _ = sv.idToClient.Load(string(id))
-			gcl.(*HTTPProxyServerTCPConn).SendToHTTP(HTTP_PROXY_FRAME_TYPE_CONNECT, data)
+			sv.idToClient[string(id)] = &HTTPProxyServerTCPConn{tcpClient: cl, id: id, source: conn, origin: sv}
+			sv.clientToId[cl] = string(id)
+			sv.idToClient[string(id)].SendToHTTP(HTTP_PROXY_FRAME_TYPE_CONNECT, data)
 			return
 		} else {
 			conn.origin.Logger.Log(3, "Could not find connection to id: "+string(id))
 			return
 		}
 	}
-	cl := gcl.(*HTTPProxyServerTCPConn)
+	cl := sv.idToClient[string(id)]
 	if !cl.tcpClient.IsAlive() {
 		conn.origin.Logger.Log(3, "Connection with id: "+string(id)+" connected to: "+conn.Conn.RemoteAddr().String()+" connected locally to: "+conn.Conn.LocalAddr().String()+" closed")
 		return
@@ -211,19 +190,13 @@ func (sv *HTTPProxyServerTCP) handleWebTransportReadFunc(conn *HTTPWebTransportS
 
 func (sv *HTTPProxyServerTCP) handleTCPReadFunc(tcp *TCPClient, data []byte, ended bool) {
 	//Get HTTP client
-	id, _ := sv.clientToId.Load(tcp)
-	if id == "" {
+	if sv.clientToId[tcp] == "" || sv.idToClient[sv.clientToId[tcp]] == nil {
 		//Connection does not exists
 		tcp.Logger.Log(3, "Connection connected to: "+tcp.address.String()+" not found")
 		return
 	}
-	gcl, _ := sv.idToClient.Load(id)
-	if gcl == nil {
-		//Connection does not exists
-		tcp.Logger.Log(3, "Connection connected to: "+tcp.address.String()+" not found")
-		return
-	}
-	cl := gcl.(*HTTPProxyServerTCPConn)
+	id := sv.clientToId[tcp]
+	cl := sv.idToClient[id]
 
 	//End other connection
 	if ended {

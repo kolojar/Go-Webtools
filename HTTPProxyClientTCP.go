@@ -1,23 +1,15 @@
 package webtools
 
-import (
-	"sync"
-)
-
 /*
 HTTP Proxy client for TCP object
 */
 type HTTPProxyClientTCP struct {
-	//clientToId         map[*TCPServerConn]string
-	//idToClient         map[string]*TCPServerConn
-	//pendingConnections map[string]*TCPServerConn
-	//pendingConnsData   map[*TCPServerConn][][]byte
-	clientToId         sync.Map
-	idToClient         sync.Map
-	pendingConnections sync.Map
-	pendingConnsData   sync.Map
+	clientToId         map[*TCPServerConn]string
+	idToClient         map[string]*TCPServerConn
 	tcpServer          *TCPServer
 	httpClient         *HTTPWebTransportClient
+	pendingConnections map[string]*TCPServerConn
+	pendingConnsData   map[*TCPServerConn][][]byte
 }
 
 func (cl *HTTPProxyClientTCP) IsAlive() bool {
@@ -28,7 +20,7 @@ func (cl *HTTPProxyClientTCP) IsAlive() bool {
 Creates new HTTP Proxy Client for TCP but does not starts it
 */
 func NewHTTPProxyClientTCP(httpProxyAddress string, tcpServerAddress string, reportTraffic bool) (*HTTPProxyClientTCP, error) {
-	cl := &HTTPProxyClientTCP{clientToId: sync.Map{}, pendingConnections: sync.Map{}, idToClient: sync.Map{}, pendingConnsData: sync.Map{}}
+	cl := &HTTPProxyClientTCP{clientToId: map[*TCPServerConn]string{}, pendingConnections: map[string]*TCPServerConn{}, idToClient: map[string]*TCPServerConn{}, pendingConnsData: map[*TCPServerConn][][]byte{}}
 	var err error
 	cl.httpClient, err = NewHTTPWebTransportClient(httpProxyAddress, cl.handleWebTransportReadFunc, reportTraffic)
 	if err != nil {
@@ -60,70 +52,56 @@ func (cl *HTTPProxyClientTCP) handleWebTransportReadFunc(_ *HTTPWebTransportClie
 	case HTTP_PROXY_FRAME_TYPE_CONNECT:
 		{
 			//Confirmed connection
-			gconn, _ := cl.pendingConnections.Load(string(data))
-			if gconn == nil {
+			conn := cl.pendingConnections[string(data)]
+			if conn == nil {
 				cl.httpClient.Logger.Log(3, "Pending connection with temporary id: "+string(data)+" not found")
 				return
 			}
-			conn := gconn.(*TCPServerConn)
-			cl.pendingConnections.Delete(string(data))
-			cl.clientToId.Store(conn, string(id))
-			cl.idToClient.Store(string(id), conn)
+			delete(cl.pendingConnections, string(data))
+			cl.clientToId[conn] = string(id)
+			cl.idToClient[string(id)] = conn
 			cl.httpClient.Logger.Log(1, "Prepared new connection with temporary id: "+string(data)+" for connection connected to: "+conn.Conn.RemoteAddr().String()+" connected locally to: "+conn.Conn.LocalAddr().String()+" with new id: "+string(id))
 
 			//Process pending data
-			gdata, _ := cl.pendingConnsData.Load(conn)
-			data := gdata.([][]byte)
-			for len(data) > 0 {
+			for len(cl.pendingConnsData[conn]) > 0 {
 				//Resend data
-				cl.httpClient.Send(PackHTTPProxyFrame(HTTP_PROXY_FRAME_TYPE_DATA, id, data[0]))
-				cl.pendingConnsData.Store(conn, data[1:])
-				gdata, _ = cl.pendingConnsData.Load(conn)
-				data = gdata.([][]byte)
+				cl.httpClient.Send(PackHTTPProxyFrame(HTTP_PROXY_FRAME_TYPE_DATA, id, cl.pendingConnsData[conn][0]))
+				cl.pendingConnsData[conn] = cl.pendingConnsData[conn][1:]
 			}
-			cl.pendingConnsData.Delete(conn)
+			delete(cl.pendingConnsData, conn)
 			return
 		}
 	case HTTP_PROXY_FRAME_TYPE_CLOSE:
 		{
 			//Close connection
-			gcl, _ := cl.idToClient.Load(string(id))
-			if gcl != nil {
-				gcl.(*TCPServerConn).Close()
-			}
+			cl.idToClient[string(id)].Close()
 		}
 	case HTTP_PROXY_FRAME_TYPE_DATA:
 		{
 			//Resend data
-			gcl, _ := cl.idToClient.Load(string(id))
-			if gcl != nil {
-				gcl.(*TCPServerConn).Send(data)
-			}
+			cl.idToClient[string(id)].Send(data)
 		}
 	}
 }
 
 func (cl *HTTPProxyClientTCP) handleTCPReadFunc(tcpConn *TCPServerConn, data []byte, ended bool) {
-	gdata, _ := cl.pendingConnsData.Load(tcpConn)
-	if gdata != nil {
+	if cl.pendingConnsData[tcpConn] != nil {
 		//Already pending connection
-		ldata := gdata.([][]byte)
-		ldata = append(ldata, data)
-		cl.pendingConnsData.Store(tcpConn, ldata)
+		cl.pendingConnsData[tcpConn] = append(cl.pendingConnsData[tcpConn], data)
 		return
 	}
 
-	gid, _ := cl.clientToId.Load(tcpConn)
-	if gid == nil || gid == "" {
+	id := cl.clientToId[tcpConn]
+	if id == "" {
 		//No connection found, request new
 		tempId := GenerateRandomId()
-		cl.pendingConnections.Store(tempId, tcpConn)
+		cl.pendingConnections[tempId] = tcpConn
 		cl.httpClient.Logger.Log(1, "Preparing new connection with temporary id: "+tempId+" for connection connected to: "+tcpConn.Conn.RemoteAddr().String()+" connected locally to: "+tcpConn.Conn.LocalAddr().String())
 		cl.httpClient.Send(PackHTTPProxyFrame(HTTP_PROXY_FRAME_TYPE_CONNECT, []byte("0"), []byte(tempId)))
-		cl.pendingConnsData.Store(tcpConn, append(make([][]byte, 0), data))
+		cl.pendingConnsData[tcpConn] = make([][]byte, 0)
+		cl.pendingConnsData[tcpConn] = append(cl.pendingConnsData[tcpConn], data)
 		return
 	}
-	id := gid.(string)
 
 	if ended {
 		//Connection ennded
