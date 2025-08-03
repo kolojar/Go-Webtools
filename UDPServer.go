@@ -31,7 +31,7 @@ func (udpConn *UDPServerConn) Send(data []byte) {
 Closes connection to client
 */
 func (udpConn *UDPServerConn) Close() {
-	delete(udpConn.origin.conns, udpConn.address)
+	delete(udpConn.origin.conns, udpConn.address.String())
 	udpConn.origin.logger.Log(0, "Closed connection on "+udpConn.address.String())
 	if udpConn.origin.readFunc != nil {
 		udpConn.origin.readFunc(udpConn, nil, true)
@@ -56,7 +56,7 @@ type UDPServer struct {
 	logger        *ConsoleLogger
 	requestedStop bool
 	isRunning     bool
-	conns         map[*net.UDPAddr]*UDPServerConn
+	conns         map[string]*UDPServerConn
 }
 
 /*
@@ -72,7 +72,7 @@ func NewUDPServer(address string, readFunc UDPServerReadFunc, reportTraffic bool
 	if !reportTraffic {
 		level = 1
 	}
-	return &UDPServer{address: addressObj, readFunc: readFunc, logger: NewConsoleLogger("UDPServer", level), conns: map[*net.UDPAddr]*UDPServerConn{}}, nil
+	return &UDPServer{address: addressObj, readFunc: readFunc, logger: NewConsoleLogger("UDPServer", level), conns: map[string]*UDPServerConn{}}, nil
 }
 
 /*
@@ -136,11 +136,11 @@ Handles UDP Read for server
 */
 func (udp *UDPServer) readFuncLocal(addr *net.UDPAddr, data []byte, ended bool) {
 	//Get connection association
-	var udpConn *UDPServerConn = udp.conns[addr]
+	var udpConn *UDPServerConn = udp.conns[addr.String()]
 	if udpConn == nil {
 		//No connection, create new
 		udpConn = &UDPServerConn{origin: udp, address: addr, lastSeen: time.Now()}
-		udpConn.origin.conns[addr] = udpConn
+		udpConn.origin.conns[addr.String()] = udpConn
 	}
 	udpConn.lastSeen = time.Now()
 

@@ -9,7 +9,7 @@ type UDPBridge struct {
 
 func NewUDPBridge(sourceAddress string, clientAddress string) *UDPBridge {
 	br := &UDPBridge{clientAddress: sourceAddress, serverToClient: MakeSafeMap[*UDPServerConn, *UDPClient](), clientToServer: MakeSafeMap[*UDPClient, *UDPServerConn]()}
-	br.udpServer, _ = NewUDPServer(clientAddress, br.serverReadFunc, false)
+	br.udpServer, _ = NewUDPServer(clientAddress, br.serverReadFunc, true)
 	return br
 }
 
@@ -20,7 +20,7 @@ func (br *UDPBridge) serverReadFunc(conn *UDPServerConn, data []byte, ended bool
 		}
 
 		//No connection found, create new
-		cl, _ := NewUDPClient(br.clientAddress, br.clientReadFunc, false)
+		cl, _ := NewUDPClient(br.clientAddress, br.clientReadFunc, true)
 		br.serverToClient.Set(conn, cl)
 		br.clientToServer.Set(cl, conn)
 		cl.Connect()
