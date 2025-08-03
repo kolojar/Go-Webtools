@@ -36,3 +36,8 @@
     - [ ] TCP HTTP Proxy Client
     - [ ] UDP HTTP Proxy Server
     - [ ] UDP HTTP Proxy Client
+- [ ] Add some kind of connection merger and splitter
+
+# Fixes
+- [ ] Fix map sync error
+- [ ] Add address fix to TCP server. Instead whole address object use just string of address, apply this fix to all UDP components.
