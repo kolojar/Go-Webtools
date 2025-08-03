@@ -4,11 +4,12 @@ import (
 	"encoding/hex"
 	"net"
 	"strconv"
+	"strings"
 	"time"
 )
 
 // Cleanup timeout in seconds
-const CLEANUP_TIMEOUT = 30
+const CLEANUP_TIMEOUT = 10
 
 /*
 UDP server connection object
@@ -113,7 +114,9 @@ func handleUDPRead(listener *net.UDPConn, logger *ConsoleLogger, readFunc func(*
 	n, addr, err := listener.ReadFromUDP(buffer)
 	if err != nil {
 		if addr == nil {
-			logger.Log(3, "Error getting UDP connection from: "+err.Error())
+			if !strings.Contains(err.Error(), "use of closed network connection") {
+				logger.Log(3, "Error getting UDP connection from: "+err.Error())
+			}
 		} else {
 			logger.Log(3, "Error reading from: "+addr.String()+" | Error: "+err.Error())
 		}
