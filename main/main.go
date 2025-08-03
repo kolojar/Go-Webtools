@@ -77,6 +77,11 @@ func main() {
 				time.Sleep(1 * time.Second)
 			}
 		}
+	case "br":
+		{
+			br := webtools.NewUDPBridge("127.0.0.1:7777", "127.0.0.1:17777")
+			br.Start()
+		}
 	}
 }
 
