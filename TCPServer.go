@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-const BUFFER_SIZE = 2048
+const BUFFER_SIZE = 1024 * 128
 
 /*
 Server connection interface
@@ -29,6 +29,9 @@ type TCPServerConn struct {
 Sends data to client
 */
 func (tcpConn *TCPServerConn) Send(data []byte) {
+	if tcpConn == nil || tcpConn.origin == nil {
+		return
+	}
 	tcpConn.origin.WriteToClient(tcpConn.Conn, data)
 }
 

@@ -54,6 +54,7 @@ func UnpackHTTPProxyFrame(frame []byte, logger *ConsoleLogger) (uint8, []byte, [
 			if len(frame) > (i + 1) {
 				data = frame[i+1:]
 			}
+			break
 		}
 	}
 	return operation, id, data
@@ -194,7 +195,8 @@ func (sv *HTTPProxyServerTCP) handleTCPReadFunc(tcp *TCPClient, data []byte, end
 		tcp.Logger.Log(3, "Connection connected to: "+tcp.address.String()+" not found")
 		return
 	}
-	cl := sv.idToClient[sv.clientToId[tcp]]
+	id := sv.clientToId[tcp]
+	cl := sv.idToClient[id]
 
 	//End other connection
 	if ended {

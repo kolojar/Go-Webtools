@@ -50,28 +50,28 @@ func main() {
 			sv.HostPaths["/test"] = "./test"
 			sv.Start()
 		}
-	case "hwts":
-		{
-			sv := webtools.NewHTTPWebTransportServer("127.0.0.1:5678", readFuncHTTPWTSv, true)
-			sv.Start()
-		}
-	case "hwtc":
-		{
-			cl, _ := webtools.NewHTTPWebTransportClient("127.0.0.1:5678", readFuncHTTPWTCl, true)
-			cl.Connect()
-			cl.Send([]byte("Test"))
-			for cl.IsAlive() {
-				time.Sleep(1 * time.Second)
-			}
-		}
+	//case "hwts":
+	//	{
+	//		sv := webtools.NewHTTPWebTransportServer("127.0.0.1:5678", readFuncHTTPWTSv, true)
+	//		sv.Start()
+	//	}
+	//case "hwtc":
+	//	{
+	//		cl, _ := webtools.NewHTTPWebTransportClient("127.0.0.1:5678", readFuncHTTPWTCl, true)
+	//		cl.Connect()
+	//		cl.Send([]byte("Test"))
+	//		for cl.IsAlive() {
+	//			time.Sleep(1 * time.Second)
+	//		}
+	//	}
 	case "hpst":
 		{
-			sv := webtools.NewHTTPProxyServerTCP("127.0.0.1:5678", "127.0.0.1:1234", true)
+			sv := webtools.NewHTTPProxyServerTCP("127.0.0.1:5678", "127.0.0.1:7777", true)
 			sv.Start()
 		}
 	case "hpct":
 		{
-			cl, _ := webtools.NewHTTPProxyClientTCP("127.0.0.1:5678", "127.0.0.1:9013", true)
+			cl, _ := webtools.NewHTTPProxyClientTCP("127.0.0.1:5678", "127.0.0.1:17777", true)
 			cl.Connect()
 			for cl.IsAlive() {
 				time.Sleep(1 * time.Second)

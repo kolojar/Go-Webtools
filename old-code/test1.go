@@ -1,5 +1,5 @@
+package main
 // tcp_bridge.go
-
 import (
 	"io"
 	"log"
@@ -110,6 +110,6 @@ func udp() {
 }
 
 func main() {
-	go tcp()
+	//go tcp()
 	udp()
 }
