@@ -36,6 +36,12 @@ func (tcpConn *TCPServerConn) Send(data []byte) {
 Closes connection to client
 */
 func (tcpConn *TCPServerConn) Close() {
+	if tcpConn == nil {
+		return
+	}
+	if tcpConn.Conn == nil {
+		return
+	}
 	err := tcpConn.Conn.Close()
 	if err != nil {
 		tcpConn.origin.Logger.Log(3, "Error closing connection from: "+tcpConn.Conn.RemoteAddr().String()+" connected locally to: "+tcpConn.Conn.LocalAddr().String()+" with error: "+err.Error())

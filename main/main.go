@@ -3,17 +3,13 @@ package main
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 	"webtools"
 )
 
 func main() {
 	fmt.Println("Hello world")
-	fmt.Println(webtools.GenerateRandomId())
-	fmt.Println(webtools.GenerateRandomId())
-	fmt.Println(webtools.GenerateRandomId())
-	fmt.Println(webtools.GenerateRandomId())
-	fmt.Println(webtools.GenerateRandomId())
 	switch os.Args[1] {
 	case "ts":
 		{
@@ -23,9 +19,12 @@ func main() {
 		}
 	case "tc":
 		{
-			client, _ := webtools.NewTCPClient("127.0.0.1:1234", readFuncTCPCl, true)
+			client, _ := webtools.NewTCPClient("127.0.0.1:9012", readFuncTCPCl, true)
 			client.Connect()
-			client.Send([]byte("Test"))
+			for i := 0; i < 10; i++ {
+				client.Send([]byte("Test" + strconv.Itoa(i)))
+				time.Sleep(1 * time.Second)
+			}
 			for client.IsAlive() {
 				time.Sleep(1 * time.Second)
 			}
@@ -65,6 +64,19 @@ func main() {
 				time.Sleep(1 * time.Second)
 			}
 		}
+	case "hpst":
+		{
+			sv := webtools.NewHTTPProxyServerTCP("127.0.0.1:5678", "127.0.0.1:1234", true)
+			sv.Start()
+		}
+	case "hpct":
+		{
+			cl, _ := webtools.NewHTTPProxyClientTCP("127.0.0.1:5678", "127.0.0.1:9013", true)
+			cl.Connect()
+			for cl.IsAlive() {
+				time.Sleep(1 * time.Second)
+			}
+		}
 	}
 }
 
@@ -77,7 +89,7 @@ func readFuncTCPSv(conn *webtools.TCPServerConn, data []byte, ended bool) {
 func readFuncTCPCl(conn *webtools.TCPClient, data []byte, ended bool) {
 	//conn.Send(data)
 	if !ended {
-		conn.Stop()
+		//conn.Stop()
 	}
 }
 

@@ -59,6 +59,7 @@ func (tcp *TCPClient) Connect() {
 		return
 	}
 
+	tcp.Logger.Log(2, "Connected to: "+tcp.address.String())
 	tcp.isAlive = true
 	//Handle read
 	go func() {

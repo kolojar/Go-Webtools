@@ -149,12 +149,14 @@ func (sv *HTTPProxyServerTCP) handleWebTransportReadFunc(conn *HTTPWebTransportS
 	if sv.idToClient[string(id)] == nil {
 		if operation == HTTP_PROXY_FRAME_TYPE_CONNECT {
 			//Create new connection
+			id = []byte(GenerateRandomId())
 			cl, err := NewTCPClient(sv.tcpServerAddress, sv.handleTCPReadFunc, sv.reportTrafic)
 			cl.Logger.Prefix = "HTTPProxyServerTCP - " + cl.Logger.Prefix
 			if err != nil {
 				conn.origin.Logger.Log(3, "Could not create connection with id: "+string(id)+" to server.")
 				return
 			}
+			cl.Connect()
 			sv.idToClient[string(id)] = &HTTPProxyServerTCPConn{tcpClient: cl, id: id, source: conn, origin: sv}
 			sv.clientToId[cl] = string(id)
 			sv.idToClient[string(id)].SendToHTTP(HTTP_PROXY_FRAME_TYPE_CONNECT, data)
