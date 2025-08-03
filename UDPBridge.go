@@ -38,7 +38,7 @@ func (br *UDPBridge) serverReadFunc(conn *UDPServerConn, data []byte, ended bool
 
 func (br *UDPBridge) clientReadFunc(cl *UDPClient, data []byte, ended bool) {
 	if br.clientToServer.Get(cl) == nil {
-		br.udpServer.logger.Log(3, "Invalid connection")
+		br.udpServer.Logger.Log(3, "Invalid connection")
 		return
 	}
 

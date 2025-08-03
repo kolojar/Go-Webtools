@@ -90,7 +90,7 @@ func (cl *HTTPWebTransportClient) Connect() {
 Sends data to server
 */
 func (cl *HTTPWebTransportClient) Send(data []byte) {
-	writeToTCP(cl.tcpClient.connection, data, cl.Logger)
+	writeToTCP(cl.tcpClient.Conn, data, cl.Logger)
 }
 
 /*
