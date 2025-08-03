@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 /*
@@ -50,7 +51,7 @@ This is NOT WebSocket HTTP server for JavaScript, it is intended for inner commu
 type HTTPWebTransportServer struct {
 	httpServer *HTTPServer
 	Logger     *ConsoleLogger
-	conns      map[net.Conn]*HTTPWebTransportServerConn
+	conns      sync.Map
 	readFunc   HTTPWebTransportServerReadFunc
 }
 
@@ -62,7 +63,7 @@ func NewHTTPWebTransportServer(address string, readFunc HTTPWebTransportServerRe
 	if !reportTraffic {
 		level = 1
 	}
-	sv := &HTTPWebTransportServer{Logger: NewConsoleLogger("HTTP-WTServer", level), readFunc: readFunc, conns: map[net.Conn]*HTTPWebTransportServerConn{}}
+	sv := &HTTPWebTransportServer{Logger: NewConsoleLogger("HTTP-WTServer", level), readFunc: readFunc, conns: sync.Map{}}
 	sv.httpServer = NewHTTPServer(address, sv.handleHTTPAccess, "", false)
 	sv.httpServer.Logger = sv.Logger
 	return sv
@@ -106,10 +107,13 @@ func (sv *HTTPWebTransportServer) handleHTTPAccess(_ *HTTPServer, w http.Respons
 }
 
 func (sv *HTTPWebTransportServer) readFuncLocal(conn *net.TCPConn, data []byte, ended bool) {
-	var httpConn *HTTPWebTransportServerConn = sv.conns[conn]
-	if httpConn == nil {
+	gconn, _ := sv.conns.Load(conn)
+	var httpConn *HTTPWebTransportServerConn
+	if gconn == nil {
 		httpConn = &HTTPWebTransportServerConn{origin: sv, Conn: conn}
-		sv.conns[conn] = httpConn
+		sv.conns.Store(conn, httpConn)
+	} else {
+		httpConn = gconn.(*HTTPWebTransportServerConn)
 	}
 	//Process read
 	if sv.readFunc != nil {

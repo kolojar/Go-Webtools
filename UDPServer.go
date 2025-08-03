@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"net"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -30,7 +31,7 @@ func (udpConn *UDPServerConn) Send(data []byte) {
 Closes connection to client
 */
 func (udpConn *UDPServerConn) Close() {
-	delete(udpConn.origin.conns, udpConn.address)
+	udpConn.origin.conns.Delete(udpConn.address)
 	udpConn.origin.Logger.Log(0, "Closed connection on "+udpConn.address.String())
 	if udpConn.origin.readFunc != nil {
 		udpConn.origin.readFunc(udpConn, nil, true)
@@ -55,7 +56,7 @@ type UDPServer struct {
 	Logger        *ConsoleLogger
 	requestedStop bool
 	isRunning     bool
-	conns         map[*net.UDPAddr]*UDPServerConn
+	conns         sync.Map
 }
 
 /*
@@ -71,7 +72,7 @@ func NewUDPServer(address string, readFunc UDPServerReadFunc, reportTraffic bool
 	if !reportTraffic {
 		level = 1
 	}
-	return &UDPServer{address: addressObj, readFunc: readFunc, Logger: NewConsoleLogger("UDPServer", level), conns: map[*net.UDPAddr]*UDPServerConn{}}, nil
+	return &UDPServer{address: addressObj, readFunc: readFunc, Logger: NewConsoleLogger("UDPServer", level), conns: sync.Map{}}, nil
 }
 
 /*
@@ -133,11 +134,14 @@ Handles UDP Read for server
 */
 func (udp *UDPServer) readFuncLocal(addr *net.UDPAddr, data []byte, ended bool) {
 	//Get connection association
-	var udpConn *UDPServerConn = udp.conns[addr]
-	if udpConn == nil {
+	gconn, _ := udp.conns.Load(addr)
+	var udpConn *UDPServerConn
+	if gconn == nil {
 		//No connection, create new
 		udpConn = &UDPServerConn{origin: udp, address: addr, lastSeen: time.Now()}
-		udpConn.origin.conns[addr] = udpConn
+		udpConn.origin.conns.Store(addr, udpConn)
+	} else {
+		udpConn = gconn.(*UDPServerConn)
 	}
 	udpConn.lastSeen = time.Now()
 
@@ -201,25 +205,27 @@ func (udp *UDPServer) Stop() {
 Removes old not used UDP connections
 */
 func (udp *UDPServer) CleanupConnections(forceAll bool) {
-	oldCount := len(udp.conns)
-	for k, v := range udp.conns {
+	var removed uint64 = 0
+	udp.conns.Range(func(k, v any) bool {
 		if v == nil {
 			//Remove non existing connection addresses
-			delete(udp.conns, k)
-			continue
+			udp.conns.Delete(k)
+			removed++
+			return true
 		}
 		if forceAll {
 			//Forced
-			v.Close()
-			continue
+			v.(*UDPServerConn).Close()
+			removed++
+			return true
 		}
-		if time.Since(v.lastSeen).Seconds() >= CLEANUP_TIMEOUT {
+		if time.Since(v.(*UDPServerConn).lastSeen).Seconds() >= CLEANUP_TIMEOUT {
 			//Remove not used connection
-			v.Close()
-			continue
+			v.(*UDPServerConn).Close()
+			removed++
+			return true
 		}
-	}
-	current := len(udp.conns)
-	removed := oldCount - current
-	udp.Logger.Log(0, "Connection cleanup done! Removed connections: "+strconv.Itoa(removed)+" / "+strconv.Itoa(oldCount))
+		return true
+	})
+	udp.Logger.Log(0, "Connection cleanup done! Removed connections: "+strconv.FormatUint(removed, 10))
 }

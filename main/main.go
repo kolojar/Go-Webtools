@@ -79,22 +79,22 @@ func main() {
 		}
 	case "tub":
 		{
-			br, _ := webtools.NewTCPToUDPBridge("127.0.0.1:9014", "127.0.0.1:17777", true)
+			br, _ := webtools.NewTCPToUDPBridge("127.0.0.1:9012", "127.0.0.1:17777", false)
 			br.Start()
 		}
 	case "utb":
 		{
-			br, _ := webtools.NewUDPToTCPBridge("127.0.0.1:7777", "127.0.0.1:9012", true)
+			br, _ := webtools.NewUDPToTCPBridge("127.0.0.1:7777", "127.0.0.1:9012", false)
 			br.Start()
 		}
 	case "hpst2":
 		{
-			sv := webtools.NewHTTPProxyServerTCP("127.0.0.1:9013", "127.0.0.1:9012", true)
+			sv := webtools.NewHTTPProxyServerTCP("127.0.0.1:9013", "127.0.0.1:9012", false)
 			sv.Start()
 		}
 	case "hpct2":
 		{
-			cl, _ := webtools.NewHTTPProxyClientTCP("127.0.0.1:9013", "127.0.0.1:9014", true)
+			cl, _ := webtools.NewHTTPProxyClientTCP("127.0.0.1:9013", "127.0.0.1:9014", false)
 			cl.Connect()
 			for cl.IsAlive() {
 				time.Sleep(1 * time.Second)

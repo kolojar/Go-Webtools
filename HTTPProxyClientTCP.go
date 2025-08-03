@@ -1,6 +1,8 @@
 package webtools
 
-import "sync"
+import (
+	"sync"
+)
 
 /*
 HTTP Proxy client for TCP object
@@ -86,13 +88,17 @@ func (cl *HTTPProxyClientTCP) handleWebTransportReadFunc(_ *HTTPWebTransportClie
 		{
 			//Close connection
 			gcl, _ := cl.idToClient.Load(string(id))
-			gcl.(*TCPServerConn).Close()
+			if gcl != nil {
+				gcl.(*TCPServerConn).Close()
+			}
 		}
 	case HTTP_PROXY_FRAME_TYPE_DATA:
 		{
 			//Resend data
 			gcl, _ := cl.idToClient.Load(string(id))
-			gcl.(*TCPServerConn).Send(data)
+			if gcl != nil {
+				gcl.(*TCPServerConn).Send(data)
+			}
 		}
 	}
 }

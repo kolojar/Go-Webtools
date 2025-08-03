@@ -156,6 +156,7 @@ func (sv *HTTPProxyServerTCP) handleWebTransportReadFunc(conn *HTTPWebTransportS
 			}
 			return true
 		})
+		return
 	}
 
 	//Unpack frame
