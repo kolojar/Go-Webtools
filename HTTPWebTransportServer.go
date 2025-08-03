@@ -21,25 +21,25 @@ HTTP WebTransport server connection object
 */
 type HTTPWebTransportServerConn struct {
 	origin *HTTPWebTransportServer
-	conn   net.Conn
+	Conn   net.Conn
 }
 
 /*
 Sends data to client
 */
 func (httpConn *HTTPWebTransportServerConn) Send(data []byte) {
-	httpConn.origin.WriteToClient(httpConn.conn, data)
+	httpConn.origin.WriteToClient(httpConn.Conn, data)
 }
 
 /*
 Closes connection to client
 */
 func (httpConn *HTTPWebTransportServerConn) Close() {
-	err := httpConn.conn.Close()
+	err := httpConn.Conn.Close()
 	if err != nil {
-		httpConn.origin.logger.Log(3, "Error closing connection from: "+httpConn.conn.RemoteAddr().String()+" connected locally to: "+httpConn.conn.LocalAddr().String()+" with error: "+err.Error())
+		httpConn.origin.Logger.Log(3, "Error closing connection from: "+httpConn.Conn.RemoteAddr().String()+" connected locally to: "+httpConn.Conn.LocalAddr().String()+" with error: "+err.Error())
 	} else {
-		httpConn.origin.logger.Log(0, "Closed connectin on "+httpConn.conn.RemoteAddr().String()+" connected locally to: "+httpConn.conn.LocalAddr().String())
+		httpConn.origin.Logger.Log(0, "Closed connectin on "+httpConn.Conn.RemoteAddr().String()+" connected locally to: "+httpConn.Conn.LocalAddr().String())
 	}
 }
 
@@ -49,7 +49,7 @@ This is NOT WebSocket HTTP server for JavaScript, it is intended for inner commu
 */
 type HTTPWebTransportServer struct {
 	httpServer *HTTPServer
-	logger     *ConsoleLogger
+	Logger     *ConsoleLogger
 	conns      map[net.Conn]*HTTPWebTransportServerConn
 	readFunc   HTTPWebTransportServerReadFunc
 }
@@ -62,9 +62,9 @@ func NewHTTPWebTransportServer(address string, readFunc HTTPWebTransportServerRe
 	if !reportTraffic {
 		level = 1
 	}
-	sv := &HTTPWebTransportServer{logger: NewConsoleLogger("HTTP-WTServer", level), readFunc: readFunc, conns: map[net.Conn]*HTTPWebTransportServerConn{}}
+	sv := &HTTPWebTransportServer{Logger: NewConsoleLogger("HTTP-WTServer", level), readFunc: readFunc, conns: map[net.Conn]*HTTPWebTransportServerConn{}}
 	sv.httpServer = NewHTTPServer(address, sv.handleHTTPAccess, "", false)
-	sv.httpServer.Logger = sv.logger
+	sv.httpServer.Logger = sv.Logger
 	return sv
 }
 
@@ -79,7 +79,7 @@ func (sv *HTTPWebTransportServer) handleHTTPAccess(_ *HTTPServer, w http.Respons
 	}
 
 	//Correct URL and Method
-	sv.logger.Log(1, "Preparing connection from: "+r.RemoteAddr)
+	sv.Logger.Log(1, "Preparing connection from: "+r.RemoteAddr)
 
 	//Verify if connection wants WebTransport
 	if !strings.Contains(r.Header.Get("Upgrade"), "webtransport") || !strings.Contains(r.Header.Get("Connection"), "Upgrade") {
@@ -97,24 +97,24 @@ func (sv *HTTPWebTransportServer) handleHTTPAccess(_ *HTTPServer, w http.Respons
 	//Hijack connection
 	conn, _, err := w.(http.Hijacker).Hijack()
 	if err != nil {
-		sv.logger.Log(3, "Failed to hijact connection from: "+r.RemoteAddr+" | Error: "+err.Error())
+		sv.Logger.Log(3, "Failed to hijact connection from: "+r.RemoteAddr+" | Error: "+err.Error())
 		return true
 	}
-	sv.logger.Log(2, "Connection from: "+conn.RemoteAddr().String()+" connected locally to: "+conn.LocalAddr().String())
-	go handleTCPRead(conn.(*net.TCPConn), sv.logger, sv.readFuncLocal)
+	sv.Logger.Log(2, "Connection from: "+conn.RemoteAddr().String()+" connected locally to: "+conn.LocalAddr().String())
+	go handleTCPRead(conn.(*net.TCPConn), sv.Logger, sv.readFuncLocal)
 	return true
 }
 
 func (sv *HTTPWebTransportServer) readFuncLocal(conn *net.TCPConn, data []byte, ended bool) {
 	var httpConn *HTTPWebTransportServerConn = sv.conns[conn]
 	if httpConn == nil {
-		httpConn = &HTTPWebTransportServerConn{origin: sv, conn: conn}
+		httpConn = &HTTPWebTransportServerConn{origin: sv, Conn: conn}
 		sv.conns[conn] = httpConn
 	}
 	//Process read
 	if sv.readFunc != nil {
 		if !ended {
-			sv.logger.Log(0, "Reading from: "+conn.RemoteAddr().String()+" connected locally to: "+conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data))
+			sv.Logger.Log(0, "Reading from: "+conn.RemoteAddr().String()+" connected locally to: "+conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data))
 		}
 		sv.readFunc(httpConn, data, ended)
 	}
@@ -124,7 +124,7 @@ func (sv *HTTPWebTransportServer) readFuncLocal(conn *net.TCPConn, data []byte, 
 Writes to Client
 */
 func (sv *HTTPWebTransportServer) WriteToClient(conn net.Conn, data []byte) {
-	writeToTCP(conn.(*net.TCPConn), data, sv.logger)
+	writeToTCP(conn.(*net.TCPConn), data, sv.Logger)
 }
 
 /*

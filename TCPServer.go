@@ -22,25 +22,25 @@ TCP server connection object
 */
 type TCPServerConn struct {
 	origin *TCPServer
-	conn   *net.TCPConn
+	Conn   *net.TCPConn
 }
 
 /*
 Sends data to client
 */
 func (tcpConn *TCPServerConn) Send(data []byte) {
-	tcpConn.origin.WriteToClient(tcpConn.conn, data)
+	tcpConn.origin.WriteToClient(tcpConn.Conn, data)
 }
 
 /*
 Closes connection to client
 */
 func (tcpConn *TCPServerConn) Close() {
-	err := tcpConn.conn.Close()
+	err := tcpConn.Conn.Close()
 	if err != nil {
-		tcpConn.origin.logger.Log(3, "Error closing connection from: "+tcpConn.conn.RemoteAddr().String()+" connected locally to: "+tcpConn.conn.LocalAddr().String()+" with error: "+err.Error())
+		tcpConn.origin.Logger.Log(3, "Error closing connection from: "+tcpConn.Conn.RemoteAddr().String()+" connected locally to: "+tcpConn.Conn.LocalAddr().String()+" with error: "+err.Error())
 	} else {
-		tcpConn.origin.logger.Log(0, "Closed connectin on "+tcpConn.conn.RemoteAddr().String()+" connected locally to: "+tcpConn.conn.LocalAddr().String())
+		tcpConn.origin.Logger.Log(0, "Closed connectin on "+tcpConn.Conn.RemoteAddr().String()+" connected locally to: "+tcpConn.Conn.LocalAddr().String())
 	}
 }
 
@@ -59,7 +59,7 @@ type TCPServer struct {
 	listener      *net.TCPListener
 	readFunc      TCPServerReadFunc
 	address       *net.TCPAddr
-	logger        *ConsoleLogger
+	Logger        *ConsoleLogger
 	requestedStop bool
 	isRunning     bool
 	conns         map[*net.TCPConn]*TCPServerConn
@@ -78,7 +78,7 @@ func NewTCPServer(address string, readFunc TCPServerReadFunc, reportTraffic bool
 	if !reportTraffic {
 		level = 1
 	}
-	return &TCPServer{address: addressObj, readFunc: readFunc, logger: NewConsoleLogger("TCPServer", level), conns: map[*net.TCPConn]*TCPServerConn{}}, nil
+	return &TCPServer{address: addressObj, readFunc: readFunc, Logger: NewConsoleLogger("TCPServer", level), conns: map[*net.TCPConn]*TCPServerConn{}}, nil
 }
 
 /*
@@ -97,11 +97,11 @@ func (tcp *TCPServer) Start() {
 	var err error
 	tcp.listener, err = net.ListenTCP("tcp", tcp.address)
 	if err != nil {
-		tcp.logger.Log(3, "Error listening to "+tcp.address.String()+" with error: "+err.Error())
+		tcp.Logger.Log(3, "Error listening to "+tcp.address.String()+" with error: "+err.Error())
 		return
 	}
 	tcp.isRunning = true
-	tcp.logger.Log(2, "Started listening on "+tcp.address.String())
+	tcp.Logger.Log(2, "Started listening on "+tcp.address.String())
 
 	//Listener loop
 	for !tcp.requestedStop {
@@ -111,13 +111,13 @@ func (tcp *TCPServer) Start() {
 				//Ignore all errors
 				break
 			} else {
-				tcp.logger.Log(3, "Error accepting connection: "+err2.Error())
+				tcp.Logger.Log(3, "Error accepting connection: "+err2.Error())
 			}
 		}
 
 		//Handle connection
-		tcp.logger.Log(2, "Connection from: "+conn.RemoteAddr().String()+" connected locally to: "+conn.LocalAddr().String())
-		go handleTCPRead(conn, tcp.logger, tcp.readFuncLocal)
+		tcp.Logger.Log(2, "Connection from: "+conn.RemoteAddr().String()+" connected locally to: "+conn.LocalAddr().String())
+		go handleTCPRead(conn, tcp.Logger, tcp.readFuncLocal)
 	}
 	tcp.isRunning = false
 }
@@ -153,13 +153,13 @@ func handleTCPRead(conn *net.TCPConn, logger *ConsoleLogger, readFunc func(*net.
 func (tcp *TCPServer) readFuncLocal(conn *net.TCPConn, data []byte, ended bool) {
 	var tcpConn *TCPServerConn = tcp.conns[conn]
 	if tcpConn == nil {
-		tcpConn = &TCPServerConn{origin: tcp, conn: conn}
+		tcpConn = &TCPServerConn{origin: tcp, Conn: conn}
 		tcp.conns[conn] = tcpConn
 	}
 	//Process read
 	if tcp.readFunc != nil {
 		if !ended {
-			tcp.logger.Log(0, "Reading from: "+conn.RemoteAddr().String()+" connected locally to: "+conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data))
+			tcp.Logger.Log(0, "Reading from: "+conn.RemoteAddr().String()+" connected locally to: "+conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data))
 		}
 		tcp.readFunc(tcpConn, data, ended)
 	}
@@ -186,7 +186,7 @@ func writeToTCP(conn *net.TCPConn, data []byte, logger *ConsoleLogger) {
 Writes to Client
 */
 func (tcp *TCPServer) WriteToClient(conn *net.TCPConn, data []byte) {
-	writeToTCP(conn, data, tcp.logger)
+	writeToTCP(conn, data, tcp.Logger)
 }
 
 /*
@@ -202,6 +202,6 @@ func (tcp *TCPServer) Stop() {
 	err := tcp.listener.Close()
 	time.Sleep(1 * time.Second)
 	if err != nil {
-		tcp.logger.Log(3, "Error stopping TCP server: "+err.Error())
+		tcp.Logger.Log(3, "Error stopping TCP server: "+err.Error())
 	}
 }

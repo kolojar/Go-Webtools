@@ -19,7 +19,7 @@ This is NOT WebSocket HTTP client for JavaScript, it is intended for inner commu
 */
 type HTTPWebTransportClient struct {
 	tcpClient      *TCPClient
-	logger         *ConsoleLogger
+	Logger         *ConsoleLogger
 	readFunc       HTTPWebTransportClientReadFunc
 	awaitingReady  bool
 	awaitingStatus bool
@@ -39,13 +39,13 @@ func NewHTTPWebTransportClient(address string, readFunc HTTPWebTransportClientRe
 	}
 
 	//Create client
-	cl := &HTTPWebTransportClient{logger: NewConsoleLogger("HTTP-WTClient", level), readFunc: readFunc}
+	cl := &HTTPWebTransportClient{Logger: NewConsoleLogger("HTTP-WTClient", level), readFunc: readFunc}
 	var err error
 	cl.tcpClient, err = NewTCPClient(address, cl.readFuncLocal, reportTraffic)
 	if err != nil {
 		return nil, err
 	}
-	cl.tcpClient.Logger = cl.logger
+	cl.tcpClient.Logger = cl.Logger
 	return cl, nil
 }
 
@@ -90,7 +90,7 @@ func (cl *HTTPWebTransportClient) Connect() {
 Sends data to server
 */
 func (cl *HTTPWebTransportClient) Send(data []byte) {
-	writeToTCP(cl.tcpClient.connection, data, cl.logger)
+	writeToTCP(cl.tcpClient.connection, data, cl.Logger)
 }
 
 /*

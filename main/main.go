@@ -9,6 +9,11 @@ import (
 
 func main() {
 	fmt.Println("Hello world")
+	fmt.Println(webtools.GenerateRandomId())
+	fmt.Println(webtools.GenerateRandomId())
+	fmt.Println(webtools.GenerateRandomId())
+	fmt.Println(webtools.GenerateRandomId())
+	fmt.Println(webtools.GenerateRandomId())
 	switch os.Args[1] {
 	case "ts":
 		{
