@@ -31,7 +31,7 @@ Closes connection to client
 */
 func (udpConn *UDPServerConn) Close() {
 	delete(udpConn.origin.conns, udpConn.address)
-	udpConn.origin.logger.Log(0, "Closed connection on "+udpConn.address.String())
+	udpConn.origin.Logger.Log(0, "Closed connection on "+udpConn.address.String())
 	if udpConn.origin.readFunc != nil {
 		udpConn.origin.readFunc(udpConn, nil, true)
 	}
@@ -52,7 +52,7 @@ type UDPServer struct {
 	listener      *net.UDPConn
 	readFunc      UDPServerReadFunc
 	address       *net.UDPAddr
-	logger        *ConsoleLogger
+	Logger        *ConsoleLogger
 	requestedStop bool
 	isRunning     bool
 	conns         map[*net.UDPAddr]*UDPServerConn
@@ -71,7 +71,7 @@ func NewUDPServer(address string, readFunc UDPServerReadFunc, reportTraffic bool
 	if !reportTraffic {
 		level = 1
 	}
-	return &UDPServer{address: addressObj, readFunc: readFunc, logger: NewConsoleLogger("UDPServer", level), conns: map[*net.UDPAddr]*UDPServerConn{}}, nil
+	return &UDPServer{address: addressObj, readFunc: readFunc, Logger: NewConsoleLogger("UDPServer", level), conns: map[*net.UDPAddr]*UDPServerConn{}}, nil
 }
 
 /*
@@ -90,16 +90,16 @@ func (udp *UDPServer) Start() {
 	var err error
 	udp.listener, err = net.ListenUDP("udp", udp.address)
 	if err != nil {
-		udp.logger.Log(3, "Error listening to "+udp.address.String()+" with error: "+err.Error())
+		udp.Logger.Log(3, "Error listening to "+udp.address.String()+" with error: "+err.Error())
 		return
 	}
 	udp.isRunning = true
-	udp.logger.Log(2, "Started listening on "+udp.address.String())
+	udp.Logger.Log(2, "Started listening on "+udp.address.String())
 
 	//Listener loop
 	for !udp.requestedStop {
 		//Handle read and connection accept
-		handleUDPRead(udp.listener, udp.logger, udp.readFuncLocal)
+		handleUDPRead(udp.listener, udp.Logger, udp.readFuncLocal)
 	}
 	udp.isRunning = false
 }
@@ -143,7 +143,7 @@ func (udp *UDPServer) readFuncLocal(addr *net.UDPAddr, data []byte, ended bool) 
 
 	//Process read
 	if udp.readFunc != nil {
-		udp.logger.Log(0, "Reading from: "+addr.String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data))
+		udp.Logger.Log(0, "Reading from: "+addr.String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data))
 		udp.readFunc(udpConn, data, false)
 	}
 
@@ -177,7 +177,7 @@ func writeToUDP(isServer bool, listener *net.UDPConn, addr *net.UDPAddr, data []
 Writes to Client
 */
 func (udp *UDPServer) WriteToClient(conn *UDPServerConn, data []byte) {
-	writeToUDP(true, conn.origin.listener, conn.address, data, udp.logger)
+	writeToUDP(true, conn.origin.listener, conn.address, data, udp.Logger)
 }
 
 /*
@@ -193,7 +193,7 @@ func (udp *UDPServer) Stop() {
 	err := udp.listener.Close()
 	time.Sleep(1 * time.Second)
 	if err != nil {
-		udp.logger.Log(3, "Error stopping UDP server: "+err.Error())
+		udp.Logger.Log(3, "Error stopping UDP server: "+err.Error())
 	}
 }
 
@@ -221,5 +221,5 @@ func (udp *UDPServer) CleanupConnections(forceAll bool) {
 	}
 	current := len(udp.conns)
 	removed := oldCount - current
-	udp.logger.Log(0, "Connection cleanup done! Removed connections: "+strconv.Itoa(removed)+" / "+strconv.Itoa(oldCount))
+	udp.Logger.Log(0, "Connection cleanup done! Removed connections: "+strconv.Itoa(removed)+" / "+strconv.Itoa(oldCount))
 }

@@ -18,11 +18,11 @@ type TCPClientReadFunc func(*TCPClient, []byte, bool)
 Basic TCP Client
 */
 type TCPClient struct {
-	readFunc   TCPClientReadFunc
-	Logger     *ConsoleLogger
-	connection *net.TCPConn
-	address    *net.TCPAddr
-	isAlive    bool
+	readFunc TCPClientReadFunc
+	Logger   *ConsoleLogger
+	Conn     *net.TCPConn
+	address  *net.TCPAddr
+	isAlive  bool
 }
 
 func (tcp *TCPClient) IsAlive() bool {
@@ -53,7 +53,7 @@ Connects to TCP server and start reading loop, does not locks execution thread
 func (tcp *TCPClient) Connect() {
 	//Dial
 	var err error
-	tcp.connection, err = net.DialTCP("tcp", nil, tcp.address)
+	tcp.Conn, err = net.DialTCP("tcp", nil, tcp.address)
 	if err != nil {
 		tcp.Logger.Log(3, "Error connecting to: "+tcp.address.String()+" | Error: "+err.Error())
 		return
@@ -63,7 +63,7 @@ func (tcp *TCPClient) Connect() {
 	tcp.isAlive = true
 	//Handle read
 	go func() {
-		handleTCPRead(tcp.connection, tcp.Logger, tcp.readFuncLocal)
+		handleTCPRead(tcp.Conn, tcp.Logger, tcp.readFuncLocal)
 		tcp.isAlive = false
 	}()
 }
@@ -82,21 +82,21 @@ func (tcp *TCPClient) readFuncLocal(conn *net.TCPConn, data []byte, ended bool) 
 Sends data to server
 */
 func (tcp *TCPClient) Send(data []byte) {
-	writeToTCP(tcp.connection, data, tcp.Logger)
+	writeToTCP(tcp.Conn, data, tcp.Logger)
 }
 
 /*
 Stops TCP client
 */
 func (tcp *TCPClient) Stop() {
-	if tcp.connection == nil || !tcp.isAlive {
+	if tcp.Conn == nil || !tcp.isAlive {
 		//Invalid connection
 		return
 	}
 
 	//Close
 	tcp.Logger.Log(1, "Requested disconnect from: "+tcp.address.String())
-	err := tcp.connection.Close()
+	err := tcp.Conn.Close()
 	if err != nil {
 		tcp.Logger.Log(3, "Error disconnecting from: "+tcp.address.String()+" | Error: "+err.Error())
 	}

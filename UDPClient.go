@@ -19,7 +19,7 @@ Basic TCP Client
 */
 type UDPClient struct {
 	readFunc   UDPClientReadFunc
-	logger     *ConsoleLogger
+	Logger     *ConsoleLogger
 	connection *net.UDPConn
 	address    *net.UDPAddr
 	isAlive    bool
@@ -44,7 +44,7 @@ func NewUDPClient(address string, readFunc UDPClientReadFunc, reportTraffic bool
 	if !reportTraffic {
 		level = 1
 	}
-	return &UDPClient{address: addressObj, logger: NewConsoleLogger("UDPClient", level), readFunc: readFunc}, nil
+	return &UDPClient{address: addressObj, Logger: NewConsoleLogger("UDPClient", level), readFunc: readFunc}, nil
 }
 
 /*
@@ -55,7 +55,7 @@ func (udp *UDPClient) Connect() {
 	var err error
 	udp.connection, err = net.DialUDP("udp", nil, udp.address)
 	if err != nil {
-		udp.logger.Log(3, "Error connecting to: "+udp.address.String()+" | Error: "+err.Error())
+		udp.Logger.Log(3, "Error connecting to: "+udp.address.String()+" | Error: "+err.Error())
 		return
 	}
 
@@ -64,7 +64,7 @@ func (udp *UDPClient) Connect() {
 	go func() {
 		var ok bool = true
 		for ok {
-			ok = handleUDPRead(udp.connection,udp.logger, udp.readFuncLocal)
+			ok = handleUDPRead(udp.connection,udp.Logger, udp.readFuncLocal)
 		}
 		udp.isAlive = false
 	}()
@@ -74,7 +74,7 @@ func (udp *UDPClient) readFuncLocal(addr *net.UDPAddr, data []byte, ended bool) 
 	//Process read
 	if udp.readFunc != nil {
 		if !ended {
-			udp.logger.Log(0, "Reading from: "+addr.String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data))
+			udp.Logger.Log(0, "Reading from: "+addr.String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data))
 		}
 		udp.readFunc(udp, data, ended)
 	}
@@ -84,7 +84,7 @@ func (udp *UDPClient) readFuncLocal(addr *net.UDPAddr, data []byte, ended bool) 
 Sends data to server
 */
 func (udp *UDPClient) Send(data []byte) {
-	writeToUDP(false, udp.connection, udp.address, data, udp.logger)
+	writeToUDP(false, udp.connection, udp.address, data, udp.Logger)
 }
 
 /*
@@ -97,9 +97,9 @@ func (udp *UDPClient) Stop() {
 	}
 
 	//Close
-	udp.logger.Log(1, "Requested disconnect from: "+udp.address.String())
+	udp.Logger.Log(1, "Requested disconnect from: "+udp.address.String())
 	err := udp.connection.Close()
 	if err != nil {
-		udp.logger.Log(3, "Error disconnecting from: "+udp.address.String()+" | Error: "+err.Error())
+		udp.Logger.Log(3, "Error disconnecting from: "+udp.address.String()+" | Error: "+err.Error())
 	}
 }

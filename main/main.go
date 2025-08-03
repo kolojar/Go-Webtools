@@ -37,7 +37,7 @@ func main() {
 		}
 	case "uc":
 		{
-			client, _ := webtools.NewUDPClient("127.0.0.1:1234", readFuncUDPCl, true)
+			client, _ := webtools.NewUDPClient("127.0.0.1:5678", readFuncUDPCl, true)
 			client.Connect()
 			client.Send([]byte("Test"))
 			for client.IsAlive() {
@@ -72,6 +72,29 @@ func main() {
 	case "hpct":
 		{
 			cl, _ := webtools.NewHTTPProxyClientTCP("127.0.0.1:5678", "127.0.0.1:17777", true)
+			cl.Connect()
+			for cl.IsAlive() {
+				time.Sleep(1 * time.Second)
+			}
+		}
+	case "tub":
+		{
+			br, _ := webtools.NewTCPToUDPBridge("127.0.0.1:9014", "127.0.0.1:17777", true)
+			br.Start()
+		}
+	case "utb":
+		{
+			br, _ := webtools.NewUDPToTCPBridge("127.0.0.1:7777", "127.0.0.1:9012", true)
+			br.Start()
+		}
+	case "hpst2":
+		{
+			sv := webtools.NewHTTPProxyServerTCP("127.0.0.1:9013", "127.0.0.1:9012", true)
+			sv.Start()
+		}
+	case "hpct2":
+		{
+			cl, _ := webtools.NewHTTPProxyClientTCP("127.0.0.1:9013", "127.0.0.1:9014", true)
 			cl.Connect()
 			for cl.IsAlive() {
 				time.Sleep(1 * time.Second)
