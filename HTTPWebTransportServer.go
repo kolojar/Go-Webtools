@@ -50,7 +50,7 @@ This is NOT WebSocket HTTP server for JavaScript, it is intended for inner commu
 type HTTPWebTransportServer struct {
 	httpServer *HTTPServer
 	Logger     *ConsoleLogger
-	conns      map[net.Conn]*HTTPWebTransportServerConn
+	conns      SafeMap[net.Conn, *HTTPWebTransportServerConn]
 	readFunc   HTTPWebTransportServerReadFunc
 }
 
@@ -62,7 +62,7 @@ func NewHTTPWebTransportServer(address string, readFunc HTTPWebTransportServerRe
 	if !reportTraffic {
 		level = 1
 	}
-	sv := &HTTPWebTransportServer{Logger: NewConsoleLogger("HTTP-WTServer", level), readFunc: readFunc, conns: map[net.Conn]*HTTPWebTransportServerConn{}}
+	sv := &HTTPWebTransportServer{Logger: NewConsoleLogger("HTTP-WTServer", level), readFunc: readFunc, conns: MakeSafeMap[net.Conn, *HTTPWebTransportServerConn]()}
 	sv.httpServer = NewHTTPServer(address, sv.handleHTTPAccess, "", false)
 	sv.httpServer.Logger = sv.Logger
 	return sv
@@ -106,10 +106,10 @@ func (sv *HTTPWebTransportServer) handleHTTPAccess(_ *HTTPServer, w http.Respons
 }
 
 func (sv *HTTPWebTransportServer) readFuncLocal(conn *net.TCPConn, data []byte, ended bool) {
-	var httpConn *HTTPWebTransportServerConn = sv.conns[conn]
+	var httpConn *HTTPWebTransportServerConn = sv.conns.Get(conn)
 	if httpConn == nil {
 		httpConn = &HTTPWebTransportServerConn{origin: sv, Conn: conn}
-		sv.conns[conn] = httpConn
+		sv.conns.Set(conn, httpConn)
 	}
 	//Process read
 	if sv.readFunc != nil {

@@ -2,6 +2,12 @@ package webtools
 
 import "sync"
 
+// Value pair
+type KeyValuePair[K comparable, V any] struct {
+	Key   K
+	Value V
+}
+
 // Safe locking map for Go Routines
 type SafeMap[K comparable, V any] struct {
 	m     map[K]V
@@ -39,7 +45,7 @@ func (m *SafeMap[K, V]) GetKeys() []K {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	result := make([]K, 0)
-	for k, _ := range m.m {
+	for k := range m.m {
 		result = append(result, k)
 	}
 	return result
@@ -52,6 +58,24 @@ func (m *SafeMap[K, V]) GetValues() []V {
 	result := make([]V, 0)
 	for _, v := range m.m {
 		result = append(result, v)
+	}
+	return result
+}
+
+// Retuns lenght of map
+func (m *SafeMap[K, V]) Len() int {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+	return len(m.m)
+}
+
+// Gets keys and values safely value to map
+func (m *SafeMap[K, V]) GetData() []KeyValuePair[K, V] {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	result := make([]KeyValuePair[K, V], 0)
+	for k, v := range m.m {
+		result = append(result, KeyValuePair[K, V]{Key: k, Value: v})
 	}
 	return result
 }

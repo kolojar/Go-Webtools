@@ -71,7 +71,7 @@ type TCPServer struct {
 	Logger        *ConsoleLogger
 	requestedStop bool
 	isRunning     bool
-	conns         map[*net.TCPConn]*TCPServerConn
+	conns         SafeMap[*net.TCPConn, *TCPServerConn]
 }
 
 /*
@@ -87,7 +87,7 @@ func NewTCPServer(address string, readFunc TCPServerReadFunc, reportTraffic bool
 	if !reportTraffic {
 		level = 1
 	}
-	return &TCPServer{address: addressObj, readFunc: readFunc, Logger: NewConsoleLogger("TCPServer", level), conns: map[*net.TCPConn]*TCPServerConn{}}, nil
+	return &TCPServer{address: addressObj, readFunc: readFunc, Logger: NewConsoleLogger("TCPServer", level), conns: MakeSafeMap[*net.TCPConn, *TCPServerConn]()}, nil
 }
 
 /*
@@ -160,10 +160,10 @@ func handleTCPRead(conn *net.TCPConn, logger *ConsoleLogger, readFunc func(*net.
 }
 
 func (tcp *TCPServer) readFuncLocal(conn *net.TCPConn, data []byte, ended bool) {
-	var tcpConn *TCPServerConn = tcp.conns[conn]
+	var tcpConn *TCPServerConn = tcp.conns.Get(conn)
 	if tcpConn == nil {
 		tcpConn = &TCPServerConn{origin: tcp, Conn: conn}
-		tcp.conns[conn] = tcpConn
+		tcp.conns.Set(conn, tcpConn)
 	}
 	//Process read
 	if tcp.readFunc != nil {
