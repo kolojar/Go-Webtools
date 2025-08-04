@@ -16,7 +16,7 @@ UDP server connection object
 */
 type UDPServerConn struct {
 	origin   *UDPServer
-	address  *net.UDPAddr
+	Address  *net.UDPAddr
 	lastSeen time.Time
 }
 
@@ -31,8 +31,8 @@ func (udpConn *UDPServerConn) Send(data []byte) {
 Closes connection to client
 */
 func (udpConn *UDPServerConn) Close() {
-	delete(udpConn.origin.conns, udpConn.address.String())
-	udpConn.origin.Logger.Log(0, "Closed connection on "+udpConn.address.String())
+	delete(udpConn.origin.conns, udpConn.Address.String())
+	udpConn.origin.Logger.Log(0, "Closed connection on "+udpConn.Address.String())
 	if udpConn.origin.readFunc != nil {
 		udpConn.origin.readFunc(udpConn, nil, true)
 	}
@@ -139,7 +139,7 @@ func (udp *UDPServer) readFuncLocal(addr *net.UDPAddr, data []byte, ended bool) 
 	var udpConn *UDPServerConn = udp.conns[addr.String()]
 	if udpConn == nil {
 		//No connection, create new
-		udpConn = &UDPServerConn{origin: udp, address: addr, lastSeen: time.Now()}
+		udpConn = &UDPServerConn{origin: udp, Address: addr, lastSeen: time.Now()}
 		udpConn.origin.conns[addr.String()] = udpConn
 	}
 	udpConn.lastSeen = time.Now()
@@ -180,7 +180,7 @@ func writeToUDP(isServer bool, listener *net.UDPConn, addr *net.UDPAddr, data []
 Writes to Client
 */
 func (udp *UDPServer) WriteToClient(conn *UDPServerConn, data []byte) {
-	writeToUDP(true, conn.origin.listener, conn.address, data, udp.Logger)
+	writeToUDP(true, conn.origin.listener, conn.Address, data, udp.Logger)
 }
 
 /*

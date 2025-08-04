@@ -92,14 +92,14 @@ func main() {
 			cl, _ := webtools.NewTCPToUDPBridge("127.0.0.1:5681", "127.0.0.1:17777", true)
 			cl.Start()
 		}
-	case "hpst2":
+	case "hpsu":
 		{
-			sv := webtools.NewHTTPProxyServerTCP("127.0.0.1:5680", "127.0.0.1:5679", true)
+			sv := webtools.NewHTTPProxyServerUDP("127.0.0.1:5679", "127.0.0.1:7777", true)
 			sv.Start()
 		}
-	case "hpct2":
+	case "hpcu":
 		{
-			cl, _ := webtools.NewHTTPProxyClientTCP("127.0.0.1:5680", "127.0.0.1:5681", true)
+			cl, _ := webtools.NewHTTPProxyClientUDP("127.0.0.1:5679", "127.0.0.1:17777", true)
 			cl.Connect()
 			for cl.IsAlive() {
 				time.Sleep(1 * time.Second)
