@@ -11,12 +11,12 @@ type KeyValuePair[K comparable, V any] struct {
 // Safe locking map for Go Routines
 type SafeMap[K comparable, V any] struct {
 	m     map[K]V
-	mutex sync.RWMutex
+	mutex *sync.RWMutex
 }
 
 // Creates new Safe Map
 func MakeSafeMap[K comparable, V any]() SafeMap[K, V] {
-	return SafeMap[K, V]{m: map[K]V{}, mutex: sync.RWMutex{}}
+	return SafeMap[K, V]{m: map[K]V{}, mutex: &sync.RWMutex{}}
 }
 
 // Gets safely value from map
@@ -78,4 +78,19 @@ func (m *SafeMap[K, V]) GetData() []KeyValuePair[K, V] {
 		result = append(result, KeyValuePair[K, V]{Key: k, Value: v})
 	}
 	return result
+}
+
+// Sets new Mutex
+func (m *SafeMap[K, V]) SetMutex(mutex *sync.RWMutex) bool {
+	if mutex == nil {
+		return false
+	} else {
+		m.mutex = mutex
+		return true
+	}
+}
+
+// Gets Mutex
+func (m *SafeMap[K, V]) GetMutex(mutex *sync.RWMutex) *sync.RWMutex {
+	return m.mutex
 }
