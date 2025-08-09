@@ -46,7 +46,7 @@ func main() {
 		}
 	case "hs":
 		{
-			sv := webtools.NewHTTPServer("127.0.0.1:8080", nil, "", false)
+			sv := webtools.NewHTTPServer("127.0.0.1:7777", nil, "", false)
 			sv.HostPaths["/test"] = "./test"
 			sv.Start()
 		}
