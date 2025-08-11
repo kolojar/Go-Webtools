@@ -107,12 +107,12 @@ func main() {
 	//	}
 	case "tpsu":
 		{
-			sv, _ := webtools.NewTCPProxyServerUDP("127.0.0.1:5679", "127.0.0.1:7777", true)
+			sv, _ := webtools.NewTCPProxyServerUDP("127.0.0.1:5679", "127.0.0.1:7777", false)
 			sv.Start()
 		}
 	case "tpcu":
 		{
-			cl, err := webtools.NewTCPProxyClientUDP("127.0.0.1:5681", "127.0.0.1:17777", true)
+			cl, err := webtools.NewTCPProxyClientUDP("127.0.0.1:5681", "127.0.0.1:17777", false)
 			if err != nil {
 				fmt.Println(err)
 				return
@@ -124,12 +124,12 @@ func main() {
 		}
 	case "tcms":
 		{
-			sv, _ := webtools.NewTCPConnectionMergerServer("127.0.0.1:8880", []string{"127.0.0.1:5679", "127.0.0.1:7777"}, true)
+			sv, _ := webtools.NewTCPConnectionMergerServer("127.0.0.1:8880", []string{"127.0.0.1:5679", "127.0.0.1:7777", "127.0.0.1:8888"}, false)
 			sv.Start()
 		}
 	case "tcmc":
 		{
-			cl, _ := webtools.NewTCPConnectionMergerClient("127.0.0.1:8881", "127.0.0.1", map[string]string{"127.0.0.1:5679": "5681", "127.0.0.1:7777": "17777"}, true)
+			cl, _ := webtools.NewTCPConnectionMergerClient("127.0.0.1:8881", "127.0.0.1", map[string]string{"127.0.0.1:5679": "5681", "127.0.0.1:7777": "17777", "127.0.0.1:8888": "8888"}, false)
 			cl.Connect()
 			for cl.IsAlive() {
 				time.Sleep(1 * time.Second)
