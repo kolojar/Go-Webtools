@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 	"webtools"
 )
@@ -13,21 +14,21 @@ func main() {
 	switch os.Args[1] {
 	case "ts":
 		{
-			server, _ := webtools.NewTCPServer("127.0.0.1:1234", readFuncTCPSv, true)
+			server, _ := webtools.NewTCPServer("127.0.0.1:7777", readFuncTCPSv, true)
 			server.Start()
 			break
 		}
 	case "tc":
 		{
-			client, _ := webtools.NewTCPClient("127.0.0.1:9012", readFuncTCPCl, true)
+			client, _ := webtools.NewTCPClient("127.0.0.1:17777", readFuncTCPCl, true)
 			client.Connect()
-			for i := 0; i < 10; i++ {
-				client.Send([]byte("Test" + strconv.Itoa(i)))
-				time.Sleep(1 * time.Second)
+			for i := 0; i < 1000; i++ {
+				client.Send([]byte("Test" + strconv.Itoa(i) + "|"))
 			}
-			for client.IsAlive() {
-				time.Sleep(1 * time.Second)
-			}
+			time.Sleep(3 * time.Second)
+			fmt.Println(rc)
+			//for client.IsAlive() {
+			//}
 		}
 	case "us":
 		{
@@ -39,7 +40,12 @@ func main() {
 		{
 			client, _ := webtools.NewUDPClient("127.0.0.1:17777", readFuncUDPCl, true)
 			client.Connect()
-			client.Send([]byte("Test"))
+			for i := 0; i < 500; i++ {
+				client.Send([]byte("Test"))
+			}
+			time.Sleep(3 * time.Second)
+			client.Stop()
+			fmt.Println(rc)
 			for client.IsAlive() {
 				time.Sleep(1 * time.Second)
 			}
@@ -66,12 +72,12 @@ func main() {
 	//	}
 	case "hpst":
 		{
-			sv := webtools.NewHTTPProxyServerTCP("127.0.0.1:5678", "127.0.0.1:7777", true)
+			sv := webtools.NewHTTPProxyServerTCP("127.0.0.1:8880", "127.0.0.1:7777", true)
 			sv.Start()
 		}
 	case "hpct":
 		{
-			cl, _ := webtools.NewHTTPProxyClientTCP("127.0.0.1:5678", "127.0.0.1:17777", true)
+			cl, _ := webtools.NewHTTPProxyClientTCP("127.0.0.1:8881", "127.0.0.1:17777", true)
 			cl.Connect()
 			for cl.IsAlive() {
 				time.Sleep(1 * time.Second)
@@ -109,14 +115,14 @@ func main() {
 	//			time.Sleep(1 * time.Second)
 	//		}
 	//	}
-	case "hpsu":
+	case "tpsu":
 		{
-			sv, _ := webtools.NewTCPProxyServerUDP("127.0.0.1:5679", "127.0.0.1:7777", true)
+			sv, _ := webtools.NewTCPProxyServerUDP("127.0.0.1:5679", "127.0.0.1:7777", false)
 			sv.Start()
 		}
-	case "hpcu":
+	case "tpcu":
 		{
-			cl, err := webtools.NewTCPProxyClientUDP("127.0.0.1:5680", "127.0.0.1:17777", true)
+			cl, err := webtools.NewTCPProxyClientUDP("127.0.0.1:5681", "127.0.0.1:17777", false)
 			if err != nil {
 				fmt.Println(err)
 				return
@@ -126,8 +132,23 @@ func main() {
 				time.Sleep(1 * time.Second)
 			}
 		}
+	case "tcms":
+		{
+			sv, _ := webtools.NewTCPConnectionMergerServer("127.0.0.1:8880", []string{"127.0.0.1:5679", "127.0.0.1:7777"}, false)
+			sv.Start()
+		}
+	case "tcmc":
+		{
+			cl, _ := webtools.NewTCPConnectionMergerClient("127.0.0.1:8881", "127.0.0.1", map[string]string{"127.0.0.1:5679": "5681", "127.0.0.1:7777": "17777"}, false)
+			cl.Connect()
+			for cl.IsAlive() {
+				time.Sleep(1 * time.Second)
+			}
+		}
 	}
 }
+
+var rc int = 0
 
 func readFuncTCPSv(conn *webtools.TCPServerConn, data []byte, ended bool) {
 	if !ended {
@@ -140,6 +161,8 @@ func readFuncTCPCl(conn *webtools.TCPClient, data []byte, ended bool) {
 	if !ended {
 		//conn.Stop()
 	}
+	fmt.Println(string(data))
+	rc += len(strings.Split(string(data), "|")) - 1
 }
 
 func readFuncUDPSv(conn *webtools.UDPServerConn, data []byte, ended bool) {
@@ -150,9 +173,11 @@ func readFuncUDPSv(conn *webtools.UDPServerConn, data []byte, ended bool) {
 
 func readFuncUDPCl(conn *webtools.UDPClient, data []byte, ended bool) {
 	//conn.Send(data)
-	if !ended {
-		conn.Stop()
-	}
+	//if !ended {
+	//	conn.Stop()
+	//}
+	fmt.Println(string(data))
+	rc++
 }
 
 func readFuncHTTPWTSv(conn *webtools.HTTPWebTransportServerConn, data []byte, ended bool) {

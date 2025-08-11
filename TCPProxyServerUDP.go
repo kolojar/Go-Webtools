@@ -79,49 +79,51 @@ func (sv *TCPProxyServerUDP) handleTCPReadFunc(conn *TCPServerConn, frame []byte
 	}
 
 	//Unpack frame
-	operation, id, data := UnpackProxyFrame(frame, conn.origin.Logger)
-	if operation == 0 {
-		return
-	}
+	for _, frame := range UnpackProxyFrame(frame, conn.origin.Logger) {
+		operation, id, data := frame.A, frame.B, frame.C
+		if operation == 0 {
+			return
+		}
 
-	//Sort connections
-	if sv.idToClient.Get(string(id)) == nil {
-		if operation == PROXY_FRAME_TYPE_CONNECT {
-			//Create new connection
-			id = []byte(GenerateRandomId())
-			cl, err := NewUDPClient(sv.tcpServerAddress, sv.handleUDPReadFunc, sv.reportTrafic)
-			cl.Logger.Prefix = "TCPProxyServerUDP - " + cl.Logger.Prefix
-			if err != nil {
-				conn.origin.Logger.Log(3, "Could not create connection with id: "+string(id)+" to server.")
+		//Sort connections
+		if sv.idToClient.Get(string(id)) == nil {
+			if operation == PROXY_FRAME_TYPE_CONNECT {
+				//Create new connection
+				id = []byte(GenerateRandomId())
+				cl, err := NewUDPClient(sv.tcpServerAddress, sv.handleUDPReadFunc, sv.reportTrafic)
+				cl.Logger.Prefix = "TCPProxyServerUDP - " + cl.Logger.Prefix
+				if err != nil {
+					conn.origin.Logger.Log(3, "Could not create connection with id: "+string(id)+" to server.")
+					return
+				}
+				cl.Connect()
+				sv.idToClient.Set(string(id), &TCPProxyServerUDPConn{udpClient: cl, id: id, source: conn, origin: sv})
+				sv.clientToId.Set(cl, string(id))
+				sv.idToClient.Get(string(id)).SendToTCP(PROXY_FRAME_TYPE_CONNECT, data)
+				return
+			} else {
+				conn.origin.Logger.Log(3, "Could not find connection to id: "+string(id))
 				return
 			}
-			cl.Connect()
-			sv.idToClient.Set(string(id), &TCPProxyServerUDPConn{udpClient: cl, id: id, source: conn, origin: sv})
-			sv.clientToId.Set(cl, string(id))
-			sv.idToClient.Get(string(id)).SendToTCP(PROXY_FRAME_TYPE_CONNECT, data)
-			return
-		} else {
-			conn.origin.Logger.Log(3, "Could not find connection to id: "+string(id))
+		}
+		cl := sv.idToClient.Get(string(id))
+		if !cl.udpClient.IsAlive() {
+			conn.origin.Logger.Log(3, "Connection with id: "+string(id)+" connected to: "+conn.Conn.RemoteAddr().String()+" connected locally to: "+conn.Conn.LocalAddr().String()+" closed")
 			return
 		}
-	}
-	cl := sv.idToClient.Get(string(id))
-	if !cl.udpClient.IsAlive() {
-		conn.origin.Logger.Log(3, "Connection with id: "+string(id)+" connected to: "+conn.Conn.RemoteAddr().String()+" connected locally to: "+conn.Conn.LocalAddr().String()+" closed")
-		return
-	}
 
-	//Sort operations
-	switch operation {
-	case PROXY_FRAME_TYPE_CLOSE:
-		{
-			//Close connection
-			cl.Close(false)
-		}
-	case PROXY_FRAME_TYPE_DATA:
-		{
-			//Send to UDP
-			cl.SendToUDP(data)
+		//Sort operations
+		switch operation {
+		case PROXY_FRAME_TYPE_CLOSE:
+			{
+				//Close connection
+				cl.Close(false)
+			}
+		case PROXY_FRAME_TYPE_DATA:
+			{
+				//Send to UDP
+				cl.SendToUDP(data)
+			}
 		}
 	}
 }

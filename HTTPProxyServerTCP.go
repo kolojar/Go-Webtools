@@ -2,6 +2,7 @@ package webtools
 
 import (
 	"encoding/hex"
+	"fmt"
 	"math/rand/v2"
 	"strconv"
 	"time"
@@ -21,6 +22,8 @@ func PackProxyFrame(operation uint8, id []byte, data []byte) []byte {
 	frame = append(frame, PROXY_FRAME_SEPARATOR)
 	frame = append(frame, id...)
 	frame = append(frame, PROXY_FRAME_SEPARATOR)
+	frame = append(frame, []byte(strconv.Itoa(len(data)))...)
+	frame = append(frame, PROXY_FRAME_SEPARATOR)
 	if data != nil {
 		frame = append(frame, data...)
 	}
@@ -30,33 +33,71 @@ func PackProxyFrame(operation uint8, id []byte, data []byte) []byte {
 /*
 Unpacks Proxy frame, operation 0 means error
 */
-func UnpackProxyFrame(frame []byte, logger *ConsoleLogger) (uint8, []byte, []byte) {
+func UnpackProxyFrame(frame []byte, logger *ConsoleLogger) []ThreeValuePair[uint8, []byte, []byte] {
+	//Invalid frame
+	if len(frame) == 0 {
+		return nil
+	}
+
 	//Check size
 	if len(frame) < 2 {
 		logger.Log(3, "Frame too short. | Data lenght: "+strconv.Itoa(len(frame))+" | Data in hex: "+hex.EncodeToString(frame))
-		return 0, nil, nil
+		return nil
 	}
 
 	//Get operation
 	operation := frame[0]
 	if frame[1] != PROXY_FRAME_SEPARATOR {
 		logger.Log(3, "Invalid frame at index 1. | Data lenght: "+strconv.Itoa(len(frame))+" | Data in hex: "+hex.EncodeToString(frame))
-		return 0, nil, nil
+		return nil
 	}
 
-	//Get id and rest of data
+	//Get id and len of rest of frame
 	var id []byte
+	var idEndIndex int = -1
 	var data []byte
+	var subframes []ThreeValuePair[uint8, []byte, []byte]
 	for i := 2; i < len(frame); i++ {
 		if frame[i] == PROXY_FRAME_SEPARATOR {
-			id = frame[2:i]
-			if len(frame) > (i + 1) {
-				data = frame[i+1:]
+			if idEndIndex == -1 {
+				//Get id
+				id = frame[2:i]
+				idEndIndex = i
+			} else {
+				//Get len of data
+				lenOfDataStr := frame[idEndIndex+1 : i]
+				lenOfData, err := strconv.Atoi(string(lenOfDataStr))
+				if lenOfData > 0 {
+					lenOfData = lenOfData - 1
+				}
+				if err != nil {
+					logger.Log(3, "Invalid frame lenght. | Data lenght: "+strconv.Itoa(len(frame))+" | Data in hex: "+hex.EncodeToString(frame)+" | Error: "+err.Error())
+					return nil
+				}
+
+				//Get data
+				if len(frame) > (i + lenOfData) {
+					data = frame[i+1 : i+2+lenOfData]
+				}
+
+				//Get rest of data
+				if len(frame) > (i + lenOfData + 1) {
+					subframes = UnpackProxyFrame(frame[i+2+lenOfData:], logger)
+				}
+				break
 			}
-			break
 		}
+
 	}
-	return operation, id, data
+
+	//Make result
+	result := make([]ThreeValuePair[uint8, []byte, []byte], 0)
+	result = append(result, ThreeValuePair[uint8, []byte, []byte]{A: operation, B: id, C: data})
+	if subframes != nil {
+		result = append(result, subframes...)
+	}
+	fmt.Println(len(result))
+	return result
 }
 
 /*
@@ -141,49 +182,51 @@ func (sv *HTTPProxyServerTCP) handleWebTransportReadFunc(conn *HTTPWebTransportS
 	}
 
 	//Unpack frame
-	operation, id, data := UnpackProxyFrame(frame, conn.origin.Logger)
-	if operation == 0 {
-		return
-	}
+	for _, frame := range UnpackProxyFrame(frame, sv.httpServer.Logger) {
+		operation, id, data := frame.A, frame.B, frame.C
+		if operation == 0 {
+			return
+		}
 
-	//Sort connections
-	if sv.idToClient.Get(string(id)) == nil {
-		if operation == PROXY_FRAME_TYPE_CONNECT {
-			//Create new connection
-			id = []byte(GenerateRandomId())
-			cl, err := NewTCPClient(sv.tcpServerAddress, sv.handleTCPReadFunc, sv.reportTrafic)
-			cl.Logger.Prefix = "HTTPProxyServerTCP - " + cl.Logger.Prefix
-			if err != nil {
-				conn.origin.Logger.Log(3, "Could not create connection with id: "+string(id)+" to server.")
+		//Sort connections
+		if sv.idToClient.Get(string(id)) == nil {
+			if operation == PROXY_FRAME_TYPE_CONNECT {
+				//Create new connection
+				id = []byte(GenerateRandomId())
+				cl, err := NewTCPClient(sv.tcpServerAddress, sv.handleTCPReadFunc, sv.reportTrafic)
+				cl.Logger.Prefix = "HTTPProxyServerTCP - " + cl.Logger.Prefix
+				if err != nil {
+					conn.origin.Logger.Log(3, "Could not create connection with id: "+string(id)+" to server.")
+					return
+				}
+				cl.Connect()
+				sv.idToClient.Set(string(id), &HTTPProxyServerTCPConn{tcpClient: cl, id: id, source: conn, origin: sv})
+				sv.clientToId.Set(cl, string(id))
+				sv.idToClient.Get(string(id)).SendToHTTP(PROXY_FRAME_TYPE_CONNECT, data)
+				return
+			} else {
+				conn.origin.Logger.Log(3, "Could not find connection to id: "+string(id))
 				return
 			}
-			cl.Connect()
-			sv.idToClient.Set(string(id), &HTTPProxyServerTCPConn{tcpClient: cl, id: id, source: conn, origin: sv})
-			sv.clientToId.Set(cl, string(id))
-			sv.idToClient.Get(string(id)).SendToHTTP(PROXY_FRAME_TYPE_CONNECT, data)
-			return
-		} else {
-			conn.origin.Logger.Log(3, "Could not find connection to id: "+string(id))
+		}
+		cl := sv.idToClient.Get(string(id))
+		if !cl.tcpClient.IsAlive() {
+			conn.origin.Logger.Log(3, "Connection with id: "+string(id)+" connected to: "+conn.Conn.RemoteAddr().String()+" connected locally to: "+conn.Conn.LocalAddr().String()+" closed")
 			return
 		}
-	}
-	cl := sv.idToClient.Get(string(id))
-	if !cl.tcpClient.IsAlive() {
-		conn.origin.Logger.Log(3, "Connection with id: "+string(id)+" connected to: "+conn.Conn.RemoteAddr().String()+" connected locally to: "+conn.Conn.LocalAddr().String()+" closed")
-		return
-	}
 
-	//Sort operations
-	switch operation {
-	case PROXY_FRAME_TYPE_CLOSE:
-		{
-			//Close connection
-			cl.Close(false)
-		}
-	case PROXY_FRAME_TYPE_DATA:
-		{
-			//Send to TCP
-			cl.SendToTCP(data)
+		//Sort operations
+		switch operation {
+		case PROXY_FRAME_TYPE_CLOSE:
+			{
+				//Close connection
+				cl.Close(false)
+			}
+		case PROXY_FRAME_TYPE_DATA:
+			{
+				//Send to TCP
+				cl.SendToTCP(data)
+			}
 		}
 	}
 }

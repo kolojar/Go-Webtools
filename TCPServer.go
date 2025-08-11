@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-const BUFFER_SIZE = 1024 * 128
+const BUFFER_SIZE = 1024 * 16
 
 /*
 Server connection interface
@@ -164,6 +164,9 @@ func (tcp *TCPServer) readFuncLocal(conn *net.TCPConn, data []byte, ended bool) 
 	if tcpConn == nil {
 		tcpConn = &TCPServerConn{origin: tcp, Conn: conn}
 		tcp.conns.Set(conn.RemoteAddr().String(), tcpConn)
+	}
+	if ended {
+		tcp.conns.Delete(conn.RemoteAddr().String())
 	}
 	tcp.Logger.Log(1, "Count of connections: "+strconv.Itoa(tcp.conns.Len()))
 	//Process read

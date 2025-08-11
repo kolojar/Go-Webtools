@@ -3,6 +3,13 @@ package webtools
 import "sync"
 
 // Value pair
+type ThreeValuePair[A any, B any, C any] struct {
+	A A
+	B B
+	C C
+}
+
+// Value pair
 type KeyValuePair[K comparable, V any] struct {
 	Key   K
 	Value V
