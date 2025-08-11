@@ -1,7 +1,6 @@
 package webtools
 
 import "sync"
-
 /*
 TCP to UDP bridge used for converting all incoming TCP traffic to UDP
 */
