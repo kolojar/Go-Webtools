@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-const BUFFER_SIZE = 1024 * 128
+const BUFFER_SIZE = 1024 * 16
 
 /*
 Server connection interface
@@ -71,7 +71,7 @@ type TCPServer struct {
 	Logger        *ConsoleLogger
 	requestedStop bool
 	isRunning     bool
-	conns         map[*net.TCPConn]*TCPServerConn
+	conns         SafeMap[string, *TCPServerConn]
 }
 
 /*
@@ -87,7 +87,7 @@ func NewTCPServer(address string, readFunc TCPServerReadFunc, reportTraffic bool
 	if !reportTraffic {
 		level = 1
 	}
-	return &TCPServer{address: addressObj, readFunc: readFunc, Logger: NewConsoleLogger("TCPServer", level), conns: map[*net.TCPConn]*TCPServerConn{}}, nil
+	return &TCPServer{address: addressObj, readFunc: readFunc, Logger: NewConsoleLogger("TCPServer", level), conns: MakeSafeMap[string, *TCPServerConn]()}, nil
 }
 
 /*
@@ -160,11 +160,15 @@ func handleTCPRead(conn *net.TCPConn, logger *ConsoleLogger, readFunc func(*net.
 }
 
 func (tcp *TCPServer) readFuncLocal(conn *net.TCPConn, data []byte, ended bool) {
-	var tcpConn *TCPServerConn = tcp.conns[conn]
+	var tcpConn *TCPServerConn = tcp.conns.Get(conn.RemoteAddr().String())
 	if tcpConn == nil {
 		tcpConn = &TCPServerConn{origin: tcp, Conn: conn}
-		tcp.conns[conn] = tcpConn
+		tcp.conns.Set(conn.RemoteAddr().String(), tcpConn)
 	}
+	if ended {
+		tcp.conns.Delete(conn.RemoteAddr().String())
+	}
+	tcp.Logger.Log(1, "Count of connections: "+strconv.Itoa(tcp.conns.Len()))
 	//Process read
 	if tcp.readFunc != nil {
 		if !ended {

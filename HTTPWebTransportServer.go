@@ -50,7 +50,7 @@ This is NOT WebSocket HTTP server for JavaScript, it is intended for inner commu
 type HTTPWebTransportServer struct {
 	httpServer *HTTPServer
 	Logger     *ConsoleLogger
-	conns      map[net.Conn]*HTTPWebTransportServerConn
+	conns      SafeMap[net.Conn, *HTTPWebTransportServerConn]
 	readFunc   HTTPWebTransportServerReadFunc
 }
 
@@ -62,7 +62,7 @@ func NewHTTPWebTransportServer(address string, readFunc HTTPWebTransportServerRe
 	if !reportTraffic {
 		level = 1
 	}
-	sv := &HTTPWebTransportServer{Logger: NewConsoleLogger("HTTP-WTServer", level), readFunc: readFunc, conns: map[net.Conn]*HTTPWebTransportServerConn{}}
+	sv := &HTTPWebTransportServer{Logger: NewConsoleLogger("HTTP-WTServer", level), readFunc: readFunc, conns: MakeSafeMap[net.Conn, *HTTPWebTransportServerConn]()}
 	sv.httpServer = NewHTTPServer(address, sv.handleHTTPAccess, "", false)
 	sv.httpServer.Logger = sv.Logger
 	return sv
@@ -82,13 +82,13 @@ func (sv *HTTPWebTransportServer) handleHTTPAccess(_ *HTTPServer, w http.Respons
 	sv.Logger.Log(1, "Preparing connection from: "+r.RemoteAddr)
 
 	//Verify if connection wants WebTransport
-	if !strings.Contains(r.Header.Get("Upgrade"), "webtransport") || !strings.Contains(r.Header.Get("Connection"), "Upgrade") {
+	if !strings.Contains(r.Header.Get("Upgrade"), "websocket") || !strings.Contains(r.Header.Get("Connection"), "Upgrade") {
 		http.Error(w, "Invalid WebTransport request", http.StatusBadRequest)
 		return false
 	}
 
 	//Valid connection
-	w.Header().Set("Upgrade", "webtransport")
+	w.Header().Set("Upgrade", "websocket")
 	w.Header().Set("Connection", "Upgrade")
 
 	//Request to switch to Webtransport keep-alive connection
@@ -106,10 +106,10 @@ func (sv *HTTPWebTransportServer) handleHTTPAccess(_ *HTTPServer, w http.Respons
 }
 
 func (sv *HTTPWebTransportServer) readFuncLocal(conn *net.TCPConn, data []byte, ended bool) {
-	var httpConn *HTTPWebTransportServerConn = sv.conns[conn]
+	var httpConn *HTTPWebTransportServerConn = sv.conns.Get(conn)
 	if httpConn == nil {
 		httpConn = &HTTPWebTransportServerConn{origin: sv, Conn: conn}
-		sv.conns[conn] = httpConn
+		sv.conns.Set(conn, httpConn)
 	}
 	//Process read
 	if sv.readFunc != nil {

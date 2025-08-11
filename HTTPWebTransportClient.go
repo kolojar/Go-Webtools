@@ -23,6 +23,7 @@ type HTTPWebTransportClient struct {
 	readFunc       HTTPWebTransportClientReadFunc
 	awaitingReady  bool
 	awaitingStatus bool
+	address        string
 }
 
 func (cl *HTTPWebTransportClient) IsAlive() bool {
@@ -39,7 +40,7 @@ func NewHTTPWebTransportClient(address string, readFunc HTTPWebTransportClientRe
 	}
 
 	//Create client
-	cl := &HTTPWebTransportClient{Logger: NewConsoleLogger("HTTP-WTClient", level), readFunc: readFunc}
+	cl := &HTTPWebTransportClient{Logger: NewConsoleLogger("HTTP-WTClient", level), readFunc: readFunc, address: address}
 	var err error
 	cl.tcpClient, err = NewTCPClient(address, cl.readFuncLocal, reportTraffic)
 	if err != nil {
@@ -64,13 +65,13 @@ func (cl *HTTPWebTransportClient) Connect() {
 	cl.awaitingReady = true
 
 	//Get host
-	host, _ := strings.CutSuffix(cl.tcpClient.address.String(), "/websocket")
-	host = strings.SplitN(host, ":", 2)[0]
+	//host, _ := strings.CutSuffix(cl.tcpClient.address.String(), "/websocket")
+	host := strings.SplitN(cl.address, ":", 2)[0]
 
 	//Make handshake GET
 	request := "GET /webtransport HTTP/1.1\r\n" +
 		"Host: " + host + "\r\n" +
-		"Upgrade: webtransport\r\n" +
+		"Upgrade: websocket\r\n" +
 		"Connection: Upgrade\r\n" +
 		"\r\n"
 	cl.Send([]byte(request))

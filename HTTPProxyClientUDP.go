@@ -1,44 +1,44 @@
 package webtools
 
 /*
-HTTP Proxy client for TCP object
+HTTP Proxy client for UDP object
 */
-type HTTPProxyClientTCP struct {
-	clientToId         SafeMap[*TCPServerConn, string]
-	idToClient         SafeMap[string, *TCPServerConn]
-	tcpServer          *TCPServer
+type HTTPProxyClientUDP struct {
+	clientToId         SafeMap[*UDPServerConn, string]
+	idToClient         SafeMap[string, *UDPServerConn]
+	udpServer          *UDPServer
 	httpClient         *HTTPWebTransportClient
-	pendingConnections SafeMap[string, *TCPServerConn]
-	pendingConnsData   SafeMap[*TCPServerConn, [][]byte]
+	pendingConnections SafeMap[string, *UDPServerConn]
+	pendingConnsData   SafeMap[*UDPServerConn, [][]byte]
 }
 
-func (cl *HTTPProxyClientTCP) IsAlive() bool {
+func (cl *HTTPProxyClientUDP) IsAlive() bool {
 	return cl.httpClient.IsAlive()
 }
 
 /*
-Creates new HTTP Proxy Client for TCP but does not starts it
+Creates new HTTP Proxy Client for UDP but does not starts it
 */
-func NewHTTPProxyClientTCP(httpProxyAddress string, tcpServerAddress string, reportTraffic bool) (*HTTPProxyClientTCP, error) {
-	cl := &HTTPProxyClientTCP{clientToId: MakeSafeMap[*TCPServerConn, string](), pendingConnections: MakeSafeMap[string, *TCPServerConn](), idToClient: MakeSafeMap[string, *TCPServerConn](), pendingConnsData: MakeSafeMap[*TCPServerConn, [][]byte]()}
+func NewHTTPProxyClientUDP(httpProxyAddress string, tcpServerAddress string, reportTraffic bool) (*HTTPProxyClientUDP, error) {
+	cl := &HTTPProxyClientUDP{clientToId: MakeSafeMap[*UDPServerConn, string](), pendingConnections: MakeSafeMap[string, *UDPServerConn](), idToClient: MakeSafeMap[string, *UDPServerConn](), pendingConnsData: MakeSafeMap[*UDPServerConn, [][]byte]()}
 	var err error
 	cl.httpClient, err = NewHTTPWebTransportClient(httpProxyAddress, cl.handleWebTransportReadFunc, reportTraffic)
 	if err != nil {
 		return nil, err
 	}
-	cl.httpClient.Logger.Prefix = "HTTPProxyClientTCP - " + cl.httpClient.Logger.Prefix
-	cl.tcpServer, err = NewTCPServer(tcpServerAddress, cl.handleTCPReadFunc, reportTraffic)
+	cl.httpClient.Logger.Prefix = "HTTPProxyClientUDP - " + cl.httpClient.Logger.Prefix
+	cl.udpServer, err = NewUDPServer(tcpServerAddress, cl.handleUDPReadFunc, reportTraffic)
 	if err != nil {
 		return nil, err
 	}
-	cl.tcpServer.Logger.Prefix = "HTTPProxyClientTCP - " + cl.tcpServer.Logger.Prefix
+	cl.udpServer.Logger.Prefix = "HTTPProxyClientUDP - " + cl.udpServer.Logger.Prefix
 	return cl, nil
 }
 
-func (cl *HTTPProxyClientTCP) handleWebTransportReadFunc(_ *HTTPWebTransportClient, frame []byte, ended bool) {
+func (cl *HTTPProxyClientUDP) handleWebTransportReadFunc(_ *HTTPWebTransportClient, frame []byte, ended bool) {
 	if ended {
 		//Close all connections
-		cl.tcpServer.Stop()
+		cl.udpServer.Stop()
 		return
 	}
 
@@ -61,7 +61,7 @@ func (cl *HTTPProxyClientTCP) handleWebTransportReadFunc(_ *HTTPWebTransportClie
 				cl.pendingConnections.Delete(string(data))
 				cl.clientToId.Set(conn, string(id))
 				cl.idToClient.Set(string(id), conn)
-				cl.httpClient.Logger.Log(1, "Prepared new connection with temporary id: "+string(data)+" for connection connected to: "+conn.Conn.RemoteAddr().String()+" connected locally to: "+conn.Conn.LocalAddr().String()+" with new id: "+string(id))
+				cl.httpClient.Logger.Log(1, "Prepared new connection with temporary id: "+string(data)+" for connection connected to: "+conn.Address.String()+" with new id: "+string(id))
 
 				//Process pending data
 				for len(cl.pendingConnsData.Get(conn)) > 0 {
@@ -86,21 +86,21 @@ func (cl *HTTPProxyClientTCP) handleWebTransportReadFunc(_ *HTTPWebTransportClie
 	}
 }
 
-func (cl *HTTPProxyClientTCP) handleTCPReadFunc(tcpConn *TCPServerConn, data []byte, ended bool) {
-	if cl.pendingConnsData.Get(tcpConn) != nil {
+func (cl *HTTPProxyClientUDP) handleUDPReadFunc(udpConn *UDPServerConn, data []byte, ended bool) {
+	if cl.pendingConnsData.Get(udpConn) != nil {
 		//Already pending connection
-		cl.pendingConnsData.Set(tcpConn, append(cl.pendingConnsData.Get(tcpConn), data))
+		cl.pendingConnsData.Set(udpConn, append(cl.pendingConnsData.Get(udpConn), data))
 		return
 	}
 
-	id := cl.clientToId.Get(tcpConn)
+	id := cl.clientToId.Get(udpConn)
 	if id == "" {
 		//No connection found, request new
 		tempId := GenerateRandomId()
-		cl.pendingConnections.Set(tempId, tcpConn)
-		cl.httpClient.Logger.Log(1, "Preparing new connection with temporary id: "+tempId+" for connection connected to: "+tcpConn.Conn.RemoteAddr().String()+" connected locally to: "+tcpConn.Conn.LocalAddr().String())
+		cl.pendingConnections.Set(tempId, udpConn)
+		cl.httpClient.Logger.Log(1, "Preparing new connection with temporary id: "+tempId+" for connection connected to: "+udpConn.Address.String())
 		cl.httpClient.Send(PackProxyFrame(PROXY_FRAME_TYPE_CONNECT, []byte("0"), []byte(tempId)))
-		cl.pendingConnsData.Set(tcpConn, append(make([][]byte, 0), data))
+		cl.pendingConnsData.Set(udpConn, append(make([][]byte, 0), data))
 		return
 	}
 
@@ -116,15 +116,15 @@ func (cl *HTTPProxyClientTCP) handleTCPReadFunc(tcpConn *TCPServerConn, data []b
 /*
 Connects to HTTP Proxy server and start reading loop, does not locks execution thread
 */
-func (cl *HTTPProxyClientTCP) Connect() {
+func (cl *HTTPProxyClientUDP) Connect() {
 	cl.httpClient.Connect()
-	go cl.tcpServer.Start()
+	go cl.udpServer.Start()
 }
 
 /*
 Connects to HTTP Proxy server and start reading loop, does not locks execution thread
 */
-func (cl *HTTPProxyClientTCP) Stop() {
+func (cl *HTTPProxyClientUDP) Stop() {
 	cl.httpClient.Stop()
-	cl.tcpServer.Stop()
+	cl.udpServer.Stop()
 }

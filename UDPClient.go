@@ -20,7 +20,7 @@ Basic TCP Client
 type UDPClient struct {
 	readFunc   UDPClientReadFunc
 	Logger     *ConsoleLogger
-	connection *net.UDPConn
+	Conn *net.UDPConn
 	address    *net.UDPAddr
 	isAlive    bool
 }
@@ -53,7 +53,7 @@ Connects to TCP server and start reading loop, does not locks execution thread
 func (udp *UDPClient) Connect() {
 	//Dial
 	var err error
-	udp.connection, err = net.DialUDP("udp", nil, udp.address)
+	udp.Conn, err = net.DialUDP("udp", nil, udp.address)
 	if err != nil {
 		udp.Logger.Log(3, "Error connecting to: "+udp.address.String()+" | Error: "+err.Error())
 		return
@@ -64,7 +64,7 @@ func (udp *UDPClient) Connect() {
 	go func() {
 		var ok bool = true
 		for ok {
-			ok = handleUDPRead(udp.connection,udp.Logger, udp.readFuncLocal)
+			ok = handleUDPRead(udp.Conn,udp.Logger, udp.readFuncLocal)
 		}
 		udp.isAlive = false
 	}()
@@ -84,21 +84,21 @@ func (udp *UDPClient) readFuncLocal(addr *net.UDPAddr, data []byte, ended bool) 
 Sends data to server
 */
 func (udp *UDPClient) Send(data []byte) {
-	writeToUDP(false, udp.connection, udp.address, data, udp.Logger)
+	writeToUDP(false, udp.Conn, udp.address, data, udp.Logger)
 }
 
 /*
 Stops TCP client
 */
 func (udp *UDPClient) Stop() {
-	if udp.connection == nil || !udp.isAlive {
+	if udp.Conn == nil || !udp.isAlive {
 		//Invalid connection
 		return
 	}
 
 	//Close
 	udp.Logger.Log(1, "Requested disconnect from: "+udp.address.String())
-	err := udp.connection.Close()
+	err := udp.Conn.Close()
 	if err != nil {
 		udp.Logger.Log(3, "Error disconnecting from: "+udp.address.String()+" | Error: "+err.Error())
 	}

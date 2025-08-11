@@ -1,12 +1,13 @@
 package webtools
 
+import "sync"
 /*
 TCP to UDP bridge used for converting all incoming TCP traffic to UDP
 */
 type TCPToUDPBridge struct {
 	udpServer        *UDPServer
-	udpToTCP         map[*UDPServerConn]*TCPClient
-	tcpToUDP         map[*TCPClient]*UDPServerConn
+	udpToTCP         sync.Map
+	tcpToUDP         sync.Map
 	tcpServerAddress string
 	reportTraffic    bool
 }
@@ -15,7 +16,7 @@ type TCPToUDPBridge struct {
 Creates new TCP to UDP bridge but does not starts it
 */
 func NewTCPToUDPBridge(tcpServerAddress string, udpServerAddress string, reportTraffic bool) (*TCPToUDPBridge, error) {
-	br := &TCPToUDPBridge{udpToTCP: map[*UDPServerConn]*TCPClient{}, tcpToUDP: map[*TCPClient]*UDPServerConn{}, tcpServerAddress: tcpServerAddress, reportTraffic: reportTraffic}
+	br := &TCPToUDPBridge{udpToTCP: sync.Map{}, tcpToUDP: sync.Map{}, tcpServerAddress: tcpServerAddress, reportTraffic: reportTraffic}
 	var err error
 	br.udpServer, err = NewUDPServer(udpServerAddress, br.handleUDPReadFunc, reportTraffic)
 	if err != nil {
@@ -26,18 +27,20 @@ func NewTCPToUDPBridge(tcpServerAddress string, udpServerAddress string, reportT
 }
 
 func (br *TCPToUDPBridge) handleUDPReadFunc(udp *UDPServerConn, data []byte, ended bool) {
-	tcp := br.udpToTCP[udp]
+	gtcp, _ := br.udpToTCP.Load(udp)
 	if ended {
 		//Connection ended
-		if tcp != nil {
+		if gtcp != nil {
+			tcp := gtcp.(*TCPClient)
 			tcp.Stop()
-			delete(br.tcpToUDP, tcp)
+			br.tcpToUDP.Delete(tcp)
 		}
-		delete(br.udpToTCP, udp)
+		br.udpToTCP.Delete(udp)
 		return
 	}
 
-	if tcp == nil {
+	var tcp *TCPClient
+	if gtcp == nil {
 		//No connection to TCP found, creating new
 		var err error
 		tcp, err = NewTCPClient(br.tcpServerAddress, br.handleTCPReadFunc, br.reportTraffic)
@@ -46,9 +49,11 @@ func (br *TCPToUDPBridge) handleUDPReadFunc(udp *UDPServerConn, data []byte, end
 			return
 		}
 		tcp.Logger.Prefix = "TCPToUDPBridge - " + tcp.Logger.Prefix
-		br.udpToTCP[udp] = tcp
-		br.tcpToUDP[tcp] = udp
+		br.udpToTCP.Store(udp, tcp)
+		br.tcpToUDP.Store(tcp, udp)
 		tcp.Connect()
+	} else {
+		tcp = gtcp.(*TCPClient)
 	}
 
 	//Send
@@ -56,17 +61,18 @@ func (br *TCPToUDPBridge) handleUDPReadFunc(udp *UDPServerConn, data []byte, end
 }
 
 func (br *TCPToUDPBridge) handleTCPReadFunc(tcp *TCPClient, data []byte, ended bool) {
-	udp := br.tcpToUDP[tcp]
-	if udp == nil {
+	gudp, _ := br.tcpToUDP.Load(tcp)
+	if gudp == nil {
 		//Connection not found
 		br.udpServer.Logger.Log(3, "No UDP connection found for TCP connection connected to: "+tcp.Conn.RemoteAddr().String()+" connected locally to: "+tcp.Conn.LocalAddr().String())
 		return
 	}
+	udp := gudp.(*UDPServerConn)
 	if ended {
 		//Close connection
 		udp.Close()
-		delete(br.tcpToUDP, tcp)
-		delete(br.udpToTCP, udp)
+		br.tcpToUDP.Delete(tcp)
+		br.udpToTCP.Delete(udp)
 		return
 	}
 

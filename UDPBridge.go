@@ -1,0 +1,64 @@
+package webtools
+
+type UDPBridge struct {
+	clientAddress  string
+	udpServer      *UDPServer
+	serverToClient SafeMap[*UDPServerConn, *UDPClient]
+	clientToServer SafeMap[*UDPClient, *UDPServerConn]
+}
+
+func NewUDPBridge(sourceAddress string, clientAddress string) *UDPBridge {
+	br := &UDPBridge{clientAddress: sourceAddress, serverToClient: MakeSafeMap[*UDPServerConn, *UDPClient](), clientToServer: MakeSafeMap[*UDPClient, *UDPServerConn]()}
+	br.udpServer, _ = NewUDPServer(clientAddress, br.serverReadFunc, true)
+	return br
+}
+
+func (br *UDPBridge) serverReadFunc(conn *UDPServerConn, data []byte, ended bool) {
+	if br.serverToClient.Get(conn) == nil {
+		if ended {
+			return
+		}
+
+		//No connection found, create new
+		cl, _ := NewUDPClient(br.clientAddress, br.clientReadFunc, true)
+		br.serverToClient.Set(conn, cl)
+		br.clientToServer.Set(cl, conn)
+		cl.Connect()
+	}
+	if ended {
+		br.serverToClient.Get(conn).Stop()
+		br.clientToServer.Delete(br.serverToClient.Get(conn))
+		br.serverToClient.Delete(conn)
+	} else {
+		for _, v := range br.serverToClient.GetValues() {
+			v.Send(data)
+		}
+	}
+}
+
+func (br *UDPBridge) clientReadFunc(cl *UDPClient, data []byte, ended bool) {
+	if br.clientToServer.Get(cl) == nil {
+		br.udpServer.Logger.Log(3, "Invalid connection")
+		return
+	}
+
+	if ended {
+		br.clientToServer.Get(cl).Close()
+	} else {
+		br.clientToServer.Get(cl).Send(data)
+	}
+}
+
+/*
+Starts UDP Bridge
+*/
+func (br *UDPBridge) Start() {
+	br.udpServer.Start()
+}
+
+/*
+Stops UDP Bridge
+*/
+func (br *UDPBridge) Stop() {
+	br.udpServer.Stop()
+}

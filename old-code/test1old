@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	"time"
+	"fmt"
 )
 
 func tcp() {
@@ -94,6 +95,7 @@ func udp() {
 		}
 
 		key := clientAddr.String()
+		fmt.Println(clientAddr.String(),len(sessionMap))
 		//sessionMap[key] = &session{clientAddr, time.Now()}
 		sess, ok := sessionMap[key]
 		if !ok {
