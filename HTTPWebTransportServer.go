@@ -82,13 +82,13 @@ func (sv *HTTPWebTransportServer) handleHTTPAccess(_ *HTTPServer, w http.Respons
 	sv.Logger.Log(1, "Preparing connection from: "+r.RemoteAddr)
 
 	//Verify if connection wants WebTransport
-	if !strings.Contains(r.Header.Get("Upgrade"), "webtransport") || !strings.Contains(r.Header.Get("Connection"), "Upgrade") {
+	if !strings.Contains(r.Header.Get("Upgrade"), "websocket") || !strings.Contains(r.Header.Get("Connection"), "Upgrade") {
 		http.Error(w, "Invalid WebTransport request", http.StatusBadRequest)
 		return false
 	}
 
 	//Valid connection
-	w.Header().Set("Upgrade", "webtransport")
+	w.Header().Set("Upgrade", "websocket")
 	w.Header().Set("Connection", "Upgrade")
 
 	//Request to switch to Webtransport keep-alive connection

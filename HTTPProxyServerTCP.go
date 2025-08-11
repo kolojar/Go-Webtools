@@ -7,20 +7,20 @@ import (
 	"time"
 )
 
-const HTTP_PROXY_FRAME_SEPARATOR = byte(rune(';'))
-const HTTP_PROXY_FRAME_TYPE_CONNECT = uint8(1)
-const HTTP_PROXY_FRAME_TYPE_CLOSE = uint8(2)
-const HTTP_PROXY_FRAME_TYPE_DATA = uint8(3)
+const PROXY_FRAME_SEPARATOR = byte(rune(';'))
+const PROXY_FRAME_TYPE_CONNECT = uint8(1)
+const PROXY_FRAME_TYPE_CLOSE = uint8(2)
+const PROXY_FRAME_TYPE_DATA = uint8(3)
 
 /*
-Packs HTTP Proxy frame
+Packs Proxy frame
 */
-func PackHTTPProxyFrame(operation uint8, id []byte, data []byte) []byte {
+func PackProxyFrame(operation uint8, id []byte, data []byte) []byte {
 	frame := make([]byte, 0)
 	frame = append(frame, operation)
-	frame = append(frame, HTTP_PROXY_FRAME_SEPARATOR)
+	frame = append(frame, PROXY_FRAME_SEPARATOR)
 	frame = append(frame, id...)
-	frame = append(frame, HTTP_PROXY_FRAME_SEPARATOR)
+	frame = append(frame, PROXY_FRAME_SEPARATOR)
 	if data != nil {
 		frame = append(frame, data...)
 	}
@@ -28,9 +28,9 @@ func PackHTTPProxyFrame(operation uint8, id []byte, data []byte) []byte {
 }
 
 /*
-Unpacks HTTP Proxy frame, operation 0 means error
+Unpacks Proxy frame, operation 0 means error
 */
-func UnpackHTTPProxyFrame(frame []byte, logger *ConsoleLogger) (uint8, []byte, []byte) {
+func UnpackProxyFrame(frame []byte, logger *ConsoleLogger) (uint8, []byte, []byte) {
 	//Check size
 	if len(frame) < 2 {
 		logger.Log(3, "Frame too short. | Data lenght: "+strconv.Itoa(len(frame))+" | Data in hex: "+hex.EncodeToString(frame))
@@ -39,7 +39,7 @@ func UnpackHTTPProxyFrame(frame []byte, logger *ConsoleLogger) (uint8, []byte, [
 
 	//Get operation
 	operation := frame[0]
-	if frame[1] != HTTP_PROXY_FRAME_SEPARATOR {
+	if frame[1] != PROXY_FRAME_SEPARATOR {
 		logger.Log(3, "Invalid frame at index 1. | Data lenght: "+strconv.Itoa(len(frame))+" | Data in hex: "+hex.EncodeToString(frame))
 		return 0, nil, nil
 	}
@@ -48,7 +48,7 @@ func UnpackHTTPProxyFrame(frame []byte, logger *ConsoleLogger) (uint8, []byte, [
 	var id []byte
 	var data []byte
 	for i := 2; i < len(frame); i++ {
-		if frame[i] == HTTP_PROXY_FRAME_SEPARATOR {
+		if frame[i] == PROXY_FRAME_SEPARATOR {
 			id = frame[2:i]
 			if len(frame) > (i + 1) {
 				data = frame[i+1:]
@@ -84,7 +84,7 @@ type HTTPProxyServerTCPConn struct {
 Creates frame and sends it to HTTP
 */
 func (cl *HTTPProxyServerTCPConn) SendToHTTP(operation uint8, data []byte) {
-	cl.source.Send(PackHTTPProxyFrame(operation, cl.id, data))
+	cl.source.Send(PackProxyFrame(operation, cl.id, data))
 }
 
 /*
@@ -98,10 +98,13 @@ func (cl *HTTPProxyServerTCPConn) SendToTCP(data []byte) {
 Closes connection to client
 */
 func (cl *HTTPProxyServerTCPConn) Close(isInitiator bool) {
+	if cl == nil || cl.tcpClient == nil {
+		return
+	}
 	cl.tcpClient.Stop()
 	cl.origin.idToClient.Delete(string(cl.id))
 	if isInitiator {
-		cl.SendToHTTP(HTTP_PROXY_FRAME_TYPE_CLOSE, nil)
+		cl.SendToHTTP(PROXY_FRAME_TYPE_CLOSE, nil)
 	}
 	cl.origin.clientToId.Delete(cl.tcpClient)
 }
@@ -138,14 +141,14 @@ func (sv *HTTPProxyServerTCP) handleWebTransportReadFunc(conn *HTTPWebTransportS
 	}
 
 	//Unpack frame
-	operation, id, data := UnpackHTTPProxyFrame(frame, conn.origin.Logger)
+	operation, id, data := UnpackProxyFrame(frame, conn.origin.Logger)
 	if operation == 0 {
 		return
 	}
 
 	//Sort connections
 	if sv.idToClient.Get(string(id)) == nil {
-		if operation == HTTP_PROXY_FRAME_TYPE_CONNECT {
+		if operation == PROXY_FRAME_TYPE_CONNECT {
 			//Create new connection
 			id = []byte(GenerateRandomId())
 			cl, err := NewTCPClient(sv.tcpServerAddress, sv.handleTCPReadFunc, sv.reportTrafic)
@@ -157,7 +160,7 @@ func (sv *HTTPProxyServerTCP) handleWebTransportReadFunc(conn *HTTPWebTransportS
 			cl.Connect()
 			sv.idToClient.Set(string(id), &HTTPProxyServerTCPConn{tcpClient: cl, id: id, source: conn, origin: sv})
 			sv.clientToId.Set(cl, string(id))
-			sv.idToClient.Get(string(id)).SendToHTTP(HTTP_PROXY_FRAME_TYPE_CONNECT, data)
+			sv.idToClient.Get(string(id)).SendToHTTP(PROXY_FRAME_TYPE_CONNECT, data)
 			return
 		} else {
 			conn.origin.Logger.Log(3, "Could not find connection to id: "+string(id))
@@ -172,12 +175,12 @@ func (sv *HTTPProxyServerTCP) handleWebTransportReadFunc(conn *HTTPWebTransportS
 
 	//Sort operations
 	switch operation {
-	case HTTP_PROXY_FRAME_TYPE_CLOSE:
+	case PROXY_FRAME_TYPE_CLOSE:
 		{
 			//Close connection
 			cl.Close(false)
 		}
-	case HTTP_PROXY_FRAME_TYPE_DATA:
+	case PROXY_FRAME_TYPE_DATA:
 		{
 			//Send to TCP
 			cl.SendToTCP(data)
@@ -201,7 +204,7 @@ func (sv *HTTPProxyServerTCP) handleTCPReadFunc(tcp *TCPClient, data []byte, end
 	}
 
 	//Send to client
-	cl.SendToHTTP(HTTP_PROXY_FRAME_TYPE_DATA, data)
+	cl.SendToHTTP(PROXY_FRAME_TYPE_DATA, data)
 }
 
 /*

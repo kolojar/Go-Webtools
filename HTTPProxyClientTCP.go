@@ -43,13 +43,13 @@ func (cl *HTTPProxyClientTCP) handleWebTransportReadFunc(_ *HTTPWebTransportClie
 	}
 
 	//Unpack
-	operation, id, data := UnpackHTTPProxyFrame(frame, cl.httpClient.Logger)
+	operation, id, data := UnpackProxyFrame(frame, cl.httpClient.Logger)
 	if operation == 0 {
 		return
 	}
 
 	switch operation {
-	case HTTP_PROXY_FRAME_TYPE_CONNECT:
+	case PROXY_FRAME_TYPE_CONNECT:
 		{
 			//Confirmed connection
 			conn := cl.pendingConnections.Get(string(data))
@@ -65,18 +65,18 @@ func (cl *HTTPProxyClientTCP) handleWebTransportReadFunc(_ *HTTPWebTransportClie
 			//Process pending data
 			for len(cl.pendingConnsData.Get(conn)) > 0 {
 				//Resend data
-				cl.httpClient.Send(PackHTTPProxyFrame(HTTP_PROXY_FRAME_TYPE_DATA, id, cl.pendingConnsData.Get(conn)[0]))
+				cl.httpClient.Send(PackProxyFrame(PROXY_FRAME_TYPE_DATA, id, cl.pendingConnsData.Get(conn)[0]))
 				cl.pendingConnsData.Set(conn, cl.pendingConnsData.Get(conn)[1:])
 			}
 			cl.pendingConnsData.Delete(conn)
 			return
 		}
-	case HTTP_PROXY_FRAME_TYPE_CLOSE:
+	case PROXY_FRAME_TYPE_CLOSE:
 		{
 			//Close connection
 			cl.idToClient.Get(string(id)).Close()
 		}
-	case HTTP_PROXY_FRAME_TYPE_DATA:
+	case PROXY_FRAME_TYPE_DATA:
 		{
 			//Resend data
 			cl.idToClient.Get(string(id)).Send(data)
@@ -97,18 +97,18 @@ func (cl *HTTPProxyClientTCP) handleTCPReadFunc(tcpConn *TCPServerConn, data []b
 		tempId := GenerateRandomId()
 		cl.pendingConnections.Set(tempId, tcpConn)
 		cl.httpClient.Logger.Log(1, "Preparing new connection with temporary id: "+tempId+" for connection connected to: "+tcpConn.Conn.RemoteAddr().String()+" connected locally to: "+tcpConn.Conn.LocalAddr().String())
-		cl.httpClient.Send(PackHTTPProxyFrame(HTTP_PROXY_FRAME_TYPE_CONNECT, []byte("0"), []byte(tempId)))
+		cl.httpClient.Send(PackProxyFrame(PROXY_FRAME_TYPE_CONNECT, []byte("0"), []byte(tempId)))
 		cl.pendingConnsData.Set(tcpConn, append(make([][]byte, 0), data))
 		return
 	}
 
 	if ended {
 		//Connection ennded
-		cl.httpClient.Send(PackHTTPProxyFrame(HTTP_PROXY_FRAME_TYPE_CLOSE, []byte(id), nil))
+		cl.httpClient.Send(PackProxyFrame(PROXY_FRAME_TYPE_CLOSE, []byte(id), nil))
 		return
 	}
 	//Send data
-	cl.httpClient.Send(PackHTTPProxyFrame(HTTP_PROXY_FRAME_TYPE_DATA, []byte(id), data))
+	cl.httpClient.Send(PackProxyFrame(PROXY_FRAME_TYPE_DATA, []byte(id), data))
 }
 
 /*

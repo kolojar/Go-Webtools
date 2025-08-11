@@ -25,7 +25,7 @@ type HTTPProxyServerUDPConn struct {
 Creates frame and sends it to HTTP
 */
 func (cl *HTTPProxyServerUDPConn) SendToHTTP(operation uint8, data []byte) {
-	cl.source.Send(PackHTTPProxyFrame(operation, cl.id, data))
+	cl.source.Send(PackProxyFrame(operation, cl.id, data))
 }
 
 /*
@@ -42,7 +42,7 @@ func (cl *HTTPProxyServerUDPConn) Close(isInitiator bool) {
 	cl.udpClient.Stop()
 	cl.origin.idToClient.Delete(string(cl.id))
 	if isInitiator {
-		cl.SendToHTTP(HTTP_PROXY_FRAME_TYPE_CLOSE, nil)
+		cl.SendToHTTP(PROXY_FRAME_TYPE_CLOSE, nil)
 	}
 	cl.origin.clientToId.Delete(cl.udpClient)
 }
@@ -72,14 +72,14 @@ func (sv *HTTPProxyServerUDP) handleWebTransportReadFunc(conn *HTTPWebTransportS
 	}
 
 	//Unpack frame
-	operation, id, data := UnpackHTTPProxyFrame(frame, conn.origin.Logger)
+	operation, id, data := UnpackProxyFrame(frame, conn.origin.Logger)
 	if operation == 0 {
 		return
 	}
 
 	//Sort connections
 	if sv.idToClient.Get(string(id)) == nil {
-		if operation == HTTP_PROXY_FRAME_TYPE_CONNECT {
+		if operation == PROXY_FRAME_TYPE_CONNECT {
 			//Create new connection
 			id = []byte(GenerateRandomId())
 			cl, err := NewUDPClient(sv.udpServerAddress, sv.handleUDPReadFunc, sv.reportTrafic)
@@ -91,7 +91,7 @@ func (sv *HTTPProxyServerUDP) handleWebTransportReadFunc(conn *HTTPWebTransportS
 			cl.Connect()
 			sv.idToClient.Set(string(id), &HTTPProxyServerUDPConn{udpClient: cl, id: id, source: conn, origin: sv})
 			sv.clientToId.Set(cl, string(id))
-			sv.idToClient.Get(string(id)).SendToHTTP(HTTP_PROXY_FRAME_TYPE_CONNECT, data)
+			sv.idToClient.Get(string(id)).SendToHTTP(PROXY_FRAME_TYPE_CONNECT, data)
 			return
 		} else {
 			conn.origin.Logger.Log(3, "Could not find connection to id: "+string(id))
@@ -106,12 +106,12 @@ func (sv *HTTPProxyServerUDP) handleWebTransportReadFunc(conn *HTTPWebTransportS
 
 	//Sort operations
 	switch operation {
-	case HTTP_PROXY_FRAME_TYPE_CLOSE:
+	case PROXY_FRAME_TYPE_CLOSE:
 		{
 			//Close connection
 			cl.Close(false)
 		}
-	case HTTP_PROXY_FRAME_TYPE_DATA:
+	case PROXY_FRAME_TYPE_DATA:
 		{
 			//Send to UDP
 			cl.SendToUDP(data)
@@ -135,7 +135,7 @@ func (sv *HTTPProxyServerUDP) handleUDPReadFunc(udp *UDPClient, data []byte, end
 	}
 
 	//Send to client
-	cl.SendToHTTP(HTTP_PROXY_FRAME_TYPE_DATA, data)
+	cl.SendToHTTP(PROXY_FRAME_TYPE_DATA, data)
 }
 
 /*
