@@ -129,7 +129,7 @@ func main() {
 		}
 	case "tcmc":
 		{
-			cl, _ := webtools.NewTCPConnectionMergerClient("127.0.0.1:8880", "127.0.0.1", map[string]string{"127.0.0.1:5679": "5681", "127.0.0.1:7777": "17777", "127.0.0.1:8888": "8888"}, true)
+			cl, _ := webtools.NewTCPConnectionMergerClient("127.0.0.1:8881", "127.0.0.1", map[string]string{"127.0.0.1:5679": "5681", "127.0.0.1:7777": "17777", "127.0.0.1:8888": "8888"}, true)
 			cl.Connect()
 			for cl.IsAlive() {
 				time.Sleep(1 * time.Second)
