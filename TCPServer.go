@@ -1,7 +1,10 @@
 package webtools
 
 import (
+	"bytes"
+	"encoding/binary"
 	"encoding/hex"
+	"io"
 	"net"
 	"strconv"
 	"time"
@@ -72,12 +75,13 @@ type TCPServer struct {
 	requestedStop bool
 	isRunning     bool
 	conns         SafeMap[string, *TCPServerConn]
+	framed        bool
 }
 
 /*
 Creates new TCP Server but does not starts it
 */
-func NewTCPServer(address string, readFunc TCPServerReadFunc, reportTraffic bool) (*TCPServer, error) {
+func NewTCPServer(address string, readFunc TCPServerReadFunc, reportTraffic bool, framed bool) (*TCPServer, error) {
 	//Make address
 	addressObj, err := net.ResolveTCPAddr("tcp", address)
 	if err != nil {
@@ -87,7 +91,7 @@ func NewTCPServer(address string, readFunc TCPServerReadFunc, reportTraffic bool
 	if !reportTraffic {
 		level = 1
 	}
-	return &TCPServer{address: addressObj, readFunc: readFunc, Logger: NewConsoleLogger("TCPServer", level), conns: MakeSafeMap[string, *TCPServerConn]()}, nil
+	return &TCPServer{address: addressObj, readFunc: readFunc, Logger: NewConsoleLogger("TCPServer", level), conns: MakeSafeMap[string, *TCPServerConn](), framed: framed}, nil
 }
 
 /*
@@ -126,7 +130,11 @@ func (tcp *TCPServer) Start() {
 
 		//Handle connection
 		tcp.Logger.Log(2, "Connection from: "+conn.RemoteAddr().String()+" connected locally to: "+conn.LocalAddr().String())
-		go handleTCPRead(conn, tcp.Logger, tcp.readFuncLocal)
+		if tcp.framed {
+			go handleTCPReadFramed(conn, tcp.Logger, tcp.readFuncLocal)
+		} else {
+			go handleTCPRead(conn, tcp.Logger, tcp.readFuncLocal)
+		}
 	}
 	tcp.isRunning = false
 }
@@ -159,6 +167,47 @@ func handleTCPRead(conn *net.TCPConn, logger *ConsoleLogger, readFunc func(*net.
 	defer conn.Close()
 }
 
+/*
+Handles TCP Read with frame support
+*/
+func handleTCPReadFramed(conn *net.TCPConn, logger *ConsoleLogger, readFunc func(*net.TCPConn, []byte, bool)) {
+	var data []byte
+	var n int
+	for {
+		//Get frame size
+		sizeOfBuffer := make([]byte, 4)
+		_, err := io.ReadFull(conn, sizeOfBuffer)
+		if err != nil {
+			logger.Log(3, "Error reading frame from: "+conn.RemoteAddr().String()+" connected locally to: "+conn.LocalAddr().String()+" | Error: "+err.Error())
+			break
+		}
+		lengthOfBuffer := binary.BigEndian.Uint32(sizeOfBuffer)
+
+		//Read data
+		data = make([]byte, lengthOfBuffer)
+		n, err = io.ReadFull(conn, data)
+		if err != nil {
+			//Exit on errors
+			//if err.Error() != "EOF" && !strings.Contains(err.Error(), "use of closed network connection") {
+			logger.Log(3, "Error reading from: "+conn.RemoteAddr().String()+" connected locally to: "+conn.LocalAddr().String()+" | Error: "+err.Error())
+			//}
+			break
+		}
+
+		//Process read
+		if readFunc != nil {
+			readFunc(conn, data, false)
+		}
+	}
+
+	//Finished reading
+	logger.Log(2, "Disconneted from: "+conn.RemoteAddr().String()+" connected locally to: "+conn.LocalAddr().String())
+	if readFunc != nil {
+		readFunc(conn, data[:n], true)
+	}
+	defer conn.Close()
+}
+
 func (tcp *TCPServer) readFuncLocal(conn *net.TCPConn, data []byte, ended bool) {
 	var tcpConn *TCPServerConn = tcp.conns.Get(conn.RemoteAddr().String())
 	if tcpConn == nil {
@@ -168,7 +217,7 @@ func (tcp *TCPServer) readFuncLocal(conn *net.TCPConn, data []byte, ended bool) 
 	if ended {
 		tcp.conns.Delete(conn.RemoteAddr().String())
 	}
-	tcp.Logger.Log(1, "Count of connections: "+strconv.Itoa(tcp.conns.Len()))
+	tcp.Logger.Log(0, "Count of connections: "+strconv.Itoa(tcp.conns.Len()))
 	//Process read
 	if tcp.readFunc != nil {
 		if !ended {
@@ -196,10 +245,28 @@ func writeToTCP(conn *net.TCPConn, data []byte, logger *ConsoleLogger) {
 }
 
 /*
+Handles TCP Write with frames
+*/
+func writeToTCPFramed(conn *net.TCPConn, data []byte, logger *ConsoleLogger) {
+	var frame bytes.Buffer
+	err := binary.Write(&frame, binary.BigEndian, uint32(len(data)))
+	if err != nil {
+		logger.Log(4, "Error creating frame: "+err.Error())
+		return
+	}
+	frame.Write(data)
+	writeToTCP(conn, frame.Bytes(), logger)
+}
+
+/*
 Writes to Client
 */
 func (tcp *TCPServer) WriteToClient(conn *net.TCPConn, data []byte) {
-	writeToTCP(conn, data, tcp.Logger)
+	if tcp.framed {
+		writeToTCPFramed(conn, data, tcp.Logger)
+	} else {
+		writeToTCP(conn, data, tcp.Logger)
+	}
 }
 
 /*

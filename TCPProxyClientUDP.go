@@ -22,7 +22,7 @@ Creates new TCP Proxy Client for UDP but does not starts it
 func NewTCPProxyClientUDP(tcpProxyAddress string, udpServerAddress string, reportTraffic bool) (*TCPProxyClientUDP, error) {
 	cl := &TCPProxyClientUDP{clientToId: MakeSafeMap[*UDPServerConn, string](), pendingConnections: MakeSafeMap[string, *UDPServerConn](), idToClient: MakeSafeMap[string, *UDPServerConn](), pendingConnsData: MakeSafeMap[*UDPServerConn, [][]byte]()}
 	var err error
-	cl.tcpClient, err = NewTCPClient(tcpProxyAddress, cl.handleTCPReadFunc, reportTraffic)
+	cl.tcpClient, err = NewTCPClient(tcpProxyAddress, cl.handleTCPReadFunc, reportTraffic, true)
 	if err != nil {
 		return nil, err
 	}

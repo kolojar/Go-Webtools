@@ -14,13 +14,13 @@ func main() {
 	switch os.Args[1] {
 	case "ts":
 		{
-			server, _ := webtools.NewTCPServer("127.0.0.1:7777", readFuncTCPSv, true)
+			server, _ := webtools.NewTCPServer("127.0.0.1:7777", readFuncTCPSv, true, false)
 			server.Start()
 			break
 		}
 	case "tc":
 		{
-			client, _ := webtools.NewTCPClient("127.0.0.1:17777", readFuncTCPCl, true)
+			client, _ := webtools.NewTCPClient("127.0.0.1:17777", readFuncTCPCl, true, false)
 			client.Connect()
 			for i := 0; i < 1000; i++ {
 				client.Send([]byte("Test" + strconv.Itoa(i) + "|"))
@@ -124,12 +124,12 @@ func main() {
 		}
 	case "tcms":
 		{
-			sv, _ := webtools.NewTCPConnectionMergerServer("127.0.0.1:8880", []string{"127.0.0.1:5679", "127.0.0.1:7777", "127.0.0.1:8888"}, false)
+			sv, _ := webtools.NewTCPConnectionMergerServer("127.0.0.1:8880", []string{"127.0.0.1:5679", "127.0.0.1:7777", "127.0.0.1:8888"}, true)
 			sv.Start()
 		}
 	case "tcmc":
 		{
-			cl, _ := webtools.NewTCPConnectionMergerClient("127.0.0.1:8881", "127.0.0.1", map[string]string{"127.0.0.1:5679": "5681", "127.0.0.1:7777": "17777", "127.0.0.1:8888": "8888"}, false)
+			cl, _ := webtools.NewTCPConnectionMergerClient("127.0.0.1:8880", "127.0.0.1", map[string]string{"127.0.0.1:5679": "5681", "127.0.0.1:7777": "17777", "127.0.0.1:8888": "8888"}, true)
 			cl.Connect()
 			for cl.IsAlive() {
 				time.Sleep(1 * time.Second)

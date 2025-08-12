@@ -63,7 +63,7 @@ Creates new TCP Connection merger Server but does not starts it
 func NewTCPConnectionMergerServer(tcpMergedAddress string, tcpServerAddresses []string, reportTraffic bool) (*TCPConnectionMergerServer, error) {
 	sv := &TCPConnectionMergerServer{tcpServerAddresses: tcpServerAddresses, clientToId: MakeSafeMap[*TCPClient, string](), idToClient: MakeSafeMap[string, *TCPConnectionMergerServerTCPConn](), reportTrafic: reportTraffic}
 	var err error
-	sv.tcpServer, err = NewTCPServer(tcpMergedAddress, sv.handleMergedTCPReadFunc, reportTraffic)
+	sv.tcpServer, err = NewTCPServer(tcpMergedAddress, sv.handleMergedTCPReadFunc, reportTraffic, true)
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +104,7 @@ func (sv *TCPConnectionMergerServer) handleMergedTCPReadFunc(conn *TCPServerConn
 				}
 
 				//Create new connection
-				cl, err := NewTCPClient(sv.tcpServerAddresses[i], sv.handleLocalTCPReadFunc, sv.reportTrafic)
+				cl, err := NewTCPClient(sv.tcpServerAddresses[i], sv.handleLocalTCPReadFunc, sv.reportTrafic, false)
 				id = []byte(GenerateRandomId())
 				cl.Logger.Prefix = "TCPConnMergerServer - " + cl.Logger.Prefix
 				if err != nil {

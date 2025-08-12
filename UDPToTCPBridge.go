@@ -19,7 +19,7 @@ Creates new UDP to TCP bridge but does not starts it
 func NewUDPToTCPBridge(udpServerAddress string, tcpServerAddress string, reportTraffic bool) (*UDPToTCPBridge, error) {
 	br := &UDPToTCPBridge{udpToTCP: sync.Map{}, tcpToUDP: sync.Map{}, udpServerAddress: udpServerAddress, reportTraffic: reportTraffic}
 	var err error
-	br.tcpServer, err = NewTCPServer(tcpServerAddress, br.handleTCPReadFunc, reportTraffic)
+	br.tcpServer, err = NewTCPServer(tcpServerAddress, br.handleTCPReadFunc, reportTraffic, false)
 	if err != nil {
 		return nil, err
 	}

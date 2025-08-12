@@ -23,6 +23,7 @@ type TCPClient struct {
 	Conn     *net.TCPConn
 	address  *net.TCPAddr
 	isAlive  bool
+	framed   bool
 }
 
 func (tcp *TCPClient) IsAlive() bool {
@@ -32,7 +33,7 @@ func (tcp *TCPClient) IsAlive() bool {
 /*
 Creates new TCP Client but does not starts it
 */
-func NewTCPClient(address string, readFunc TCPClientReadFunc, reportTraffic bool) (*TCPClient, error) {
+func NewTCPClient(address string, readFunc TCPClientReadFunc, reportTraffic bool, framed bool) (*TCPClient, error) {
 	//Make address
 	addressObj, err := net.ResolveTCPAddr("tcp", address)
 	if err != nil {
@@ -44,7 +45,7 @@ func NewTCPClient(address string, readFunc TCPClientReadFunc, reportTraffic bool
 	if !reportTraffic {
 		level = 1
 	}
-	return &TCPClient{address: addressObj, Logger: NewConsoleLogger("TCPClient", level), readFunc: readFunc}, nil
+	return &TCPClient{address: addressObj, Logger: NewConsoleLogger("TCPClient", level), readFunc: readFunc, framed: framed}, nil
 }
 
 /*
@@ -63,7 +64,11 @@ func (tcp *TCPClient) Connect() {
 	tcp.isAlive = true
 	//Handle read
 	go func() {
-		handleTCPRead(tcp.Conn, tcp.Logger, tcp.readFuncLocal)
+		if tcp.framed {
+			handleTCPReadFramed(tcp.Conn, tcp.Logger, tcp.readFuncLocal)
+		} else {
+			handleTCPRead(tcp.Conn, tcp.Logger, tcp.readFuncLocal)
+		}
 		tcp.isAlive = false
 	}()
 }
@@ -82,7 +87,11 @@ func (tcp *TCPClient) readFuncLocal(conn *net.TCPConn, data []byte, ended bool) 
 Sends data to server
 */
 func (tcp *TCPClient) Send(data []byte) {
-	writeToTCP(tcp.Conn, data, tcp.Logger)
+	if tcp.framed {
+		writeToTCPFramed(tcp.Conn, data, tcp.Logger)
+	} else {
+		writeToTCP(tcp.Conn, data, tcp.Logger)
+	}
 }
 
 /*

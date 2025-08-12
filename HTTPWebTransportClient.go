@@ -42,7 +42,7 @@ func NewHTTPWebTransportClient(address string, readFunc HTTPWebTransportClientRe
 	//Create client
 	cl := &HTTPWebTransportClient{Logger: NewConsoleLogger("HTTP-WTClient", level), readFunc: readFunc, address: address}
 	var err error
-	cl.tcpClient, err = NewTCPClient(address, cl.readFuncLocal, reportTraffic)
+	cl.tcpClient, err = NewTCPClient(address, cl.readFuncLocal, reportTraffic, false)
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +91,7 @@ func (cl *HTTPWebTransportClient) Connect() {
 Sends data to server
 */
 func (cl *HTTPWebTransportClient) Send(data []byte) {
-	writeToTCP(cl.tcpClient.Conn, data, cl.Logger)
+	writeToTCPFramed(cl.tcpClient.Conn, data, cl.Logger)
 }
 
 /*

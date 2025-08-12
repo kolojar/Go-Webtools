@@ -1,6 +1,7 @@
 package webtools
 
 import "sync"
+
 /*
 TCP to UDP bridge used for converting all incoming TCP traffic to UDP
 */
@@ -43,7 +44,7 @@ func (br *TCPToUDPBridge) handleUDPReadFunc(udp *UDPServerConn, data []byte, end
 	if gtcp == nil {
 		//No connection to TCP found, creating new
 		var err error
-		tcp, err = NewTCPClient(br.tcpServerAddress, br.handleTCPReadFunc, br.reportTraffic)
+		tcp, err = NewTCPClient(br.tcpServerAddress, br.handleTCPReadFunc, br.reportTraffic, false)
 		if err != nil {
 			br.udpServer.Logger.Log(3, "Error creating new TCP connection to: "+br.tcpServerAddress+" | Error: "+err.Error())
 			return

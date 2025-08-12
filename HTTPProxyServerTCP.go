@@ -2,7 +2,6 @@ package webtools
 
 import (
 	"encoding/hex"
-	"fmt"
 	"math/rand/v2"
 	"strconv"
 	"time"
@@ -76,7 +75,7 @@ func UnpackProxyFrame(frame []byte, logger *ConsoleLogger) []ThreeValuePair[uint
 				}
 
 				//Get data
-				if len(frame) > (i + lenOfData) {
+				if len(frame) > (i + lenOfData + 1) {
 					data = frame[i+1 : i+2+lenOfData]
 				}
 
@@ -96,7 +95,7 @@ func UnpackProxyFrame(frame []byte, logger *ConsoleLogger) []ThreeValuePair[uint
 	if subframes != nil {
 		result = append(result, subframes...)
 	}
-	fmt.Println(len(result))
+	//fmt.Println(len(result))
 	return result
 }
 
@@ -193,7 +192,7 @@ func (sv *HTTPProxyServerTCP) handleWebTransportReadFunc(conn *HTTPWebTransportS
 			if operation == PROXY_FRAME_TYPE_CONNECT {
 				//Create new connection
 				id = []byte(GenerateRandomId())
-				cl, err := NewTCPClient(sv.tcpServerAddress, sv.handleTCPReadFunc, sv.reportTrafic)
+				cl, err := NewTCPClient(sv.tcpServerAddress, sv.handleTCPReadFunc, sv.reportTrafic, false)
 				cl.Logger.Prefix = "HTTPProxyServerTCP - " + cl.Logger.Prefix
 				if err != nil {
 					conn.origin.Logger.Log(3, "Could not create connection with id: "+string(id)+" to server.")

@@ -56,7 +56,7 @@ Creates new TCP Proxy Server for UDP but does not starts it
 func NewTCPProxyServerUDP(tcpProxyAddress string, udpServerAddress string, reportTraffic bool) (*TCPProxyServerUDP, error) {
 	sv := &TCPProxyServerUDP{tcpServerAddress: udpServerAddress, clientToId: MakeSafeMap[*UDPClient, string](), idToClient: MakeSafeMap[string, *TCPProxyServerUDPConn](), reportTrafic: reportTraffic}
 	var err error
-	sv.tcpServer, err = NewTCPServer(tcpProxyAddress, sv.handleTCPReadFunc, reportTraffic)
+	sv.tcpServer, err = NewTCPServer(tcpProxyAddress, sv.handleTCPReadFunc, reportTraffic, true)
 	if err != nil {
 		return nil, err
 	}

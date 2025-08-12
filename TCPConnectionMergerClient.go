@@ -29,10 +29,10 @@ func (cl *TCPConnectionMergerClient) IsAlive() bool {
 /*
 Creates new TCP Connection merger Client but does not starts it
 */
-func NewTCPConnectionMergerClient(httpProxyAddress string, localServersIPPrefix string, tcpServerAddressesToLocalPorts map[string]string, reportTraffic bool) (*TCPConnectionMergerClient, error) {
+func NewTCPConnectionMergerClient(tcpMergedAddress string, localServersIPPrefix string, tcpServerAddressesToLocalPorts map[string]string, reportTraffic bool) (*TCPConnectionMergerClient, error) {
 	cl := &TCPConnectionMergerClient{clientToId: MakeSafeMap[*TCPServerConn, string](), pendingConnections: MakeSafeMap[string, *TCPServerConn](), idToClient: MakeSafeMap[string, *TCPServerConn](), pendingConnsData: MakeSafeMap[*TCPServerConn, [][]byte](), tcpServerAddressesToLocalPorts: tcpServerAddressesToLocalPorts, tcpServers: make([]*TCPServer, 0), localServersIPPrefix: localServersIPPrefix, reportTrafic: reportTraffic}
 	var err error
-	cl.tcpClient, err = NewTCPClient(httpProxyAddress, cl.handleRemoteTCPReadFunc, reportTraffic)
+	cl.tcpClient, err = NewTCPClient(tcpMergedAddress, cl.handleRemoteTCPReadFunc, reportTraffic, true)
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +77,7 @@ func (cl *TCPConnectionMergerClient) handleRemoteTCPReadFunc(_ *TCPClient, frame
 						return
 					}
 					addr := net.JoinHostPort(cl.localServersIPPrefix, localPort)
-					sv, err := NewTCPServer(addr, cl.handleLocalTCPReadFunc, cl.reportTrafic)
+					sv, err := NewTCPServer(addr, cl.handleLocalTCPReadFunc, cl.reportTrafic, false)
 					if err != nil {
 						cl.tcpClient.Logger.Log(3, "Error creating TCP server for remote IP address: "+addresses[i]+" with local address: "+addr+". Stopping client...")
 						cl.Stop()

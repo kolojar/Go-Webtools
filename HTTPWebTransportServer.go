@@ -101,7 +101,7 @@ func (sv *HTTPWebTransportServer) handleHTTPAccess(_ *HTTPServer, w http.Respons
 		return true
 	}
 	sv.Logger.Log(2, "Connection from: "+conn.RemoteAddr().String()+" connected locally to: "+conn.LocalAddr().String())
-	go handleTCPRead(conn.(*net.TCPConn), sv.Logger, sv.readFuncLocal)
+	go handleTCPReadFramed(conn.(*net.TCPConn), sv.Logger, sv.readFuncLocal)
 	return true
 }
 
