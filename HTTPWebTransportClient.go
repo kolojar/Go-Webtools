@@ -24,6 +24,7 @@ type HTTPWebTransportClient struct {
 	awaitingReady  bool
 	awaitingStatus bool
 	address        string
+	hijacked       bool
 }
 
 func (cl *HTTPWebTransportClient) IsAlive() bool {
@@ -63,6 +64,7 @@ func (cl *HTTPWebTransportClient) Connect() {
 	//Reset ready state
 	cl.tcpClient.Logger.Log(1, "Upgrading connection with: "+cl.tcpClient.address.String())
 	cl.awaitingReady = true
+	cl.hijacked = false
 
 	//Get host
 	//host, _ := strings.CutSuffix(cl.tcpClient.address.String(), "/websocket")
@@ -80,6 +82,7 @@ func (cl *HTTPWebTransportClient) Connect() {
 	}
 	if cl.awaitingStatus {
 		//Successfully connected
+		cl.hijacked = true
 		cl.tcpClient.Logger.Log(1, "Upgraded connection with: "+cl.tcpClient.address.String())
 	} else {
 		cl.tcpClient.Logger.Log(3, "Failed to upgrade connection with: "+cl.tcpClient.address.String())
@@ -91,7 +94,11 @@ func (cl *HTTPWebTransportClient) Connect() {
 Sends data to server
 */
 func (cl *HTTPWebTransportClient) Send(data []byte) {
-	writeToTCPFramed(cl.tcpClient.Conn, data, cl.Logger)
+	if cl.hijacked {
+		writeToTCPFramed(cl.tcpClient.Conn, data, cl.Logger)
+	} else {
+		writeToTCP(cl.tcpClient.Conn, data, cl.Logger)
+	}
 }
 
 /*
