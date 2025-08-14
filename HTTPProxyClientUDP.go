@@ -17,7 +17,7 @@ func (cl *HTTPProxyClientUDP) IsAlive() bool {
 }
 
 /*
-Creates new HTTP Proxy Client for UDP but does not starts it
+Creates new HTTP Proxy Client for UDP but does not starts it, if you want to use default connection endpoint, add /webtransport to end of address
 */
 func NewHTTPProxyClientUDP(httpProxyAddress string, tcpServerAddress string, reportTraffic bool) (*HTTPProxyClientUDP, error) {
 	cl := &HTTPProxyClientUDP{clientToId: MakeSafeMap[*UDPServerConn, string](), pendingConnections: MakeSafeMap[string, *UDPServerConn](), idToClient: MakeSafeMap[string, *UDPServerConn](), pendingConnsData: MakeSafeMap[*UDPServerConn, [][]byte]()}

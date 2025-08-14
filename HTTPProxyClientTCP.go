@@ -17,7 +17,7 @@ func (cl *HTTPProxyClientTCP) IsAlive() bool {
 }
 
 /*
-Creates new HTTP Proxy Client for TCP but does not starts it
+Creates new HTTP Proxy Client for TCP but does not starts it, if you want to use default connection endpoint, add /webtransport to end of address
 */
 func NewHTTPProxyClientTCP(httpProxyAddress string, tcpServerAddress string, reportTraffic bool) (*HTTPProxyClientTCP, error) {
 	cl := &HTTPProxyClientTCP{clientToId: MakeSafeMap[*TCPServerConn, string](), pendingConnections: MakeSafeMap[string, *TCPServerConn](), idToClient: MakeSafeMap[string, *TCPServerConn](), pendingConnsData: MakeSafeMap[*TCPServerConn, [][]byte]()}

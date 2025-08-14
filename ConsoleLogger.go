@@ -71,3 +71,11 @@ func (logger *ConsoleLogger) LogWithSourceId(logType uint8, message string, sour
 		logger.LogReportFunction(logType, message, logMsg, sourceId)
 	}
 }
+
+func FormatByBool[T any](b bool, trueVal T, falseVal T) T {
+	if b {
+		return trueVal
+	} else {
+		return falseVal
+	}
+}

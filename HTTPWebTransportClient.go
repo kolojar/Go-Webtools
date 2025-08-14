@@ -25,6 +25,7 @@ type HTTPWebTransportClient struct {
 	awaitingStatus bool
 	address        string
 	hijacked       bool
+	pathForHTTP    string
 }
 
 func (cl *HTTPWebTransportClient) IsAlive() bool {
@@ -32,7 +33,7 @@ func (cl *HTTPWebTransportClient) IsAlive() bool {
 }
 
 /*
-Creates new HTTP WebTransport Client but does not connects it
+Creates new HTTP WebTransport Client but does not connects it, if you want to use default connection endpoint, add /webtransport to end of address
 */
 func NewHTTPWebTransportClient(address string, readFunc HTTPWebTransportClientReadFunc, reportTraffic bool) (*HTTPWebTransportClient, error) {
 	level := uint8(0)
@@ -43,7 +44,9 @@ func NewHTTPWebTransportClient(address string, readFunc HTTPWebTransportClientRe
 	//Create client
 	cl := &HTTPWebTransportClient{Logger: NewConsoleLogger("HTTP-WTClient", level), readFunc: readFunc, address: address}
 	var err error
-	cl.tcpClient, err = NewTCPClient(address, cl.readFuncLocal, reportTraffic, false)
+	var tcpAddress string
+	tcpAddress, cl.pathForHTTP = HTTPWebTransportGetAddressAndTarget(address)
+	cl.tcpClient, err = NewTCPClient(tcpAddress, cl.readFuncLocal, reportTraffic, false)
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +74,7 @@ func (cl *HTTPWebTransportClient) Connect() {
 	host := strings.SplitN(cl.address, ":", 2)[0]
 
 	//Make handshake GET
-	request := "GET /webtransport HTTP/1.1\r\n" +
+	request := "GET " + cl.pathForHTTP + " HTTP/1.1\r\n" +
 		"Host: " + host + "\r\n" +
 		"Upgrade: websocket\r\n" +
 		"Connection: Upgrade\r\n" +

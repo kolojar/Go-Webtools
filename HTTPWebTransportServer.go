@@ -2,6 +2,7 @@ package webtools
 
 import (
 	"encoding/hex"
+	"errors"
 	"net"
 	"net/http"
 	"strconv"
@@ -21,7 +22,61 @@ HTTP WebTransport server connection object
 */
 type HTTPWebTransportServerConn struct {
 	origin *HTTPWebTransportServer
-	Conn   net.Conn
+	Conn   *net.TCPConn
+}
+
+/*
+Gets address and
+Returns address for TCP and path to HTTP request
+*/
+func HTTPWebTransportGetAddressAndTarget(completeURL string) (string, string) {
+	//Separate protocol and URL
+	splitUrl := strings.SplitN(completeURL, "://", 2)
+	protocol := ""
+	url := splitUrl[len(splitUrl)-1]
+	if len(splitUrl) > 1 {
+		protocol = splitUrl[0]
+	}
+
+	//Separate Web address and path
+	urlSplit := strings.SplitN(url, "/", 2)
+	webAddress := urlSplit[0]
+	path := "/"
+	if len(urlSplit) > 1 {
+		path = urlSplit[1]
+	}
+
+	//Get port by protocol
+	portByProtocol := ""
+	switch protocol {
+	case "http":
+		{
+			portByProtocol = "80"
+		}
+	case "https":
+		{
+			portByProtocol = "443"
+		}
+	case "ws":
+		{
+			portByProtocol = "80"
+		}
+	case "wss":
+		{
+			portByProtocol = "443"
+		}
+	}
+
+	//Check if webAddress has protocol + add port if needed
+	tcpAddress := ""
+	if len(strings.SplitN(webAddress, ":", 2)) == 1 {
+		//No port, add from port protocol
+		tcpAddress = webAddress + ":" + portByProtocol
+	} else {
+		tcpAddress = webAddress
+	}
+
+	return tcpAddress, path
 }
 
 /*
@@ -48,10 +103,11 @@ Simple HTTP connection hijack server fo switching from HTTP to TCP.
 This is NOT WebSocket HTTP server for JavaScript, it is intended for inner communication between Go server (this file) and Go client. It is used for HTTPProxy (TCP and UDP traffic over HTTP)
 */
 type HTTPWebTransportServer struct {
-	httpServer *HTTPServer
-	Logger     *ConsoleLogger
-	conns      SafeMap[net.Conn, *HTTPWebTransportServerConn]
-	readFunc   HTTPWebTransportServerReadFunc
+	httpServer      *HTTPServer
+	Logger          *ConsoleLogger
+	conns           SafeMap[string, *HTTPWebTransportServerConn]
+	readFunc        HTTPWebTransportServerReadFunc
+	webtransportURL string
 }
 
 /*
@@ -62,10 +118,21 @@ func NewHTTPWebTransportServer(address string, readFunc HTTPWebTransportServerRe
 	if !reportTraffic {
 		level = 1
 	}
-	sv := &HTTPWebTransportServer{Logger: NewConsoleLogger("HTTP-WTServer", level), readFunc: readFunc, conns: MakeSafeMap[net.Conn, *HTTPWebTransportServerConn]()}
+	sv := &HTTPWebTransportServer{Logger: NewConsoleLogger("HTTP-WTServer", level), readFunc: readFunc, conns: MakeSafeMap[string, *HTTPWebTransportServerConn](), webtransportURL: "/webtransport"}
 	sv.httpServer = NewHTTPServer(address, sv.handleHTTPAccess, "", false)
 	sv.httpServer.Logger = sv.Logger
 	return sv
+}
+
+/*
+Sets URL of WebTransport
+*/
+func (sv *HTTPWebTransportServer) SetWebTransportURL(newURL string) error {
+	if !strings.HasPrefix(newURL, "/") {
+		return errors.New("url must start with /")
+	}
+	sv.webtransportURL = newURL
+	return nil
 }
 
 func (sv *HTTPWebTransportServer) handleHTTPAccess(_ *HTTPServer, w http.ResponseWriter, r *http.Request, params map[string]string) bool {
@@ -73,7 +140,7 @@ func (sv *HTTPWebTransportServer) handleHTTPAccess(_ *HTTPServer, w http.Respons
 		//Invalid method
 		return false
 	}
-	if r.URL.Path != "/webtransport" {
+	if r.URL.Path != sv.webtransportURL {
 		//Invalid path
 		return false
 	}
@@ -106,10 +173,10 @@ func (sv *HTTPWebTransportServer) handleHTTPAccess(_ *HTTPServer, w http.Respons
 }
 
 func (sv *HTTPWebTransportServer) readFuncLocal(conn *net.TCPConn, data []byte, ended bool) {
-	var httpConn *HTTPWebTransportServerConn = sv.conns.Get(conn)
+	var httpConn *HTTPWebTransportServerConn = sv.conns.Get(conn.RemoteAddr().String())
 	if httpConn == nil {
 		httpConn = &HTTPWebTransportServerConn{origin: sv, Conn: conn}
-		sv.conns.Set(conn, httpConn)
+		sv.conns.Set(conn.RemoteAddr().String(), httpConn)
 	}
 	//Process read
 	if sv.readFunc != nil {
@@ -123,8 +190,8 @@ func (sv *HTTPWebTransportServer) readFuncLocal(conn *net.TCPConn, data []byte, 
 /*
 Writes to Client
 */
-func (sv *HTTPWebTransportServer) WriteToClient(conn net.Conn, data []byte) {
-	writeToTCP(conn.(*net.TCPConn), data, sv.Logger)
+func (sv *HTTPWebTransportServer) WriteToClient(conn *net.TCPConn, data []byte) {
+	writeToTCP(conn, data, sv.Logger)
 }
 
 /*
