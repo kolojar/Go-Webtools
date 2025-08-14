@@ -72,12 +72,16 @@ func main() {
 	//	}
 	case "hpst":
 		{
-			sv := webtools.NewHTTPProxyServerTCP("127.0.0.1:8880", "127.0.0.1:7777", true)
+			sv := webtools.NewHTTPProxyServerTCP("127.0.0.1:8880", "127.0.0.1:8882", true)
 			sv.Start()
 		}
 	case "hpct":
 		{
-			cl, _ := webtools.NewHTTPProxyClientTCP("127.0.0.1:8881", "127.0.0.1:17777", true)
+			cl, err := webtools.NewHTTPProxyClientTCP("127.0.0.1:8880", "127.0.0.1:8883", true)
+			if err != nil {
+				fmt.Println(err.Error())
+				return
+			}
 			cl.Connect()
 			for cl.IsAlive() {
 				time.Sleep(1 * time.Second)
@@ -124,12 +128,12 @@ func main() {
 		}
 	case "tcms":
 		{
-			sv, _ := webtools.NewTCPConnectionMergerServer("127.0.0.1:8880", []string{"127.0.0.1:5679", "127.0.0.1:7777", "127.0.0.1:8888"}, true)
+			sv, _ := webtools.NewTCPConnectionMergerServer("127.0.0.1:8882", []string{"127.0.0.1:5679", "127.0.0.1:7777", "127.0.0.1:8888"}, true)
 			sv.Start()
 		}
 	case "tcmc":
 		{
-			cl, _ := webtools.NewTCPConnectionMergerClient("127.0.0.1:8881", "127.0.0.1", map[string]string{"127.0.0.1:5679": "5681", "127.0.0.1:7777": "17777", "127.0.0.1:8888": "8888"}, true)
+			cl, _ := webtools.NewTCPConnectionMergerClient("127.0.0.1:8883", "127.0.0.1", map[string]string{"127.0.0.1:5679": "5681", "127.0.0.1:7777": "17777", "127.0.0.1:8888": "8888"}, true)
 			cl.Connect()
 			for cl.IsAlive() {
 				time.Sleep(1 * time.Second)
