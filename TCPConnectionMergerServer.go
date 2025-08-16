@@ -13,7 +13,7 @@ TCP Connection merger server object
 type TCPConnectionMergerServer struct {
 	tcpServer          *TCPServer
 	idToClient         SafeMap[string, *TCPConnectionMergerServerTCPConn]
-	clientToId         SafeMap[*TCPClient, string]
+	clientToId         SafeMap[*TCPClientSimple, string]
 	tcpServerAddresses []string
 	reportTrafic       bool
 }
@@ -22,7 +22,7 @@ type TCPConnectionMergerServer struct {
 TCP Connection merger connection object
 */
 type TCPConnectionMergerServerTCPConn struct {
-	tcpClient *TCPClient
+	tcpClient *TCPClientSimple
 	id        []byte
 	source    *TCPServerConn
 	origin    *TCPConnectionMergerServer
@@ -61,7 +61,7 @@ func (cl *TCPConnectionMergerServerTCPConn) Close(isInitiator bool) {
 Creates new TCP Connection merger Server but does not starts it
 */
 func NewTCPConnectionMergerServer(tcpMergedAddress string, tcpServerAddresses []string, reportTraffic bool) (*TCPConnectionMergerServer, error) {
-	sv := &TCPConnectionMergerServer{tcpServerAddresses: tcpServerAddresses, clientToId: MakeSafeMap[*TCPClient, string](), idToClient: MakeSafeMap[string, *TCPConnectionMergerServerTCPConn](), reportTrafic: reportTraffic}
+	sv := &TCPConnectionMergerServer{tcpServerAddresses: tcpServerAddresses, clientToId: MakeSafeMap[*TCPClientSimple, string](), idToClient: MakeSafeMap[string, *TCPConnectionMergerServerTCPConn](), reportTrafic: reportTraffic}
 	var err error
 	sv.tcpServer, err = NewTCPServer(tcpMergedAddress, sv.handleMergedTCPReadFunc, reportTraffic, true)
 	if err != nil {
@@ -71,8 +71,8 @@ func NewTCPConnectionMergerServer(tcpMergedAddress string, tcpServerAddresses []
 	return sv, nil
 }
 
-func (sv *TCPConnectionMergerServer) handleMergedTCPReadFunc(conn *TCPServerConn, frame []byte, ended bool) {
-	if ended {
+func (sv *TCPConnectionMergerServer) handleMergedTCPReadFunc(conn *TCPServerConn, frame []byte, status uint8) {
+	if status == TCP_DISCONNECT_STATUS {
 		//Close all connections with this HTTP WebTransport Conn
 		for _, d := range sv.idToClient.GetData() {
 			if d.Value == nil {
@@ -82,6 +82,9 @@ func (sv *TCPConnectionMergerServer) handleMergedTCPReadFunc(conn *TCPServerConn
 				d.Value.Close(true)
 			}
 		}
+		return
+	}
+	if status != TCP_READ_DATA_STATUS {
 		return
 	}
 
@@ -104,9 +107,9 @@ func (sv *TCPConnectionMergerServer) handleMergedTCPReadFunc(conn *TCPServerConn
 				}
 
 				//Create new connection
-				cl, err := NewTCPClient(sv.tcpServerAddresses[i], sv.handleLocalTCPReadFunc, sv.reportTrafic, false)
+				cl, err := NewTCPClientSimple(sv.tcpServerAddresses[i], -1, false, sv.handleLocalTCPReadFunc, sv.reportTrafic)
 				id = []byte(GenerateRandomId())
-				cl.Logger.Prefix = "TCPConnMergerServer - " + cl.Logger.Prefix
+				cl.GetLogger().Prefix = "TCPConnMergerServer - " + cl.GetLogger().Prefix
 				if err != nil {
 					conn.origin.Logger.Log(3, "Could not create connection with id: "+string(id)+" to server. Error: "+err.Error())
 					return
@@ -133,7 +136,7 @@ func (sv *TCPConnectionMergerServer) handleMergedTCPReadFunc(conn *TCPServerConn
 
 		cl := sv.idToClient.Get(string(id))
 		if !cl.tcpClient.IsAlive() {
-			conn.origin.Logger.Log(3, "Connection with id: "+string(id)+" connected to: "+conn.Conn.RemoteAddr().String()+" connected locally to: "+conn.Conn.LocalAddr().String()+" closed")
+			conn.origin.Logger.Log(3, "Connection with id: "+string(id)+" connected to: "+conn.GetConn().RemoteAddr().String()+" connected locally to: "+conn.GetConn().LocalAddr().String()+" closed")
 			return
 		}
 
@@ -153,18 +156,21 @@ func (sv *TCPConnectionMergerServer) handleMergedTCPReadFunc(conn *TCPServerConn
 	}
 }
 
-func (sv *TCPConnectionMergerServer) handleLocalTCPReadFunc(tcp *TCPClient, data []byte, ended bool) {
+func (sv *TCPConnectionMergerServer) handleLocalTCPReadFunc(tcp *TCPClientSimple, data []byte, status uint8) {
+	if status == TCP_CONNECT_STATUS {
+		return
+	}
 	//Get TCP remote client
 	if sv.clientToId.Get(tcp) == "" || sv.idToClient.Get(sv.clientToId.Get(tcp)) == nil {
 		//Connection does not exists
-		tcp.Logger.Log(3, "Connection connected to: "+tcp.address.String()+" not found")
+		tcp.GetLogger().Log(3, "Connection connected to: "+tcp.GetConn().RemoteAddr().String()+" not found")
 		return
 	}
 	id := sv.clientToId.Get(tcp)
 	cl := sv.idToClient.Get(id)
 
 	//End other connection
-	if ended {
+	if status == TCP_DISCONNECT_STATUS {
 		cl.Close(true)
 	}
 

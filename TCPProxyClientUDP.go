@@ -7,7 +7,7 @@ type TCPProxyClientUDP struct {
 	clientToId         SafeMap[*UDPServerConn, string]
 	idToClient         SafeMap[string, *UDPServerConn]
 	udpServer          *UDPServer
-	tcpClient          *TCPClient
+	tcpClient          *TCPClientSimple
 	pendingConnections SafeMap[string, *UDPServerConn]
 	pendingConnsData   SafeMap[*UDPServerConn, [][]byte]
 }
@@ -22,11 +22,11 @@ Creates new TCP Proxy Client for UDP but does not starts it
 func NewTCPProxyClientUDP(tcpProxyAddress string, udpServerAddress string, reportTraffic bool) (*TCPProxyClientUDP, error) {
 	cl := &TCPProxyClientUDP{clientToId: MakeSafeMap[*UDPServerConn, string](), pendingConnections: MakeSafeMap[string, *UDPServerConn](), idToClient: MakeSafeMap[string, *UDPServerConn](), pendingConnsData: MakeSafeMap[*UDPServerConn, [][]byte]()}
 	var err error
-	cl.tcpClient, err = NewTCPClient(tcpProxyAddress, cl.handleTCPReadFunc, reportTraffic, true)
+	cl.tcpClient, err = NewTCPClientSimple(tcpProxyAddress, 0, false, cl.handleTCPReadFunc, reportTraffic)
 	if err != nil {
 		return nil, err
 	}
-	cl.tcpClient.Logger.Prefix = "TCPProxyClientUDP - " + cl.tcpClient.Logger.Prefix
+	cl.tcpClient.GetLogger().Prefix = "TCPProxyClientUDP - " + cl.tcpClient.GetLogger().Prefix
 	cl.udpServer, err = NewUDPServer(udpServerAddress, cl.handleUDPReadFunc, reportTraffic)
 	if err != nil {
 		return nil, err
@@ -35,15 +35,18 @@ func NewTCPProxyClientUDP(tcpProxyAddress string, udpServerAddress string, repor
 	return cl, nil
 }
 
-func (cl *TCPProxyClientUDP) handleTCPReadFunc(_ *TCPClient, frame []byte, ended bool) {
-	if ended {
+func (cl *TCPProxyClientUDP) handleTCPReadFunc(_ *TCPClientSimple, frame []byte, status uint8) {
+	if status == TCP_DISCONNECT_STATUS {
 		//Close all connections
 		cl.udpServer.Stop()
 		return
 	}
+	if status != TCP_READ_DATA_STATUS {
+		return
+	}
 
 	//Unpack
-	for _, frame := range UnpackProxyFrame(frame, cl.tcpClient.Logger) {
+	for _, frame := range UnpackProxyFrame(frame, cl.tcpClient.GetLogger()) {
 		operation, id, data := frame.A, frame.B, frame.C
 		if operation == 0 {
 			return
@@ -55,13 +58,13 @@ func (cl *TCPProxyClientUDP) handleTCPReadFunc(_ *TCPClient, frame []byte, ended
 				//Confirmed connection
 				conn := cl.pendingConnections.Get(string(data))
 				if conn == nil {
-					cl.tcpClient.Logger.Log(3, "Pending connection with temporary id: "+string(data)+" not found")
+					cl.tcpClient.GetLogger().Log(3, "Pending connection with temporary id: "+string(data)+" not found")
 					return
 				}
 				cl.pendingConnections.Delete(string(data))
 				cl.clientToId.Set(conn, string(id))
 				cl.idToClient.Set(string(id), conn)
-				cl.tcpClient.Logger.Log(1, "Prepared new connection with temporary id: "+string(data)+" for connection connected to: "+conn.Address.String()+" with new id: "+string(id))
+				cl.tcpClient.GetLogger().Log(1, "Prepared new connection with temporary id: "+string(data)+" for connection connected to: "+conn.Address.String()+" with new id: "+string(id))
 
 				//Process pending data
 				for len(cl.pendingConnsData.Get(conn)) > 0 {
@@ -98,7 +101,7 @@ func (cl *TCPProxyClientUDP) handleUDPReadFunc(udpConn *UDPServerConn, data []by
 		//No connection found, request new
 		tempId := GenerateRandomId()
 		cl.pendingConnections.Set(tempId, udpConn)
-		cl.tcpClient.Logger.Log(1, "Preparing new connection with temporary id: "+tempId+" for connection connected to: "+udpConn.Address.String())
+		cl.tcpClient.GetLogger().Log(1, "Preparing new connection with temporary id: "+tempId+" for connection connected to: "+udpConn.Address.String())
 		cl.tcpClient.Send(PackProxyFrame(PROXY_FRAME_TYPE_CONNECT, []byte("0"), []byte(tempId)))
 		cl.pendingConnsData.Set(udpConn, append(make([][]byte, 0), data))
 		return

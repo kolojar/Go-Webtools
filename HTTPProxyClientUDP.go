@@ -35,10 +35,13 @@ func NewHTTPProxyClientUDP(httpProxyAddress string, tcpServerAddress string, rep
 	return cl, nil
 }
 
-func (cl *HTTPProxyClientUDP) handleWebTransportReadFunc(_ *HTTPWebTransportClient, frame []byte, ended bool) {
-	if ended {
+func (cl *HTTPProxyClientUDP) handleWebTransportReadFunc(client *HTTPWebTransportClient, frame []byte, status uint8) {
+	if status == TCP_DISCONNECT_STATUS {
 		//Close all connections
 		cl.udpServer.Stop()
+		return
+	}
+	if status != TCP_READ_DATA_STATUS {
 		return
 	}
 

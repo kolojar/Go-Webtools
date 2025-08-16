@@ -14,7 +14,7 @@ type TCPConnectionMergerClient struct {
 	clientToId                     SafeMap[*TCPServerConn, string]
 	idToClient                     SafeMap[string, *TCPServerConn]
 	tcpServers                     []*TCPServer
-	tcpClient                      *TCPClient
+	tcpClient                      *TCPClientSimple
 	pendingConnections             SafeMap[string, *TCPServerConn]
 	pendingConnsData               SafeMap[*TCPServerConn, [][]byte]
 	tcpServerAddressesToLocalPorts map[string]string
@@ -32,26 +32,29 @@ Creates new TCP Connection merger Client but does not starts it
 func NewTCPConnectionMergerClient(tcpMergedAddress string, localServersIPPrefix string, tcpServerAddressesToLocalPorts map[string]string, reportTraffic bool) (*TCPConnectionMergerClient, error) {
 	cl := &TCPConnectionMergerClient{clientToId: MakeSafeMap[*TCPServerConn, string](), pendingConnections: MakeSafeMap[string, *TCPServerConn](), idToClient: MakeSafeMap[string, *TCPServerConn](), pendingConnsData: MakeSafeMap[*TCPServerConn, [][]byte](), tcpServerAddressesToLocalPorts: tcpServerAddressesToLocalPorts, tcpServers: make([]*TCPServer, 0), localServersIPPrefix: localServersIPPrefix, reportTrafic: reportTraffic}
 	var err error
-	cl.tcpClient, err = NewTCPClient(tcpMergedAddress, cl.handleRemoteTCPReadFunc, reportTraffic, true)
+	cl.tcpClient, err = NewTCPClientSimple(tcpMergedAddress, 0, false, cl.handleRemoteTCPReadFunc, reportTraffic)
 	if err != nil {
 		return nil, err
 	}
-	cl.tcpClient.Logger.Prefix = "TCPConnMergerClient - " + cl.tcpClient.Logger.Prefix
+	cl.tcpClient.GetLogger().Prefix = "TCPConnMergerClient - " + cl.tcpClient.GetLogger().Prefix
 	//cl.tcpServer.Logger.Prefix = "TCPConnMergerClient - " + cl.tcpServer.Logger.Prefix
 	return cl, nil
 }
 
-func (cl *TCPConnectionMergerClient) handleRemoteTCPReadFunc(_ *TCPClient, frame []byte, ended bool) {
-	if ended {
+func (cl *TCPConnectionMergerClient) handleRemoteTCPReadFunc(_ *TCPClientSimple, frame []byte, status uint8) {
+	if status == TCP_DISCONNECT_STATUS {
 		//Close all connections
 		for i := 0; i < len(cl.tcpServers); i++ {
 			cl.tcpServers[i].Stop()
 		}
 		return
 	}
+	if status != TCP_READ_DATA_STATUS {
+		return
+	}
 
 	//Unpack
-	for _, frame := range UnpackProxyFrame(frame, cl.tcpClient.Logger) {
+	for _, frame := range UnpackProxyFrame(frame, cl.tcpClient.GetLogger()) {
 		operation, id, data := frame.A, frame.B, frame.C
 		if operation == 0 {
 			return
@@ -64,7 +67,7 @@ func (cl *TCPConnectionMergerClient) handleRemoteTCPReadFunc(_ *TCPClient, frame
 				var addresses []string
 				err := json.Unmarshal(data, &addresses)
 				if err != nil {
-					cl.tcpClient.Logger.Log(3, "Error unmarshalling server list: "+err.Error())
+					cl.tcpClient.GetLogger().Log(3, "Error unmarshalling server list: "+err.Error())
 					return
 				}
 
@@ -72,14 +75,14 @@ func (cl *TCPConnectionMergerClient) handleRemoteTCPReadFunc(_ *TCPClient, frame
 				for i := 0; i < len(addresses); i++ {
 					localPort := cl.tcpServerAddressesToLocalPorts[addresses[i]]
 					if localPort == "" {
-						cl.tcpClient.Logger.Log(3, "No local port found for remote IP address: "+addresses[i]+". Stopping client...")
+						cl.tcpClient.GetLogger().Log(3, "No local port found for remote IP address: "+addresses[i]+". Stopping client...")
 						cl.Stop()
 						return
 					}
 					addr := net.JoinHostPort(cl.localServersIPPrefix, localPort)
 					sv, err := NewTCPServer(addr, cl.handleLocalTCPReadFunc, cl.reportTrafic, false)
 					if err != nil {
-						cl.tcpClient.Logger.Log(3, "Error creating TCP server for remote IP address: "+addresses[i]+" with local address: "+addr+". Stopping client...")
+						cl.tcpClient.GetLogger().Log(3, "Error creating TCP server for remote IP address: "+addresses[i]+" with local address: "+addr+". Stopping client...")
 						cl.Stop()
 						return
 					}
@@ -94,13 +97,13 @@ func (cl *TCPConnectionMergerClient) handleRemoteTCPReadFunc(_ *TCPClient, frame
 				//Confirmed connection
 				conn := cl.pendingConnections.Get(string(data))
 				if conn == nil {
-					cl.tcpClient.Logger.Log(3, "Pending connection with temporary id: "+string(data)+" not found")
+					cl.tcpClient.GetLogger().Log(3, "Pending connection with temporary id: "+string(data)+" not found")
 					return
 				}
 				cl.pendingConnections.Delete(string(data))
 				cl.clientToId.Set(conn, string(id))
 				cl.idToClient.Set(string(id), conn)
-				cl.tcpClient.Logger.Log(1, "Prepared new connection with temporary id: "+string(data)+" for connection connected to: "+conn.Conn.RemoteAddr().String()+" connected locally to: "+conn.Conn.LocalAddr().String()+" with new id: "+string(id))
+				cl.tcpClient.GetLogger().Log(1, "Prepared new connection with temporary id: "+string(data)+" for connection connected to: "+conn.GetConn().RemoteAddr().String()+" connected locally to: "+conn.GetConn().LocalAddr().String()+" with new id: "+string(id))
 
 				//Process pending data
 				for len(cl.pendingConnsData.Get(conn)) > 0 {
@@ -125,7 +128,10 @@ func (cl *TCPConnectionMergerClient) handleRemoteTCPReadFunc(_ *TCPClient, frame
 	}
 }
 
-func (cl *TCPConnectionMergerClient) handleLocalTCPReadFunc(tcpConn *TCPServerConn, data []byte, ended bool) {
+func (cl *TCPConnectionMergerClient) handleLocalTCPReadFunc(tcpConn *TCPServerConn, data []byte, status uint8) {
+	if status == TCP_CONNECT_STATUS {
+		return
+	}
 	if cl.pendingConnsData.Get(tcpConn) != nil {
 		//Already pending connection
 		cl.pendingConnsData.Set(tcpConn, append(cl.pendingConnsData.Get(tcpConn), data))
@@ -137,13 +143,13 @@ func (cl *TCPConnectionMergerClient) handleLocalTCPReadFunc(tcpConn *TCPServerCo
 		//No connection found, request new
 		tempId := GenerateRandomId()
 		cl.pendingConnections.Set(tempId, tcpConn)
-		cl.tcpClient.Logger.Log(1, "Preparing new connection with temporary id: "+tempId+" for connection connected to: "+tcpConn.Conn.RemoteAddr().String()+" connected locally to: "+tcpConn.Conn.LocalAddr().String())
+		cl.tcpClient.GetLogger().Log(1, "Preparing new connection with temporary id: "+tempId+" for connection connected to: "+tcpConn.GetConn().RemoteAddr().String()+" connected locally to: "+tcpConn.GetConn().LocalAddr().String())
 		cl.tcpClient.Send(PackProxyFrame(PROXY_FRAME_TYPE_CONNECT, []byte(strconv.Itoa(slices.Index(cl.tcpServers, tcpConn.origin))), []byte(tempId)))
 		cl.pendingConnsData.Set(tcpConn, append(make([][]byte, 0), data))
 		return
 	}
 
-	if ended {
+	if status == TCP_DISCONNECT_STATUS {
 		//Connection ended
 		cl.tcpClient.Send(PackProxyFrame(PROXY_FRAME_TYPE_CLOSE, []byte(id), nil))
 		return

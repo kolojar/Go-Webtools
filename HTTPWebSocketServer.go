@@ -4,11 +4,9 @@ import (
 	"crypto/sha1"
 	"encoding/base64"
 	"encoding/binary"
-	"encoding/hex"
 	"errors"
 	"net"
 	"net/http"
-	"strconv"
 	"strings"
 )
 
@@ -32,16 +30,17 @@ func computeWebSocketKey(webSocketKey string) string {
 Standardized type of function
 *HTTPWebSocketServerConn = Connection
 String = message
-Uint8 = 0 = Open, 1 = Close, 2 = Read text, 3 = Read binary
+Uint8 = operation
+Bool = isBinary
 */
-type HTTPWebSocketServerReadFunc func(*HTTPWebSocketServerConn, []byte, uint8)
+type HTTPWebSocketServerReadFunc func(conn *HTTPWebSocketServerConn, data []byte, status uint8, isBinary bool)
 
 /*
 HTTP WebSocket server connection object
 */
 type HTTPWebSocketServerConn struct {
 	origin   *HTTPWebSocketServer
-	Conn     *net.TCPConn
+	Client   *TCPClientUniversal
 	IsBinary bool
 }
 
@@ -49,46 +48,34 @@ type HTTPWebSocketServerConn struct {
 Sends data to client, it is set by first recieved packed, can be changed using IsBinary property
 */
 func (httpConn *HTTPWebSocketServerConn) Send(data []byte) {
-	if httpConn.IsBinary {
-		httpConn.origin.WriteToClientBinary(httpConn.Conn, data)
-	} else {
-		httpConn.origin.WriteToClientText(httpConn.Conn, data)
-	}
+	httpConn.Client.Send(data, map[string]any{"opcode": FormatByBool[uint8](httpConn.IsBinary, 2, 1)})
 }
 
 /*
 Closes connection to client
 */
 func (httpConn *HTTPWebSocketServerConn) Close() {
-	err := httpConn.Conn.Close()
-	if err != nil {
-		httpConn.origin.Logger.Log(3, "Error closing connection from: "+httpConn.Conn.RemoteAddr().String()+" connected locally to: "+httpConn.Conn.LocalAddr().String()+" with error: "+err.Error())
-	} else {
-		httpConn.origin.Logger.Log(0, "Closed connectin on "+httpConn.Conn.RemoteAddr().String()+" connected locally to: "+httpConn.Conn.LocalAddr().String())
-	}
+	httpConn.Client.Stop()
 }
 
 /*
 HTTP WebSocket server for JavaScript with standards
 */
 type HTTPWebSocketServer struct {
-	httpServer   *HTTPServer
-	Logger       *ConsoleLogger
-	conns        SafeMap[string, *HTTPWebSocketServerConn]
-	readFunc     HTTPWebSocketServerReadFunc
-	onAccessFunc HTTPAccessFunc
-	websocketURL string
+	httpServer    *HTTPServer
+	Logger        *ConsoleLogger
+	conns         SafeMap[*TCPClientUniversal, *HTTPWebSocketServerConn]
+	readFunc      HTTPWebSocketServerReadFunc
+	onAccessFunc  HTTPAccessFunc
+	websocketURL  string
+	reportTraffic bool
 }
 
 /*
 Creates new HTTP WebSocket Server but does not starts it
 */
 func NewHTTPWebSocketServer(address string, readFunc HTTPWebSocketServerReadFunc, onAccessFunc HTTPAccessFunc, rootPath string, reportTraffic bool) *HTTPWebSocketServer {
-	level := uint8(0)
-	if !reportTraffic {
-		level = 1
-	}
-	sv := &HTTPWebSocketServer{Logger: NewConsoleLogger("HTTP-WSServer", level), readFunc: readFunc, conns: MakeSafeMap[string, *HTTPWebSocketServerConn](), onAccessFunc: onAccessFunc, websocketURL: "/websocket"}
+	sv := &HTTPWebSocketServer{Logger: NewConsoleLoggerForTraffic("HTTP-WSServer", reportTraffic), reportTraffic: reportTraffic, readFunc: readFunc, conns: MakeSafeMap[*TCPClientUniversal, *HTTPWebSocketServerConn](), onAccessFunc: onAccessFunc, websocketURL: "/websocket"}
 	sv.httpServer = NewHTTPServer(address, sv.handleHTTPAccess, rootPath, false)
 	sv.httpServer.Logger = sv.Logger
 	return sv
@@ -147,8 +134,21 @@ func (sv *HTTPWebSocketServer) handleHTTPAccess(_ *HTTPServer, w http.ResponseWr
 			sv.Logger.Log(3, "Failed to hijact connection from: "+r.RemoteAddr+" | Error: "+err.Error())
 			return true
 		}
-		sv.Logger.Log(2, "Connection from: "+conn.RemoteAddr().String()+" connected locally to: "+conn.LocalAddr().String())
-		go handleWebSocketFrameRead(conn.(*net.TCPConn), sv.Logger, sv.readFuncLocal)
+
+		//Make client
+		cl := NewTCPClientUniversalFromConnection(conn.(*net.TCPConn), sv.reportTraffic)
+		cl.Logger = sv.Logger
+		cl.HandlerFuncs = append(cl.HandlerFuncs,
+			FiveValuePair[int, TCPClientUniversalReadHandlerFunc, TCPClientUniversalOnReadFunc, TCPClientUniversalOnWriteHandlerFunc, bool]{
+				A: 0,
+				B: handleWebSocketFrameRead,
+				C: sv.readFuncLocal,
+				D: writeToTCPFramedHandler,
+				E: false,
+			})
+		cl.Connect()
+		//sv.Logger.Log(2, "Connection from: "+conn.RemoteAddr().String()+" connected locally to: "+conn.LocalAddr().String())
+		//go handleWebSocketFrameRead(conn.(*net.TCPConn), sv.Logger, sv.readFuncLocal)
 		return true
 	} else {
 		//Normal request
@@ -159,14 +159,13 @@ func (sv *HTTPWebSocketServer) handleHTTPAccess(_ *HTTPServer, w http.ResponseWr
 	return false
 }
 
-func handleWebSocketFrameRead(conn *net.TCPConn, logger *ConsoleLogger, readFunc func(*net.TCPConn, []byte, bool, bool)) {
-	for {
+func handleWebSocketFrameRead(cl *TCPClientUniversal, limit int, logger *ConsoleLogger, readFunc TCPClientUniversalOnReadFuncIntenal) (bool, error) {
+	for i := 0; i < limit || limit < 0; i++ {
 		//Read header of frame
 		header := make([]byte, 2)
-		_, err := conn.Read(header)
+		_, err := cl.GetConn().Read(header)
 		if err != nil {
-			logger.Log(3, "Error reading header: "+err.Error())
-			break
+			return true, errors.New("error reading frame header")
 		}
 
 		//Get opcode (operation code) (masked with bitshift operation AND)
@@ -175,7 +174,7 @@ func handleWebSocketFrameRead(conn *net.TCPConn, logger *ConsoleLogger, readFunc
 		//Sort opcodes
 		if opcode == 8 {
 			//Close / disconnected
-			break
+			return true, nil
 		}
 
 		//Check if has mask by bitshifting -> returns 0 or 1
@@ -190,10 +189,9 @@ func handleWebSocketFrameRead(conn *net.TCPConn, logger *ConsoleLogger, readFunc
 			//Payload to long -> Longer than 125 characters
 			//Get new size of buffer encoded using big Endian - 16 bits
 			sizeAdder := make([]byte, 2)
-			_, err = conn.Read(sizeAdder)
+			_, err = cl.GetConn().Read(sizeAdder)
 			if err != nil {
-				logger.Log(3, "Error reading additional size of frame: "+err.Error())
-				break
+				return true, errors.New("error reading additional size of frame: " + err.Error())
 			}
 
 			//Calculate new size
@@ -202,10 +200,9 @@ func handleWebSocketFrameRead(conn *net.TCPConn, logger *ConsoleLogger, readFunc
 			//Payload to long -> Longer than 65535 characters
 			//Get new size of buffer encoded using big Endian - 64 bits
 			sizeAdder := make([]byte, 8)
-			_, err = conn.Read(sizeAdder)
+			_, err = cl.GetConn().Read(sizeAdder)
 			if err != nil {
-				logger.Log(3, "Error reading additional size of frame: "+err.Error())
-				break
+				return true, errors.New("error reading additional size of frame: " + err.Error())
 			}
 
 			//Calculate new size
@@ -215,19 +212,17 @@ func handleWebSocketFrameRead(conn *net.TCPConn, logger *ConsoleLogger, readFunc
 		//Read masking key of frame
 		maskingKey := make([]byte, 4)
 		if hasMask == 1 {
-			_, err = conn.Read(maskingKey)
+			_, err = cl.GetConn().Read(maskingKey)
 			if err != nil {
-				logger.Log(3, "Error reading mask of frame: "+err.Error())
-				break
+				return true, errors.New("error reading mask of frame: " + err.Error())
 			}
 		}
 
 		//Payload data (message)
 		payload := make([]byte, payloadSize)
-		_, err = conn.Read(payload)
+		_, err = cl.GetConn().Read(payload)
 		if err != nil {
-			logger.Log(3, "Error reading data of frame: "+err.Error())
-			break
+			return true, errors.New("error reading data of frame: " + err.Error())
 		}
 
 		//Unmask payload
@@ -242,7 +237,10 @@ func handleWebSocketFrameRead(conn *net.TCPConn, logger *ConsoleLogger, readFunc
 		if opcode == 9 {
 			//Ping -> Send pong
 			logger.Log(1, "Got ping - Sending pong responce...")
-			writeToWebSocketFrame(conn, payload, 10, logger)
+			err := writeToWebSocketFrameHandler(cl, payload, map[string]any{"opcode": uint8(10)})
+			if err != nil {
+				logger.Log(3, "Error sending pong: "+err.Error())
+			}
 			continue
 		}
 		if opcode == 10 {
@@ -253,14 +251,12 @@ func handleWebSocketFrameRead(conn *net.TCPConn, logger *ConsoleLogger, readFunc
 
 		//Normal message
 		if readFunc != nil {
-			readFunc(conn, payload, opcode == 1, false)
+			readFunc(payload, map[string]any{"isBinary": opcode == 2})
 		}
 	}
 
-	//Connection ended or error occured
-	if readFunc != nil {
-		readFunc(conn, nil, false, true)
-	}
+	//Connection ended
+	return false, nil
 }
 
 /*
@@ -270,11 +266,11 @@ Sources: https://en.wikipedia.org/wiki/WebSocket#Opcodes
 Some fixes applied from ChatGPT (big payloads)
 OpCode must be in range form 0 to 16 (from Wikipedia) in hex format
 */
-func writeToWebSocketFrame(conn *net.TCPConn, payload []byte, opcode uint8, logger *ConsoleLogger) {
+func PackWebSocketFrame(payload []byte, opcode uint8, logger *ConsoleLogger) []byte {
 	//Check opcode size
 	if opcode >= 16 {
 		logger.Log(3, "Opcode must be in range from 0 to 15 (less than 16), ignoring...")
-		return
+		return nil
 	}
 
 	//Create frame and payload (message array) -> Example for messages: 0x81
@@ -297,50 +293,80 @@ func writeToWebSocketFrame(conn *net.TCPConn, payload []byte, opcode uint8, logg
 
 	//Append payload at the end
 	frame = append(frame, payload...)
-
-	//Send
-	writeToTCP(conn, frame, logger)
+	return frame
 }
 
-func (sv *HTTPWebSocketServer) readFuncLocal(conn *net.TCPConn, data []byte, isBinary bool, ended bool) {
-	var httpConn *HTTPWebSocketServerConn = sv.conns.Get(conn.RemoteAddr().String())
-	if httpConn == nil {
-		httpConn = &HTTPWebSocketServerConn{origin: sv, Conn: conn, IsBinary: isBinary}
-		sv.conns.Set(conn.RemoteAddr().String(), httpConn)
+func writeToWebSocketFrameHandler(cl *TCPClientUniversal, data []byte, otherData map[string]any) error {
+	//Get opcode
+	opcode := otherData["opcode"]
+	if opcode == nil || opcode == "" {
+		//Invalid opcode
+		return errors.New("no property 'opcode' found in otherData")
 	}
+
+	//Send
+	//	writeToTCP(conn, PackWebSocketFrame(payload, opcode, logger), logger)
+	return writeToTCPHandler(cl, PackWebSocketFrame(data, opcode.(uint8), cl.Logger), otherData)
+}
+
+func (sv *HTTPWebSocketServer) readFuncLocal(cl *TCPClientUniversal, data []byte, status uint8, otherData map[string]any) {
+	//Get isBinary
+	isBinaryRaw := otherData["isBinary"]
+	if isBinaryRaw == nil || isBinaryRaw == "" {
+		sv.Logger.Log(3, "No property 'isBinary' found in otherData")
+		return
+	}
+	isBinary := isBinaryRaw.(bool)
+
+	//Get connection
+	var httpConn *HTTPWebSocketServerConn = sv.conns.Get(cl)
+	if httpConn == nil {
+		httpConn = &HTTPWebSocketServerConn{origin: sv, Client: cl, IsBinary: isBinary}
+		sv.conns.Set(cl, httpConn)
+	}
+
 	// Check type
 	if isBinary != httpConn.IsBinary {
-		sv.Logger.Log(2, "Connection from: "+conn.RemoteAddr().String()+" connected locally to: "+conn.LocalAddr().String()+" has got data that are marked as "+FormatByBool(isBinary, "binary", "text")+" but this connection is marked as "+FormatByBool(httpConn.IsBinary, "binary", "text")+". Consilider changing properties of websocketConnection.")
+		sv.Logger.Log(2, "Connection from: "+cl.GetConn().RemoteAddr().String()+" connected locally to: "+cl.GetConn().LocalAddr().String()+" has got data that are marked as "+FormatByBool(isBinary, "binary", "text")+" but this connection is marked as "+FormatByBool(httpConn.IsBinary, "binary", "text")+". Consilider changing properties of websocketConnection.")
 	}
 
 	//Process read
 	if sv.readFunc != nil {
-		if !ended {
-			sv.Logger.Log(0, "Reading from: "+conn.RemoteAddr().String()+" connected locally to: "+conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data))
-			sv.readFunc(httpConn, data, FormatByBool[uint8](isBinary, 3, 2))
-		} else {
-			sv.readFunc(httpConn, data, 1)
-		}
+		sv.readFunc(httpConn, data, status, isBinary)
 	}
 }
 
 /*
 Writes to Client with binary formating
 */
-func (sv *HTTPWebSocketServer) WriteToClientBinary(conn *net.TCPConn, data []byte) {
-	sv.WriteToClientOpcode(conn, data, 2)
-}
+//func (sv *HTTPWebSocketServer) WriteToClientBinary(conn *net.TCPConn, data []byte) {
+//	sv.WriteToClientOpcode(conn, data, 2)
+//}
 
 /*
 Writes to Client with text formating
 */
-func (sv *HTTPWebSocketServer) WriteToClientText(conn *net.TCPConn, data []byte) {
-	sv.WriteToClientOpcode(conn, data, 1)
-}
+//func (sv *HTTPWebSocketServer) WriteToClientText(conn *net.TCPConn, data []byte) {
+//	sv.WriteToClientOpcode(conn, data, 1)
+//}
 
 /*
 Writes to Client with opcode
 */
-func (sv *HTTPWebSocketServer) WriteToClientOpcode(conn *net.TCPConn, data []byte, opcode uint8) {
-	writeToWebSocketFrame(conn, data, opcode, sv.Logger)
+//func (sv *HTTPWebSocketServer) WriteToClientOpcode(conn *net.TCPConn, data []byte, opcode uint8) {
+//	writeToWebSocketFrame(conn, data, opcode, sv.Logger)
+//}
+
+/*
+Starts HTTP Server
+*/
+func (sv *HTTPWebSocketServer) Start() {
+	sv.httpServer.Start()
+}
+
+/*
+Stops HTTP Server
+*/
+func (sv *HTTPWebSocketServer) Stop() {
+	sv.httpServer.Stop()
 }

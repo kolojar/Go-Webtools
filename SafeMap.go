@@ -10,6 +10,15 @@ type ThreeValuePair[A any, B any, C any] struct {
 }
 
 // Value pair
+type FiveValuePair[A any, B any, C any, D any, E any] struct {
+	A A
+	B B
+	C C
+	D D
+	E E
+}
+
+// Value pair
 type KeyValuePair[K comparable, V any] struct {
 	Key   K
 	Value V

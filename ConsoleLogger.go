@@ -2,6 +2,7 @@ package webtools
 
 import (
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -78,4 +79,14 @@ func FormatByBool[T any](b bool, trueVal T, falseVal T) T {
 	} else {
 		return falseVal
 	}
+}
+
+func MapToString[K comparable, V any](m map[K]V) string {
+	result := "{"
+	for k, v := range m {
+		result += "[" + fmt.Sprint(k) + ", " + fmt.Sprint(v) + "], "
+	}
+	result = strings.TrimSuffix(result, ", ")
+	result += "}"
+	return result
 }

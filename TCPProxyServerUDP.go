@@ -64,8 +64,8 @@ func NewTCPProxyServerUDP(tcpProxyAddress string, udpServerAddress string, repor
 	return sv, nil
 }
 
-func (sv *TCPProxyServerUDP) handleTCPReadFunc(conn *TCPServerConn, frame []byte, ended bool) {
-	if ended {
+func (sv *TCPProxyServerUDP) handleTCPReadFunc(conn *TCPServerConn, frame []byte, status uint8) {
+	if status == TCP_DISCONNECT_STATUS {
 		//Close all connections with this HTTP WebTransport Conn
 		for _, d := range sv.idToClient.GetData() {
 			if d.Value == nil {
@@ -75,6 +75,9 @@ func (sv *TCPProxyServerUDP) handleTCPReadFunc(conn *TCPServerConn, frame []byte
 				d.Value.Close(true)
 			}
 		}
+		return
+	}
+	if status != TCP_READ_DATA_STATUS {
 		return
 	}
 
@@ -108,7 +111,7 @@ func (sv *TCPProxyServerUDP) handleTCPReadFunc(conn *TCPServerConn, frame []byte
 		}
 		cl := sv.idToClient.Get(string(id))
 		if !cl.udpClient.IsAlive() {
-			conn.origin.Logger.Log(3, "Connection with id: "+string(id)+" connected to: "+conn.Conn.RemoteAddr().String()+" connected locally to: "+conn.Conn.LocalAddr().String()+" closed")
+			conn.origin.Logger.Log(3, "Connection with id: "+string(id)+" connected to: "+conn.GetConn().RemoteAddr().String()+" connected locally to: "+conn.GetConn().LocalAddr().String()+" closed")
 			return
 		}
 

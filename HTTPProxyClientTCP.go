@@ -35,10 +35,13 @@ func NewHTTPProxyClientTCP(httpProxyAddress string, tcpServerAddress string, rep
 	return cl, nil
 }
 
-func (cl *HTTPProxyClientTCP) handleWebTransportReadFunc(_ *HTTPWebTransportClient, frame []byte, ended bool) {
-	if ended {
+func (cl *HTTPProxyClientTCP) handleWebTransportReadFunc(_ *HTTPWebTransportClient, frame []byte, status uint8) {
+	if status == TCP_DISCONNECT_STATUS {
 		//Close all connections
 		cl.tcpServer.Stop()
+		return
+	}
+	if status != TCP_FINISHED_READ_FUNC_STATUS {
 		return
 	}
 
@@ -61,7 +64,7 @@ func (cl *HTTPProxyClientTCP) handleWebTransportReadFunc(_ *HTTPWebTransportClie
 				cl.pendingConnections.Delete(string(data))
 				cl.clientToId.Set(conn, string(id))
 				cl.idToClient.Set(string(id), conn)
-				cl.httpClient.Logger.Log(1, "Prepared new connection with temporary id: "+string(data)+" for connection connected to: "+conn.Conn.RemoteAddr().String()+" connected locally to: "+conn.Conn.LocalAddr().String()+" with new id: "+string(id))
+				cl.httpClient.Logger.Log(1, "Prepared new connection with temporary id: "+string(data)+" for connection connected to: "+conn.GetConn().RemoteAddr().String()+" connected locally to: "+conn.GetConn().LocalAddr().String()+" with new id: "+string(id))
 
 				//Process pending data
 				for len(cl.pendingConnsData.Get(conn)) > 0 {
@@ -86,7 +89,10 @@ func (cl *HTTPProxyClientTCP) handleWebTransportReadFunc(_ *HTTPWebTransportClie
 	}
 }
 
-func (cl *HTTPProxyClientTCP) handleTCPReadFunc(tcpConn *TCPServerConn, data []byte, ended bool) {
+func (cl *HTTPProxyClientTCP) handleTCPReadFunc(tcpConn *TCPServerConn, data []byte, status uint8) {
+	if status == TCP_CONNECT_STATUS {
+		return
+	}
 	if cl.pendingConnsData.Get(tcpConn) != nil {
 		//Already pending connection
 		cl.pendingConnsData.Set(tcpConn, append(cl.pendingConnsData.Get(tcpConn), data))
@@ -98,13 +104,13 @@ func (cl *HTTPProxyClientTCP) handleTCPReadFunc(tcpConn *TCPServerConn, data []b
 		//No connection found, request new
 		tempId := GenerateRandomId()
 		cl.pendingConnections.Set(tempId, tcpConn)
-		cl.httpClient.Logger.Log(1, "Preparing new connection with temporary id: "+tempId+" for connection connected to: "+tcpConn.Conn.RemoteAddr().String()+" connected locally to: "+tcpConn.Conn.LocalAddr().String())
+		cl.httpClient.Logger.Log(1, "Preparing new connection with temporary id: "+tempId+" for connection connected to: "+tcpConn.GetConn().RemoteAddr().String()+" connected locally to: "+tcpConn.GetConn().LocalAddr().String())
 		cl.httpClient.Send(PackProxyFrame(PROXY_FRAME_TYPE_CONNECT, []byte("0"), []byte(tempId)))
 		cl.pendingConnsData.Set(tcpConn, append(make([][]byte, 0), data))
 		return
 	}
 
-	if ended {
+	if status == TCP_DISCONNECT_STATUS {
 		//Connection ennded
 		cl.httpClient.Send(PackProxyFrame(PROXY_FRAME_TYPE_CLOSE, []byte(id), nil))
 		return

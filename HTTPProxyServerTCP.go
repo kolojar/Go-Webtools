@@ -104,7 +104,7 @@ HTTP Proxy server for TCP object
 */
 type HTTPProxyServerTCP struct {
 	idToClient       SafeMap[string, *HTTPProxyServerTCPConn]
-	clientToId       SafeMap[*TCPClient, string]
+	clientToId       SafeMap[*TCPClientSimple, string]
 	httpServer       *HTTPWebTransportServer
 	tcpServerAddress string
 	reportTrafic     bool
@@ -114,7 +114,7 @@ type HTTPProxyServerTCP struct {
 HTTP Proxy server for TCP connection object
 */
 type HTTPProxyServerTCPConn struct {
-	tcpClient *TCPClient
+	tcpClient *TCPClientSimple
 	id        []byte
 	source    *HTTPWebTransportServerConn
 	origin    *HTTPProxyServerTCP
@@ -160,14 +160,14 @@ func GenerateRandomId() string {
 Creates new HTTP Proxy Server for TCP but does not starts it
 */
 func NewHTTPProxyServerTCP(httpProxyAddress string, tcpServerAddress string, reportTraffic bool) *HTTPProxyServerTCP {
-	sv := &HTTPProxyServerTCP{tcpServerAddress: tcpServerAddress, clientToId: MakeSafeMap[*TCPClient, string](), idToClient: MakeSafeMap[string, *HTTPProxyServerTCPConn](), reportTrafic: reportTraffic}
+	sv := &HTTPProxyServerTCP{tcpServerAddress: tcpServerAddress, clientToId: MakeSafeMap[*TCPClientSimple, string](), idToClient: MakeSafeMap[string, *HTTPProxyServerTCPConn](), reportTrafic: reportTraffic}
 	sv.httpServer = NewHTTPWebTransportServer(httpProxyAddress, sv.handleWebTransportReadFunc, reportTraffic)
 	sv.httpServer.Logger.Prefix = "HTTPProxyServerTCP - " + sv.httpServer.Logger.Prefix
 	return sv
 }
 
-func (sv *HTTPProxyServerTCP) handleWebTransportReadFunc(conn *HTTPWebTransportServerConn, frame []byte, ended bool) {
-	if ended {
+func (sv *HTTPProxyServerTCP) handleWebTransportReadFunc(conn *HTTPWebTransportServerConn, frame []byte, status uint8) {
+	if status == TCP_DISCONNECT_STATUS {
 		//Close all connections with this HTTP WebTransport Conn
 		for _, d := range sv.idToClient.GetData() {
 			if d.Value == nil {
@@ -177,6 +177,9 @@ func (sv *HTTPProxyServerTCP) handleWebTransportReadFunc(conn *HTTPWebTransportS
 				d.Value.Close(true)
 			}
 		}
+		return
+	}
+	if status != TCP_FINISHED_READ_FUNC_STATUS {
 		return
 	}
 
@@ -192,8 +195,8 @@ func (sv *HTTPProxyServerTCP) handleWebTransportReadFunc(conn *HTTPWebTransportS
 			if operation == PROXY_FRAME_TYPE_CONNECT {
 				//Create new connection
 				id = []byte(GenerateRandomId())
-				cl, err := NewTCPClient(sv.tcpServerAddress, sv.handleTCPReadFunc, sv.reportTrafic, false)
-				cl.Logger.Prefix = "HTTPProxyServerTCP - " + cl.Logger.Prefix
+				cl, err := NewTCPClientSimple(sv.tcpServerAddress, -1, false, sv.handleTCPReadFunc, sv.reportTrafic)
+				cl.GetLogger().Prefix = "HTTPProxyServerTCP - " + cl.GetLogger().Prefix
 				if err != nil {
 					conn.origin.Logger.Log(3, "Could not create connection with id: "+string(id)+" to server.")
 					return
@@ -210,7 +213,7 @@ func (sv *HTTPProxyServerTCP) handleWebTransportReadFunc(conn *HTTPWebTransportS
 		}
 		cl := sv.idToClient.Get(string(id))
 		if !cl.tcpClient.IsAlive() {
-			conn.origin.Logger.Log(3, "Connection with id: "+string(id)+" connected to: "+conn.Conn.RemoteAddr().String()+" connected locally to: "+conn.Conn.LocalAddr().String()+" closed")
+			conn.origin.Logger.Log(3, "Connection with id: "+string(id)+" connected to: "+conn.GetConn().RemoteAddr().String()+" connected locally to: "+conn.GetConn().LocalAddr().String()+" closed")
 			return
 		}
 
@@ -230,18 +233,22 @@ func (sv *HTTPProxyServerTCP) handleWebTransportReadFunc(conn *HTTPWebTransportS
 	}
 }
 
-func (sv *HTTPProxyServerTCP) handleTCPReadFunc(tcp *TCPClient, data []byte, ended bool) {
+func (sv *HTTPProxyServerTCP) handleTCPReadFunc(tcp *TCPClientSimple, data []byte, status uint8) {
+	if status == TCP_CONNECT_STATUS {
+		return
+	}
+
 	//Get HTTP client
 	if sv.clientToId.Get(tcp) == "" || sv.idToClient.Get(sv.clientToId.Get(tcp)) == nil {
 		//Connection does not exists
-		tcp.Logger.Log(3, "Connection connected to: "+tcp.address.String()+" not found")
+		tcp.GetLogger().Log(3, "Connection connected to: "+tcp.universalClient.address.String()+" not found")
 		return
 	}
 	id := sv.clientToId.Get(tcp)
 	cl := sv.idToClient.Get(id)
 
 	//End other connection
-	if ended {
+	if status == TCP_DISCONNECT_STATUS {
 		cl.Close(true)
 	}
 

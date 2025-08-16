@@ -11,14 +11,14 @@ Standardized type of function
 String = message
 Bool = is ended
 */
-type HTTPWebTransportClientReadFunc func(*HTTPWebTransportClient, []byte, bool)
+type HTTPWebTransportClientReadFunc func(client *HTTPWebTransportClient, data []byte, status uint8)
 
 /*
 Simple HTTP connection hijack client fo switching from HTTP to TCP.
 This is NOT WebSocket HTTP client for JavaScript, it is intended for inner communication between Go server and Go client (this file). It is used for HTTPProxy (TCP and UDP traffic over HTTP)
 */
 type HTTPWebTransportClient struct {
-	tcpClient      *TCPClient
+	tcpClient      *TCPClientSimple
 	Logger         *ConsoleLogger
 	readFunc       HTTPWebTransportClientReadFunc
 	awaitingReady  bool
@@ -46,11 +46,11 @@ func NewHTTPWebTransportClient(address string, readFunc HTTPWebTransportClientRe
 	var err error
 	var tcpAddress string
 	tcpAddress, cl.pathForHTTP = HTTPWebTransportGetAddressAndTarget(address)
-	cl.tcpClient, err = NewTCPClient(tcpAddress, cl.readFuncLocal, reportTraffic, false)
+	cl.tcpClient, err = NewTCPClientSimple(tcpAddress, 1, false, cl.readFuncLocal, reportTraffic)
 	if err != nil {
 		return nil, err
 	}
-	cl.tcpClient.Logger = cl.Logger
+	cl.tcpClient.SetLogger(cl.Logger)
 	return cl, nil
 }
 
@@ -65,7 +65,7 @@ func (cl *HTTPWebTransportClient) Connect() {
 	cl.tcpClient.Connect()
 
 	//Reset ready state
-	cl.tcpClient.Logger.Log(1, "Upgrading connection with: "+cl.tcpClient.address.String())
+	cl.tcpClient.GetLogger().Log(1, "Upgrading connection with: "+cl.tcpClient.universalClient.address.String())
 	cl.awaitingReady = true
 	cl.hijacked = false
 
@@ -86,9 +86,9 @@ func (cl *HTTPWebTransportClient) Connect() {
 	if cl.awaitingStatus {
 		//Successfully connected
 		cl.hijacked = true
-		cl.tcpClient.Logger.Log(1, "Upgraded connection with: "+cl.tcpClient.address.String())
+		cl.tcpClient.GetLogger().Log(1, "Upgraded connection with: "+cl.tcpClient.universalClient.address.String())
 	} else {
-		cl.tcpClient.Logger.Log(3, "Failed to upgrade connection with: "+cl.tcpClient.address.String())
+		cl.tcpClient.GetLogger().Log(3, "Failed to upgrade connection with: "+cl.tcpClient.universalClient.address.String())
 		cl.tcpClient.Stop()
 	}
 }
@@ -97,18 +97,14 @@ func (cl *HTTPWebTransportClient) Connect() {
 Sends data to server
 */
 func (cl *HTTPWebTransportClient) Send(data []byte) {
-	if cl.hijacked {
-		writeToTCPFramed(cl.tcpClient.Conn, data, cl.Logger)
-	} else {
-		writeToTCP(cl.tcpClient.Conn, data, cl.Logger)
-	}
+	cl.tcpClient.Send(data)
 }
 
 /*
 Local readFunc for local TCP client
 */
-func (cl *HTTPWebTransportClient) readFuncLocal(_ *TCPClient, data []byte, ended bool) {
-	if !ended && cl.awaitingReady {
+func (cl *HTTPWebTransportClient) readFuncLocal(_ *TCPClientSimple, data []byte, status uint8) {
+	if status == 3 && cl.awaitingReady {
 		//First request
 		cl.awaitingStatus = strings.Contains(string(data), "HTTP/1.1 101 Switching Protocols")
 		cl.awaitingReady = false
@@ -117,7 +113,7 @@ func (cl *HTTPWebTransportClient) readFuncLocal(_ *TCPClient, data []byte, ended
 
 	//Other requests
 	if cl.readFunc != nil {
-		cl.readFunc(cl, data, ended)
+		cl.readFunc(cl, data, status)
 	}
 }
 
