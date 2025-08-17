@@ -41,7 +41,7 @@ func (cl *HTTPProxyClientTCP) handleWebTransportReadFunc(_ *HTTPWebTransportClie
 		cl.tcpServer.Stop()
 		return
 	}
-	if status != TCP_FINISHED_READ_FUNC_STATUS {
+	if status != TCP_READ_DATA_STATUS {
 		return
 	}
 
@@ -123,8 +123,8 @@ func (cl *HTTPProxyClientTCP) handleTCPReadFunc(tcpConn *TCPServerConn, data []b
 Connects to HTTP Proxy server and start reading loop, does not locks execution thread
 */
 func (cl *HTTPProxyClientTCP) Connect() {
-	cl.httpClient.Connect()
 	go cl.tcpServer.Start()
+	cl.httpClient.Connect()
 }
 
 /*

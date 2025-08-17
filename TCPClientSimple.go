@@ -100,8 +100,8 @@ Handles TCP Read
 Implements this function: type TCPClientUniversalReadHandlerFunc func(conn *net.TCPConn, limit int, logger *ConsoleLogger, readFunc TCPClientUniversalOnReadFuncIntenal) (bool, error)
 */
 func handleTCPRead(cl *TCPClientUniversal, limit int, logger *ConsoleLogger, readFunc TCPClientUniversalOnReadFuncIntenal) (bool, error) {
-	buffer := make([]byte, BUFFER_SIZE)
 	for i := 0; i < limit || limit < 0; i++ {
+		buffer := make([]byte, BUFFER_SIZE)
 		n, err := cl.GetConn().Read(buffer)
 		if err != nil {
 			//Exit on errors

@@ -179,7 +179,7 @@ func (sv *HTTPProxyServerTCP) handleWebTransportReadFunc(conn *HTTPWebTransportS
 		}
 		return
 	}
-	if status != TCP_FINISHED_READ_FUNC_STATUS {
+	if status != TCP_READ_DATA_STATUS {
 		return
 	}
 
