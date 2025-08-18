@@ -47,13 +47,8 @@ func GenerateRandomString(lenght int) string {
 Creates new HTTP WebSocket Client but does not connects it, if you want to use default connection endpoint, add /websocket to end of address
 */
 func NewHTTPWebSocketClient(address string, readFunc HTTPWebSocketClientReadFunc, reportTraffic bool) (*HTTPWebSocketClient, error) {
-	level := uint8(0)
-	if !reportTraffic {
-		level = 1
-	}
-
 	//Create client
-	cl := &HTTPWebSocketClient{Logger: NewConsoleLogger("HTTP-WSClient", level), readFunc: readFunc, address: address}
+	cl := &HTTPWebSocketClient{Logger: NewConsoleLoggerForTraffic("HTTP-WSClient", reportTraffic), readFunc: readFunc, address: address}
 	var err error
 	var tcpAddress string
 	tcpAddress, cl.pathForHTTP = HTTPWebTransportGetAddressAndTarget(address)
@@ -151,6 +146,9 @@ func (cl *HTTPWebSocketClient) readFuncLocalRaw(_ *TCPClientUniversal, data []by
 		cl.awaitingReady = false
 		return
 	} else {
+		if status != TCP_READ_DATA_STATUS {
+			return
+		}
 		//Other requests
 		cl.Logger.Log(3, "Invalid read func called for other requests! Ignoring but inform author of this error.")
 		if cl.readFunc != nil {
@@ -176,4 +174,11 @@ func (cl *HTTPWebSocketClient) readFuncLocalWS(_ *TCPClientUniversal, data []byt
 	if cl.readFunc != nil {
 		cl.readFunc(cl, data, FormatByBool[uint8](isBinary, 3, 2))
 	}
+}
+
+/*
+Stops HTTP WebSocket client
+*/
+func (ws *HTTPWebSocketClient) Stop() {
+	ws.tcpClient.Stop()
 }

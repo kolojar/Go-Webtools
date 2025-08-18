@@ -98,21 +98,27 @@ func (sv *HTTPServer) httpHandler(w http.ResponseWriter, r *http.Request) {
 
 /*
 Reads file contents
+Returns data, isDirectory, error
 */
-func ReadFile(filePath string) ([]byte, error) {
+func ReadFile(filePath string) ([]byte, bool, error) {
 	//Check file exists
-	_, err2 := os.Stat(filePath)
+	stat, err2 := os.Stat(filePath)
 	if errors.Is(err2, os.ErrNotExist) {
-		return nil, err2
+		return nil, false, err2
+	}
+
+	//Check for dir
+	if stat.IsDir() {
+		return nil, true, nil
 	}
 
 	//Read data
 	data, err := os.ReadFile(filePath)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
-	return data, nil
+	return data, false, nil
 }
 
 /*
@@ -132,9 +138,15 @@ Reads file contents
 */
 func TryHandleHTTPFile(w http.ResponseWriter, filePath string, contentType string) error {
 	//Read data
-	data, err := ReadFile(filePath)
+	data, isDir, err := ReadFile(filePath)
 	if err != nil {
 		return err
+	}
+
+	//Check dir
+	if isDir {
+		http.Error(w, "Directory listing not supported yet.", 403)
+		return nil
 	}
 
 	//Send data
@@ -173,9 +185,10 @@ func (sv *HTTPServer) HandleHTTPDirectoryGetRelative(w http.ResponseWriter, r *h
 }
 
 /*
-Handles fire read relative to HTTP server root
+Handles file read relative to HTTP server root
+Returns data, isDir, error
 */
-func (sv *HTTPServer) ReadFileRelative(path string) ([]byte, error) {
+func (sv *HTTPServer) ReadFileRelative(path string) ([]byte, bool, error) {
 	return ReadFile(JoinPaths(sv.rootPath, path))
 }
 

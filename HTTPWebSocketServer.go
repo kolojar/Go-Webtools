@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"strings"
@@ -140,13 +141,14 @@ func (sv *HTTPWebSocketServer) handleHTTPAccess(_ *HTTPServer, w http.ResponseWr
 		cl.Logger = sv.Logger
 		cl.HandlerFuncs = append(cl.HandlerFuncs,
 			FiveValuePair[int, TCPClientUniversalReadHandlerFunc, TCPClientUniversalOnReadFunc, TCPClientUniversalOnWriteHandlerFunc, bool]{
-				A: 0,
+				A: -1,
 				B: handleWebSocketFrameRead,
 				C: sv.readFuncLocal,
-				D: writeToTCPFramedHandler,
+				D: writeToWebSocketFrameHandler,
 				E: false,
 			})
 		cl.Connect()
+
 		//sv.Logger.Log(2, "Connection from: "+conn.RemoteAddr().String()+" connected locally to: "+conn.LocalAddr().String())
 		//go handleWebSocketFrameRead(conn.(*net.TCPConn), sv.Logger, sv.readFuncLocal)
 		return true
@@ -163,9 +165,9 @@ func handleWebSocketFrameRead(cl *TCPClientUniversal, limit int, logger *Console
 	for i := 0; i < limit || limit < 0; i++ {
 		//Read header of frame
 		header := make([]byte, 2)
-		_, err := cl.GetConn().Read(header)
+		_, err := io.ReadFull(cl.GetConn(), header)
 		if err != nil {
-			return true, errors.New("error reading frame header")
+			return true, errors.New("error reading frame header | Error: " + err.Error())
 		}
 
 		//Get opcode (operation code) (masked with bitshift operation AND)
@@ -189,7 +191,7 @@ func handleWebSocketFrameRead(cl *TCPClientUniversal, limit int, logger *Console
 			//Payload to long -> Longer than 125 characters
 			//Get new size of buffer encoded using big Endian - 16 bits
 			sizeAdder := make([]byte, 2)
-			_, err = cl.GetConn().Read(sizeAdder)
+			_, err = io.ReadFull(cl.GetConn(), sizeAdder)
 			if err != nil {
 				return true, errors.New("error reading additional size of frame: " + err.Error())
 			}
@@ -212,7 +214,7 @@ func handleWebSocketFrameRead(cl *TCPClientUniversal, limit int, logger *Console
 		//Read masking key of frame
 		maskingKey := make([]byte, 4)
 		if hasMask == 1 {
-			_, err = cl.GetConn().Read(maskingKey)
+			_, err = io.ReadFull(cl.GetConn(), maskingKey)
 			if err != nil {
 				return true, errors.New("error reading mask of frame: " + err.Error())
 			}
@@ -220,7 +222,7 @@ func handleWebSocketFrameRead(cl *TCPClientUniversal, limit int, logger *Console
 
 		//Payload data (message)
 		payload := make([]byte, payloadSize)
-		_, err = cl.GetConn().Read(payload)
+		_, err = io.ReadFull(cl.GetConn(), payload)
 		if err != nil {
 			return true, errors.New("error reading data of frame: " + err.Error())
 		}
@@ -310,6 +312,11 @@ func writeToWebSocketFrameHandler(cl *TCPClientUniversal, data []byte, otherData
 }
 
 func (sv *HTTPWebSocketServer) readFuncLocal(cl *TCPClientUniversal, data []byte, status uint8, otherData map[string]any) {
+	if status != TCP_READ_DATA_STATUS && status != TCP_DISCONNECT_STATUS {
+		//Non data requests
+		return
+	}
+
 	//Get isBinary
 	isBinaryRaw := otherData["isBinary"]
 	if isBinaryRaw == nil || isBinaryRaw == "" {

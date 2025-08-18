@@ -167,6 +167,7 @@ func main() {
 			}
 			cl.Connect()
 			cl.Send([]byte("hello"), 1)
+			cl.Send([]byte("hi"), 1)
 			for cl.IsAlive() {
 				time.Sleep(1 * time.Second)
 			}
@@ -221,13 +222,13 @@ func readFuncHTTPWTCl(conn *webtools.HTTPWebTransportClient, data []byte, ended 
 }
 
 func readFuncHTTPWsSv(conn *webtools.HTTPWebSocketServerConn, data []byte, status uint8, isBinary bool) {
-	if status == webtools.TCP_READ_DATA_STATUS {
-		conn.Close()
+	if status > 1 {
+		conn.Send(data)
 	}
 }
 
 func readFuncHTTPWsCl(conn *webtools.HTTPWebSocketClient, data []byte, operation uint8) {
-	if operation > 1 {
-		conn.Send(data, operation-1)
+	if operation == webtools.TCP_READ_DATA_STATUS {
+		conn.Stop()
 	}
 }
