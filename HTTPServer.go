@@ -35,6 +35,10 @@ type HTTPServer struct {
 	isAlive         bool
 }
 
+func (sv *HTTPServer) GetRootPath() string {
+	return sv.rootPath
+}
+
 /*
 Creates new HTTP server but does not starts it. Adds new host path to HTTP server (used for shared scripts, css, images)
 */
