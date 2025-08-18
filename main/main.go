@@ -207,19 +207,19 @@ func readFuncUDPCl(conn *webtools.UDPClient, data []byte, ended bool) {
 	rc++
 }
 
-func readFuncHTTPWTSv(conn *webtools.HTTPWebTransportServerConn, data []byte, ended bool) {
-	//conn.Send(data)
-	if !ended {
-		conn.Send(data)
-	}
-}
-
-func readFuncHTTPWTCl(conn *webtools.HTTPWebTransportClient, data []byte, ended bool) {
-	//conn.Send(data)
-	if !ended {
-		conn.Stop()
-	}
-}
+//func readFuncHTTPWTSv(conn *webtools.HTTPWebTransportServerConn, data []byte, ended bool) {
+//	//conn.Send(data)
+//	if !ended {
+//		conn.Send(data)
+//	}
+//}
+//
+//func readFuncHTTPWTCl(conn *webtools.HTTPWebTransportClient, data []byte, ended bool) {
+//	//conn.Send(data)
+//	if !ended {
+//		conn.Stop()
+//	}
+//}
 
 func readFuncHTTPWsSv(conn *webtools.HTTPWebSocketServerConn, data []byte, status uint8, isBinary bool) {
 	if status > 1 {
