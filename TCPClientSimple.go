@@ -66,7 +66,7 @@ func (cl *TCPClientSimple) GetLogger() *ConsoleLogger {
 }
 
 /*
-Setups encryption
+Setups encryption, it is strongly recommended to use encryption with framed connection
 */
 func (cl *TCPClientSimple) SetupEncryption(useEncryption bool, password string) {
 	cl.universalClient.SetupEncryption(useEncryption, password)

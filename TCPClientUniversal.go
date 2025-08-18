@@ -79,7 +79,7 @@ func NewTCPClientUniversalFromConnection(conn *net.TCPConn, reportTraffic bool) 
 }
 
 /*
-Setups encryption for universal TCP Client
+Setups encryption for universal TCP Client, it is strongly recommended to use encryption with framed connection
 */
 func (tcp *TCPClientUniversal) SetupEncryption(useEncryption bool, password string) {
 	tcp.useEncryption = useEncryption

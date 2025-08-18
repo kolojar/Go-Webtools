@@ -70,14 +70,16 @@ type TCPServerReadFunc func(conn *TCPServerConn, data []byte, status uint8)
 Basic TCP server
 */
 type TCPServer struct {
-	listener      *net.TCPListener
-	readFunc      TCPServerReadFunc
-	address       *net.TCPAddr
-	Logger        *ConsoleLogger
-	requestedStop bool
-	isRunning     bool
-	conns         SafeMap[*TCPClientSimple, *TCPServerConn]
-	framed        bool
+	listener           *net.TCPListener
+	readFunc           TCPServerReadFunc
+	address            *net.TCPAddr
+	Logger             *ConsoleLogger
+	requestedStop      bool
+	isRunning          bool
+	conns              SafeMap[*TCPClientSimple, *TCPServerConn]
+	framed             bool
+	useEncryption      bool
+	encryptionPassword string
 }
 
 /*
@@ -94,6 +96,14 @@ func NewTCPServer(address string, readFunc TCPServerReadFunc, reportTraffic bool
 		level = 1
 	}
 	return &TCPServer{address: addressObj, readFunc: readFunc, Logger: NewConsoleLogger("TCPServer", level), conns: MakeSafeMap[*TCPClientSimple, *TCPServerConn](), framed: framed}, nil
+}
+
+/*
+Setups encryption, it is strongly recommended to use encryption with framed connection
+*/
+func (sv *TCPServer) SetupEncryption(useEncryption bool, password string) {
+	sv.useEncryption = useEncryption
+	sv.encryptionPassword = password
 }
 
 /*
@@ -133,6 +143,7 @@ func (tcp *TCPServer) Start() {
 		//Handle connection
 		cl := NewTCPClientSimpleFromConnection(conn, FormatByBool(tcp.framed, 0, -1), false, tcp.readFuncLocal, false)
 		cl.SetLogger(tcp.Logger)
+		cl.SetupEncryption(tcp.useEncryption, tcp.encryptionPassword)
 		cl.Connect()
 	}
 	tcp.isRunning = false

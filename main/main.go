@@ -14,13 +14,15 @@ func main() {
 	switch os.Args[1] {
 	case "ts":
 		{
-			server, _ := webtools.NewTCPServer("127.0.0.1:7777", readFuncTCPSv, true, false)
+			server, _ := webtools.NewTCPServer("127.0.0.1:7777", readFuncTCPSv, true, true)
+			server.SetupEncryption(true, "1234")
 			server.Start()
 			break
 		}
 	case "tc":
 		{
-			client, _ := webtools.NewTCPClientSimple("127.0.0.1:17777", -1, false, readFuncTCPCl, false)
+			client, _ := webtools.NewTCPClientSimple("127.0.0.1:7777", 0, false, readFuncTCPCl, false)
+			client.SetupEncryption(true, "1234")
 			client.Connect()
 			for i := 0; i < 1000; i++ {
 				client.Send([]byte("Test" + strconv.Itoa(i) + "|"))
