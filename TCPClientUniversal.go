@@ -42,6 +42,8 @@ type TCPClientUniversal struct {
 	currentWriteHandlerWaitOneWrite bool
 	switchWriteHandler              bool
 	isPreparedWithConnection        bool
+	useEncryption                   bool
+	encryptionPassword              string
 }
 
 func (tcp *TCPClientUniversal) IsAlive() bool {
@@ -74,6 +76,18 @@ To set up read and write mechanisms, append items to HandlerFuncs
 func NewTCPClientUniversalFromConnection(conn *net.TCPConn, reportTraffic bool) *TCPClientUniversal {
 	//Make client
 	return &TCPClientUniversal{conn: conn, address: conn.RemoteAddr().(*net.TCPAddr), Logger: NewConsoleLoggerForTraffic("TCPClientUniversal", reportTraffic), HandlerFuncs: make([]FiveValuePair[int, TCPClientUniversalReadHandlerFunc, TCPClientUniversalOnReadFunc, TCPClientUniversalOnWriteHandlerFunc, bool], 0), isPreparedWithConnection: true}
+}
+
+/*
+Setups encryption for universal TCP Client
+*/
+func (tcp *TCPClientUniversal) SetupEncryption(useEncryption bool, password string) {
+	tcp.useEncryption = useEncryption
+	if useEncryption {
+		tcp.encryptionPassword = password
+	} else {
+		tcp.encryptionPassword = ""
+	}
 }
 
 /*
@@ -150,6 +164,18 @@ func (tcp *TCPClientUniversal) readNextFunc() {
 
 // Local helper read function
 func (tcp *TCPClientUniversal) localReadFunc(data []byte, otherData map[string]any) {
+	if tcp.useEncryption {
+		//Decrypt
+		tcp.Logger.Log(0, "Reading enrypted from: "+tcp.conn.RemoteAddr().String()+" connected locally to: "+tcp.conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data)+" | Other data: "+MapToString(otherData))
+		var err error
+		data, err = Decrypt(tcp.encryptionPassword, data)
+		if err != nil {
+			tcp.Logger.Log(3, "Error decrypting: "+err.Error())
+			return
+		}
+	}
+
+	//Read
 	tcp.Logger.Log(0, "Reading from: "+tcp.conn.RemoteAddr().String()+" connected locally to: "+tcp.conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data)+" | Other data: "+MapToString(otherData))
 	if tcp.currentHandlers.C != nil {
 		tcp.currentHandlers.C(tcp, data, TCP_READ_DATA_STATUS, otherData)
@@ -179,6 +205,18 @@ func (tcp *TCPClientUniversal) Send(data []byte, otherData map[string]any) {
 	//Write
 	if tcp.currentHandlers.D != nil {
 		tcp.Logger.Log(0, "Writing to: "+tcp.conn.RemoteAddr().String()+" connected locally to: "+tcp.conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data)+" | Other data: "+MapToString(otherData))
+		if tcp.useEncryption {
+			//Encrypt
+			var err error
+			data, err = Encrypt(tcp.encryptionPassword, data)
+			if err != nil {
+				tcp.Logger.Log(3, "Error encrypting: "+err.Error())
+				return
+			}
+			tcp.Logger.Log(0, "Writing enrypted from: "+tcp.conn.RemoteAddr().String()+" connected locally to: "+tcp.conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data)+" | Other data: "+MapToString(otherData))
+		}
+
+		//Write
 		err := tcp.currentHandlers.D(tcp, data, otherData)
 		if err != nil {
 			tcp.Logger.Log(3, "Error writing to: "+tcp.conn.RemoteAddr().String()+" connected locally to: "+tcp.conn.LocalAddr().String()+" | Error: "+err.Error())

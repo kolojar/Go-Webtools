@@ -65,6 +65,13 @@ func (cl *TCPClientSimple) GetLogger() *ConsoleLogger {
 	return cl.universalClient.Logger
 }
 
+/*
+Setups encryption
+*/
+func (cl *TCPClientSimple) SetupEncryption(useEncryption bool, password string) {
+	cl.universalClient.SetupEncryption(useEncryption, password)
+}
+
 // Generates HanderFuncs for universal client, this function is not needed but because I have 2 constructors, I do not want to repeat code
 func (cl *TCPClientSimple) generateReadFuncStructure(noFrameCount int, writeOneLastNoFrame bool) {
 	//Generate not framed handler
