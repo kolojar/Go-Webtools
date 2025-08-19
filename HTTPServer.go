@@ -76,7 +76,7 @@ func (sv *HTTPServer) httpHandler(w http.ResponseWriter, r *http.Request) {
 		for k, v := range sv.HostPaths {
 			//Sort out hostPaths
 			if strings.HasPrefix(r.URL.Path, k) {
-				err := HandleHTTPDirectoryGet(w, r, v, strings.TrimPrefix(r.URL.Path, k))
+				err := HandleHTTPGet(w, r, v, strings.TrimPrefix(r.URL.Path, k))
 				if err != nil && !errors.Is(err, os.ErrNotExist) {
 					//Invalid error
 					sv.Logger.Log(3, "Error in GET request for: "+r.URL.Path+" | Error: "+err.Error())
@@ -177,22 +177,22 @@ func SortHTTPContentType(path string) string {
 /*
 Handles directory access get request relative to HTTP server root
 */
-func (sv *HTTPServer) TryHandleHTTPFileRelative(w http.ResponseWriter, r *http.Request) error {
-	return TryHandleHTTPFile(w, JoinPaths(sv.rootPath, r.URL.Path), SortHTTPContentType(r.URL.Path))
+func (sv *HTTPServer) TryHandleHTTPFileRelative(w http.ResponseWriter, r *http.Request, getPath string) error {
+	return TryHandleHTTPFile(w, JoinPaths(sv.rootPath, getPath), SortHTTPContentType(getPath))
 }
 
 /*
 Handles directory access get request
 */
-func HandleHTTPDirectoryGet(w http.ResponseWriter, r *http.Request, rootPath string, getPath string) error {
-	return TryHandleHTTPFile(w, JoinPaths(rootPath, getPath), SortHTTPContentType(r.URL.Path))
+func HandleHTTPGet(w http.ResponseWriter, r *http.Request, rootPath string, getPath string) error {
+	return TryHandleHTTPFile(w, JoinPaths(rootPath, getPath), SortHTTPContentType(getPath))
 }
 
 /*
 Handles directory access get request relative to HTTP server root
 */
-func (sv *HTTPServer) HandleHTTPDirectoryGetRelative(w http.ResponseWriter, r *http.Request) error {
-	return HandleHTTPDirectoryGet(w, r, JoinPaths(sv.rootPath, r.URL.Path), r.URL.Path)
+func (sv *HTTPServer) HandleHTTPGetRelative(w http.ResponseWriter, r *http.Request) error {
+	return HandleHTTPGet(w, r, JoinPaths(sv.rootPath, r.URL.Path), r.URL.Path)
 }
 
 /*
