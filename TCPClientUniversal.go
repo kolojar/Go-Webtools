@@ -93,14 +93,14 @@ func (tcp *TCPClientUniversal) SetupEncryption(useEncryption bool, password stri
 /*
 Connects to TCP server and start reading loop, does not locks execution thread
 */
-func (tcp *TCPClientUniversal) Connect() {
+func (tcp *TCPClientUniversal) Connect() bool {
 	//Dial
 	if !tcp.isPreparedWithConnection {
 		var err error
 		tcp.conn, err = net.DialTCP("tcp", nil, tcp.address)
 		if err != nil {
 			tcp.Logger.Log(3, "Error connecting to: "+tcp.address.String()+" | Error: "+err.Error())
-			return
+			return false
 		}
 	}
 
@@ -111,6 +111,7 @@ func (tcp *TCPClientUniversal) Connect() {
 	//Handle read
 	go tcp.readNextFunc()
 	time.Sleep(500 * time.Millisecond)
+	return true
 }
 
 func (tcp *TCPClientUniversal) readNextFunc() {

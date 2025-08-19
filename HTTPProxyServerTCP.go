@@ -2,9 +2,7 @@ package webtools
 
 import (
 	"encoding/hex"
-	"math/rand/v2"
 	"strconv"
-	"time"
 )
 
 const PROXY_FRAME_SEPARATOR = byte(rune(';'))
@@ -147,13 +145,6 @@ func (cl *HTTPProxyServerTCPConn) Close(isInitiator bool) {
 		cl.SendToHTTP(PROXY_FRAME_TYPE_CLOSE, nil)
 	}
 	cl.origin.clientToId.Delete(cl.tcpClient)
-}
-
-/*
-Generates random Id based on random and current time
-*/
-func GenerateRandomId() string {
-	return strconv.FormatUint(rand.Uint64(), 36) + "-" + strconv.FormatInt(time.Now().UnixNano(), 36)
 }
 
 /*

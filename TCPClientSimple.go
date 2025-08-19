@@ -98,8 +98,8 @@ func (cl *TCPClientSimple) generateReadFuncStructure(noFrameCount int, writeOneL
 /*
 Connects to TCP server and start reading loop, does not locks execution thread
 */
-func (tcp *TCPClientSimple) Connect() {
-	tcp.universalClient.Connect()
+func (tcp *TCPClientSimple) Connect() bool {
+	return tcp.universalClient.Connect()
 }
 
 /*

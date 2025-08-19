@@ -2,7 +2,6 @@ package webtools
 
 import (
 	"encoding/base64"
-	"math/rand/v2"
 	"strings"
 	"time"
 )
@@ -29,18 +28,6 @@ type HTTPWebSocketClient struct {
 
 func (cl *HTTPWebSocketClient) IsAlive() bool {
 	return cl.tcpClient.IsAlive()
-}
-
-/*
-Generates random string
-*/
-func GenerateRandomString(lenght int) string {
-	const letters = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-	result := ""
-	for i := 0; i < lenght; i++ {
-		result += string(letters[rand.IntN(len(letters))])
-	}
-	return result
 }
 
 /*
