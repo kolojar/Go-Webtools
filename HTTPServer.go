@@ -175,6 +175,13 @@ func SortHTTPContentType(path string) string {
 }
 
 /*
+Handles directory access get request relative to HTTP server root
+*/
+func (sv *HTTPServer) TryHandleHTTPFileRelative(w http.ResponseWriter, r *http.Request) error {
+	return TryHandleHTTPFile(w, JoinPaths(sv.rootPath, r.URL.Path), SortHTTPContentType(r.URL.Path))
+}
+
+/*
 Handles directory access get request
 */
 func HandleHTTPDirectoryGet(w http.ResponseWriter, r *http.Request, rootPath string, getPath string) error {
