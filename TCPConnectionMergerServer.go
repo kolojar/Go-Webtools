@@ -179,7 +179,7 @@ func (sv *TCPConnectionMergerServer) handleLocalTCPReadFunc(tcp *TCPClientSimple
 }
 
 /*
-Starts TCP Connection merger Server
+Starts TCP Connection merger Server. Locks execution thread
 */
 func (sv *TCPConnectionMergerServer) Start() {
 	sv.tcpServer.Start()

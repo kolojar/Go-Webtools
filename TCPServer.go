@@ -107,7 +107,7 @@ func (sv *TCPServer) SetupEncryption(useEncryption bool, password string) {
 }
 
 /*
-Starts TCP Server
+Starts TCP Server. Locks execution thread
 */
 func (tcp *TCPServer) Start() {
 	//Check if already running

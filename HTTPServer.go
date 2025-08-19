@@ -17,7 +17,7 @@ http.ResponseWriter = Responce
 params = map[string]string
 Returns bool = got handled
 */
-type HTTPAccessFunc func(*HTTPServer, http.ResponseWriter, *http.Request, map[string]string) bool
+type HTTPAccessFunc func(server *HTTPServer, w http.ResponseWriter, r *http.Request, params map[string]string) bool
 
 /*
 Struct of HTTP server
@@ -47,7 +47,7 @@ func NewHTTPServer(address string, onAccessFunc HTTPAccessFunc, rootPath string,
 }
 
 /*
-Launches HTTP server on specified address.
+Launches HTTP server on specified address. Locks execution thread
 */
 func (sv *HTTPServer) Start() {
 	if sv.isAlive {
@@ -126,6 +126,19 @@ func ReadFile(filePath string) ([]byte, bool, error) {
 }
 
 /*
+Reads file contents as string
+Returns data, isDirectory, error
+*/
+func ReadFileString(filePath string) (string, bool, error) {
+	data, isDir, err := ReadFile(filePath)
+	if err != nil {
+		return "", isDir, err
+	} else {
+		return string(data), isDir, nil
+	}
+}
+
+/*
 Joins 2 paths together
 */
 func JoinPaths(path1 string, path2 string) string {
@@ -142,7 +155,7 @@ Reads file contents
 */
 func TryHandleHTTPFile(w http.ResponseWriter, filePath string, contentType string) error {
 	//Read data
-	data, isDir, err := ReadFile(filePath)
+	data, isDir, err := ReadFileString(filePath)
 	if err != nil {
 		return err
 	}
@@ -154,7 +167,7 @@ func TryHandleHTTPFile(w http.ResponseWriter, filePath string, contentType strin
 	}
 
 	//Send data
-	fmt.Fprint(w, string(data))
+	fmt.Fprint(w, data)
 	return nil
 }
 

@@ -151,7 +151,7 @@ func (sv *TCPProxyServerUDP) handleUDPReadFunc(udp *UDPClient, data []byte, ende
 }
 
 /*
-Starts TCP Proxy Server for UDP
+Starts TCP Proxy Server for UDP. Locks execution thread
 */
 func (sv *TCPProxyServerUDP) Start() {
 	sv.tcpServer.Start()
