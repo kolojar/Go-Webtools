@@ -40,9 +40,10 @@ type HTTPWebSocketServerReadFunc func(conn *HTTPWebSocketServerConn, data []byte
 HTTP WebSocket server connection object
 */
 type HTTPWebSocketServerConn struct {
-	origin   *HTTPWebSocketServer
-	Client   *TCPClientUniversal
-	IsBinary bool
+	origin    *HTTPWebSocketServer
+	Client    *TCPClientUniversal
+	IsBinary  bool
+	urlParams map[string]string
 }
 
 /*
@@ -57,6 +58,13 @@ Closes connection to client
 */
 func (httpConn *HTTPWebSocketServerConn) Close() {
 	httpConn.Client.Stop()
+}
+
+/*
+Gets URL parameter from original HTTP request
+*/
+func (httpConn *HTTPWebSocketServerConn) GetURLParameter(key string) string {
+	return httpConn.urlParams[key]
 }
 
 /*
@@ -154,6 +162,7 @@ func (sv *HTTPWebSocketServer) handleHTTPAccess(_ *HTTPServer, w http.ResponseWr
 				D: writeToWebSocketFrameHandler,
 				E: false,
 			})
+		sv.conns.Set(cl, &HTTPWebSocketServerConn{origin: sv, Client: cl, urlParams: params})
 		cl.Connect()
 
 		//sv.Logger.Log(2, "Connection from: "+conn.RemoteAddr().String()+" connected locally to: "+conn.LocalAddr().String())
@@ -335,8 +344,8 @@ func (sv *HTTPWebSocketServer) readFuncLocal(cl *TCPClientUniversal, data []byte
 	//Get connection
 	var httpConn *HTTPWebSocketServerConn = sv.conns.Get(cl)
 	if httpConn == nil {
-		httpConn = &HTTPWebSocketServerConn{origin: sv, Client: cl, IsBinary: isBinary}
-		sv.conns.Set(cl, httpConn)
+		sv.Logger.Log(3, "Connection for client connected from: "+cl.GetConn().RemoteAddr().String()+" connected locally to: "+cl.GetConn().LocalAddr().String()+" not found!")
+		return
 	}
 
 	// Check type

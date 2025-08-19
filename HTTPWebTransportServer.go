@@ -19,12 +19,20 @@ type HTTPWebTransportServerReadFunc func(conn *HTTPWebTransportServerConn, data 
 HTTP WebTransport server connection object
 */
 type HTTPWebTransportServerConn struct {
-	origin *HTTPWebTransportServer
-	Client *TCPClientSimple
+	origin    *HTTPWebTransportServer
+	Client    *TCPClientSimple
+	urlParams map[string]string
 }
 
 func (tcp *HTTPWebTransportServerConn) GetConn() *net.TCPConn {
 	return tcp.Client.GetConn()
+}
+
+/*
+Gets URL parameter from original HTTP request
+*/
+func (tcp *HTTPWebTransportServerConn) GetURLParameter(key string) string {
+	return tcp.urlParams[key]
 }
 
 /*
@@ -170,6 +178,7 @@ func (sv *HTTPWebTransportServer) handleHTTPAccess(_ *HTTPServer, w http.Respons
 	//Create client
 	cl := NewTCPClientSimpleFromConnection(conn.(*net.TCPConn), 0, false, sv.readFuncLocal, sv.reportTraffic)
 	cl.SetLogger(sv.Logger)
+	sv.conns.Set(cl, &HTTPWebTransportServerConn{origin: sv, Client: cl, urlParams: params})
 	cl.Connect()
 	//sv.Logger.Log(2, "Connection from: "+conn.RemoteAddr().String()+" connected locally to: "+conn.LocalAddr().String())
 	//go handleTCPReadFramed(conn.(*net.TCPConn), sv.Logger, sv.readFuncLocal)
@@ -179,8 +188,8 @@ func (sv *HTTPWebTransportServer) handleHTTPAccess(_ *HTTPServer, w http.Respons
 func (sv *HTTPWebTransportServer) readFuncLocal(client *TCPClientSimple, data []byte, status uint8) {
 	var httpConn *HTTPWebTransportServerConn = sv.conns.Get(client)
 	if httpConn == nil {
-		httpConn = &HTTPWebTransportServerConn{origin: sv, Client: client}
-		sv.conns.Set(client, httpConn)
+		sv.Logger.Log(3, "Connection for client connected from: "+client.GetConn().RemoteAddr().String()+" connected locally to: "+client.GetConn().LocalAddr().String()+" not found!")
+		return
 	}
 	//Process read
 	if sv.readFunc != nil {
