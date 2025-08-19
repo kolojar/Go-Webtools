@@ -7,7 +7,7 @@ type HTTPProxyClientTCP struct {
 	clientToId         SafeMap[*TCPServerConn, string]
 	idToClient         SafeMap[string, *TCPServerConn]
 	tcpServer          *TCPServer
-	httpClient         *HTTPWebTransportClient
+	httpClient         *HTTPWebSocketClient
 	pendingConnections SafeMap[string, *TCPServerConn]
 	pendingConnsData   SafeMap[*TCPServerConn, [][]byte]
 }
@@ -22,7 +22,7 @@ Creates new HTTP Proxy Client for TCP but does not starts it, if you want to use
 func NewHTTPProxyClientTCP(httpProxyAddress string, tcpServerAddress string, reportTraffic bool) (*HTTPProxyClientTCP, error) {
 	cl := &HTTPProxyClientTCP{clientToId: MakeSafeMap[*TCPServerConn, string](), pendingConnections: MakeSafeMap[string, *TCPServerConn](), idToClient: MakeSafeMap[string, *TCPServerConn](), pendingConnsData: MakeSafeMap[*TCPServerConn, [][]byte]()}
 	var err error
-	cl.httpClient, err = NewHTTPWebTransportClient(httpProxyAddress, cl.handleWebTransportReadFunc, reportTraffic)
+	cl.httpClient, err = NewHTTPWebSocketClient(httpProxyAddress, cl.handleWebTransportReadFunc, reportTraffic)
 	if err != nil {
 		return nil, err
 	}
@@ -35,7 +35,7 @@ func NewHTTPProxyClientTCP(httpProxyAddress string, tcpServerAddress string, rep
 	return cl, nil
 }
 
-func (cl *HTTPProxyClientTCP) handleWebTransportReadFunc(_ *HTTPWebTransportClient, frame []byte, status uint8) {
+func (cl *HTTPProxyClientTCP) handleWebTransportReadFunc(_ *HTTPWebSocketClient, frame []byte, status uint8, isBinary bool) {
 	if status == TCP_DISCONNECT_STATUS {
 		//Close all connections
 		cl.tcpServer.Stop()
@@ -69,7 +69,7 @@ func (cl *HTTPProxyClientTCP) handleWebTransportReadFunc(_ *HTTPWebTransportClie
 				//Process pending data
 				for len(cl.pendingConnsData.Get(conn)) > 0 {
 					//Resend data
-					cl.httpClient.Send(PackProxyFrame(PROXY_FRAME_TYPE_DATA, id, cl.pendingConnsData.Get(conn)[0]))
+					cl.httpClient.Send(PackProxyFrame(PROXY_FRAME_TYPE_DATA, id, cl.pendingConnsData.Get(conn)[0]), 2)
 					cl.pendingConnsData.Set(conn, cl.pendingConnsData.Get(conn)[1:])
 				}
 				cl.pendingConnsData.Delete(conn)
@@ -105,18 +105,18 @@ func (cl *HTTPProxyClientTCP) handleTCPReadFunc(tcpConn *TCPServerConn, data []b
 		tempId := GenerateRandomId()
 		cl.pendingConnections.Set(tempId, tcpConn)
 		cl.httpClient.Logger.Log(1, "Preparing new connection with temporary id: "+tempId+" for connection connected to: "+tcpConn.GetConn().RemoteAddr().String()+" connected locally to: "+tcpConn.GetConn().LocalAddr().String())
-		cl.httpClient.Send(PackProxyFrame(PROXY_FRAME_TYPE_CONNECT, []byte("0"), []byte(tempId)))
+		cl.httpClient.Send(PackProxyFrame(PROXY_FRAME_TYPE_CONNECT, []byte("0"), []byte(tempId)), 2)
 		cl.pendingConnsData.Set(tcpConn, append(make([][]byte, 0), data))
 		return
 	}
 
 	if status == TCP_DISCONNECT_STATUS {
 		//Connection ennded
-		cl.httpClient.Send(PackProxyFrame(PROXY_FRAME_TYPE_CLOSE, []byte(id), nil))
+		cl.httpClient.Send(PackProxyFrame(PROXY_FRAME_TYPE_CLOSE, []byte(id), nil), 2)
 		return
 	}
 	//Send data
-	cl.httpClient.Send(PackProxyFrame(PROXY_FRAME_TYPE_DATA, []byte(id), data))
+	cl.httpClient.Send(PackProxyFrame(PROXY_FRAME_TYPE_DATA, []byte(id), data), 2)
 }
 
 /*

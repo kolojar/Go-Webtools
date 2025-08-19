@@ -7,7 +7,7 @@ type HTTPProxyClientUDP struct {
 	clientToId         SafeMap[*UDPServerConn, string]
 	idToClient         SafeMap[string, *UDPServerConn]
 	udpServer          *UDPServer
-	httpClient         *HTTPWebTransportClient
+	httpClient         *HTTPWebSocketClient
 	pendingConnections SafeMap[string, *UDPServerConn]
 	pendingConnsData   SafeMap[*UDPServerConn, [][]byte]
 }
@@ -22,7 +22,7 @@ Creates new HTTP Proxy Client for UDP but does not starts it, if you want to use
 func NewHTTPProxyClientUDP(httpProxyAddress string, tcpServerAddress string, reportTraffic bool) (*HTTPProxyClientUDP, error) {
 	cl := &HTTPProxyClientUDP{clientToId: MakeSafeMap[*UDPServerConn, string](), pendingConnections: MakeSafeMap[string, *UDPServerConn](), idToClient: MakeSafeMap[string, *UDPServerConn](), pendingConnsData: MakeSafeMap[*UDPServerConn, [][]byte]()}
 	var err error
-	cl.httpClient, err = NewHTTPWebTransportClient(httpProxyAddress, cl.handleWebTransportReadFunc, reportTraffic)
+	cl.httpClient, err = NewHTTPWebSocketClient(httpProxyAddress, cl.handleWebTransportReadFunc, reportTraffic)
 	if err != nil {
 		return nil, err
 	}
@@ -35,7 +35,7 @@ func NewHTTPProxyClientUDP(httpProxyAddress string, tcpServerAddress string, rep
 	return cl, nil
 }
 
-func (cl *HTTPProxyClientUDP) handleWebTransportReadFunc(client *HTTPWebTransportClient, frame []byte, status uint8) {
+func (cl *HTTPProxyClientUDP) handleWebTransportReadFunc(client *HTTPWebSocketClient, frame []byte, status uint8, isBinary bool) {
 	if status == TCP_DISCONNECT_STATUS {
 		//Close all connections
 		cl.udpServer.Stop()
@@ -69,7 +69,7 @@ func (cl *HTTPProxyClientUDP) handleWebTransportReadFunc(client *HTTPWebTranspor
 				//Process pending data
 				for len(cl.pendingConnsData.Get(conn)) > 0 {
 					//Resend data
-					cl.httpClient.Send(PackProxyFrame(PROXY_FRAME_TYPE_DATA, id, cl.pendingConnsData.Get(conn)[0]))
+					cl.httpClient.Send(PackProxyFrame(PROXY_FRAME_TYPE_DATA, id, cl.pendingConnsData.Get(conn)[0]), 2)
 					cl.pendingConnsData.Set(conn, cl.pendingConnsData.Get(conn)[1:])
 				}
 				cl.pendingConnsData.Delete(conn)
@@ -102,18 +102,18 @@ func (cl *HTTPProxyClientUDP) handleUDPReadFunc(udpConn *UDPServerConn, data []b
 		tempId := GenerateRandomId()
 		cl.pendingConnections.Set(tempId, udpConn)
 		cl.httpClient.Logger.Log(1, "Preparing new connection with temporary id: "+tempId+" for connection connected to: "+udpConn.Address.String())
-		cl.httpClient.Send(PackProxyFrame(PROXY_FRAME_TYPE_CONNECT, []byte("0"), []byte(tempId)))
+		cl.httpClient.Send(PackProxyFrame(PROXY_FRAME_TYPE_CONNECT, []byte("0"), []byte(tempId)), 2)
 		cl.pendingConnsData.Set(udpConn, append(make([][]byte, 0), data))
 		return
 	}
 
 	if ended {
 		//Connection ennded
-		cl.httpClient.Send(PackProxyFrame(PROXY_FRAME_TYPE_CLOSE, []byte(id), nil))
+		cl.httpClient.Send(PackProxyFrame(PROXY_FRAME_TYPE_CLOSE, []byte(id), nil), 2)
 		return
 	}
 	//Send data
-	cl.httpClient.Send(PackProxyFrame(PROXY_FRAME_TYPE_DATA, []byte(id), data))
+	cl.httpClient.Send(PackProxyFrame(PROXY_FRAME_TYPE_DATA, []byte(id), data), 2)
 }
 
 /*

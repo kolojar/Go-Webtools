@@ -6,7 +6,7 @@ HTTP Proxy server for UDP object
 type HTTPProxyServerUDP struct {
 	idToClient       SafeMap[string, *HTTPProxyServerUDPConn]
 	clientToId       SafeMap[*UDPClient, string]
-	httpServer       *HTTPWebTransportServer
+	httpServer       *HTTPWebSocketServer
 	udpServerAddress string
 	reportTrafic     bool
 }
@@ -17,7 +17,7 @@ HTTP Proxy server for UDP connection object
 type HTTPProxyServerUDPConn struct {
 	udpClient *UDPClient
 	id        []byte
-	source    *HTTPWebTransportServerConn
+	source    *HTTPWebSocketServerConn
 	origin    *HTTPProxyServerUDP
 }
 
@@ -52,12 +52,16 @@ Creates new HTTP Proxy Server for UDP but does not starts it
 */
 func NewHTTPProxyServerUDP(httpProxyAddress string, udpServerAddress string, reportTraffic bool) *HTTPProxyServerUDP {
 	sv := &HTTPProxyServerUDP{udpServerAddress: udpServerAddress, clientToId: MakeSafeMap[*UDPClient, string](), idToClient: MakeSafeMap[string, *HTTPProxyServerUDPConn](), reportTrafic: reportTraffic}
-	sv.httpServer = NewHTTPWebTransportServer(httpProxyAddress, sv.handleWebTransportReadFunc, reportTraffic)
+	sv.httpServer = NewHTTPWebSocketServer(httpProxyAddress, sv.handleWebSocketReadFunc, nil, "", reportTraffic)
 	sv.httpServer.Logger.Prefix = "HTTPProxyServerUDP - " + sv.httpServer.Logger.Prefix
 	return sv
 }
 
-func (sv *HTTPProxyServerUDP) handleWebTransportReadFunc(conn *HTTPWebTransportServerConn, frame []byte, status uint8) {
+func (sv *HTTPProxyServerUDP) handleWebSocketReadFunc(conn *HTTPWebSocketServerConn, frame []byte, status uint8, isBinary bool) {
+	if status == TCP_CONNECT_STATUS {
+		conn.IsBinary = true
+		return
+	}
 	if status == TCP_DISCONNECT_STATUS {
 		//Close all connections with this HTTP WebTransport Conn
 		for _, v := range sv.idToClient.GetValues() {

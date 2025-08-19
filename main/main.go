@@ -21,10 +21,10 @@ func main() {
 		}
 	case "tc":
 		{
-			client, _ := webtools.NewTCPClientSimple("127.0.0.1:7777", 0, false, readFuncTCPCl, false)
+			client, _ := webtools.NewTCPClientSimple("127.0.0.1:17777", 0, false, readFuncTCPCl, true)
 			client.SetupEncryption(true, "1234")
 			client.Connect()
-			for i := 0; i < 1000; i++ {
+			for i := 0; i < 100; i++ {
 				client.Send([]byte("Test" + strconv.Itoa(i) + "|"))
 			}
 			time.Sleep(3 * time.Second)
@@ -74,12 +74,12 @@ func main() {
 	//	}
 	case "hpst":
 		{
-			sv := webtools.NewHTTPProxyServerTCP("127.0.0.1:8880", "127.0.0.1:8882", true)
+			sv := webtools.NewHTTPProxyServerTCP("127.0.0.1:8880", "127.0.0.1:7777", true)
 			sv.Start()
 		}
 	case "hpct":
 		{
-			cl, err := webtools.NewHTTPProxyClientTCP("127.0.0.1:8880/webtransport", "127.0.0.1:8883", true)
+			cl, err := webtools.NewHTTPProxyClientTCP("127.0.0.1:8880/websocket", "127.0.0.1:17777", true)
 			if err != nil {
 				fmt.Println(err.Error())
 				return
@@ -229,8 +229,8 @@ func readFuncHTTPWsSv(conn *webtools.HTTPWebSocketServerConn, data []byte, statu
 	}
 }
 
-func readFuncHTTPWsCl(conn *webtools.HTTPWebSocketClient, data []byte, operation uint8) {
-	if operation == webtools.TCP_READ_DATA_STATUS {
+func readFuncHTTPWsCl(conn *webtools.HTTPWebSocketClient, data []byte, status uint8, isBinary bool) {
+	if status == webtools.TCP_READ_DATA_STATUS {
 		conn.Stop()
 	}
 }

@@ -7,12 +7,65 @@ import (
 )
 
 /*
+Returns address for TCP and path to HTTP request
+*/
+func HTTPWebSocketGetAddressAndTarget(completeURL string) (string, string) {
+	//Separate protocol and URL
+	splitUrl := strings.SplitN(completeURL, "://", 2)
+	protocol := ""
+	url := splitUrl[len(splitUrl)-1]
+	if len(splitUrl) > 1 {
+		protocol = splitUrl[0]
+	}
+
+	//Separate Web address and path
+	urlSplit := strings.SplitN(url, "/", 2)
+	webAddress := urlSplit[0]
+	path := "/"
+	if len(urlSplit) > 1 {
+		path += urlSplit[1]
+	}
+
+	//Get port by protocol
+	portByProtocol := ""
+	switch protocol {
+	case "http":
+		{
+			portByProtocol = "80"
+		}
+	case "https":
+		{
+			portByProtocol = "443"
+		}
+	case "ws":
+		{
+			portByProtocol = "80"
+		}
+	case "wss":
+		{
+			portByProtocol = "443"
+		}
+	}
+
+	//Check if webAddress has protocol + add port if needed
+	tcpAddress := ""
+	if len(strings.SplitN(webAddress, ":", 2)) == 1 {
+		//No port, add from port protocol
+		tcpAddress = webAddress + ":" + portByProtocol
+	} else {
+		tcpAddress = webAddress
+	}
+
+	return tcpAddress, path
+}
+
+/*
 Standardized type of function
 *HTTPWebSocketClient = Client
-String = message
-Uint8 = 0 = Open, 1 = Close, 2 = Read text, 3 = Read binary
+Uint8 = status
+Bool = isBinary
 */
-type HTTPWebSocketClientReadFunc func(*HTTPWebSocketClient, []byte, uint8)
+type HTTPWebSocketClientReadFunc func(client *HTTPWebSocketClient, data []byte, status uint8, isBinary bool)
 
 type HTTPWebSocketClient struct {
 	tcpClient      *TCPClientUniversal
@@ -38,7 +91,7 @@ func NewHTTPWebSocketClient(address string, readFunc HTTPWebSocketClientReadFunc
 	cl := &HTTPWebSocketClient{Logger: NewConsoleLoggerForTraffic("HTTP-WSClient", reportTraffic), readFunc: readFunc, address: address}
 	var err error
 	var tcpAddress string
-	tcpAddress, cl.pathForHTTP = HTTPWebTransportGetAddressAndTarget(address)
+	tcpAddress, cl.pathForHTTP = HTTPWebSocketGetAddressAndTarget(address)
 	cl.tcpClient, err = NewTCPClientUniversal(tcpAddress, reportTraffic)
 	cl.tcpClient.Logger = cl.Logger
 	cl.tcpClient.HandlerFuncs = append(cl.tcpClient.HandlerFuncs,
@@ -139,7 +192,7 @@ func (cl *HTTPWebSocketClient) readFuncLocalRaw(_ *TCPClientUniversal, data []by
 		//Other requests
 		cl.Logger.Log(3, "Invalid read func called for other requests! Ignoring but inform author of this error.")
 		if cl.readFunc != nil {
-			cl.readFunc(cl, nil, 1)
+			cl.readFunc(cl, nil, status, false)
 		}
 	}
 }
@@ -159,7 +212,7 @@ func (cl *HTTPWebSocketClient) readFuncLocalWS(_ *TCPClientUniversal, data []byt
 
 	//Other request
 	if cl.readFunc != nil {
-		cl.readFunc(cl, data, FormatByBool[uint8](isBinary, 3, 2))
+		cl.readFunc(cl, data, status, isBinary)
 	}
 }
 

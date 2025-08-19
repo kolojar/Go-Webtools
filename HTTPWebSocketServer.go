@@ -31,7 +31,7 @@ func computeWebSocketKey(webSocketKey string) string {
 Standardized type of function
 *HTTPWebSocketServerConn = Connection
 String = message
-Uint8 = operation
+Uint8 = status
 Bool = isBinary
 */
 type HTTPWebSocketServerReadFunc func(conn *HTTPWebSocketServerConn, data []byte, status uint8, isBinary bool)
@@ -43,7 +43,12 @@ type HTTPWebSocketServerConn struct {
 	origin    *HTTPWebSocketServer
 	Client    *TCPClientUniversal
 	IsBinary  bool
+	firstRead bool
 	urlParams map[string]string
+}
+
+func (httpConn *HTTPWebSocketServerConn) GetConn() *net.TCPConn {
+	return httpConn.Client.GetConn()
 }
 
 /*
@@ -162,7 +167,7 @@ func (sv *HTTPWebSocketServer) handleHTTPAccess(_ *HTTPServer, w http.ResponseWr
 				D: writeToWebSocketFrameHandler,
 				E: false,
 			})
-		sv.conns.Set(cl, &HTTPWebSocketServerConn{origin: sv, Client: cl, urlParams: params})
+		sv.conns.Set(cl, &HTTPWebSocketServerConn{origin: sv, Client: cl, urlParams: params, IsBinary: false, firstRead: true})
 		cl.Connect()
 
 		//sv.Logger.Log(2, "Connection from: "+conn.RemoteAddr().String()+" connected locally to: "+conn.LocalAddr().String())
@@ -346,6 +351,12 @@ func (sv *HTTPWebSocketServer) readFuncLocal(cl *TCPClientUniversal, data []byte
 	if httpConn == nil {
 		sv.Logger.Log(3, "Connection for client connected from: "+cl.GetConn().RemoteAddr().String()+" connected locally to: "+cl.GetConn().LocalAddr().String()+" not found!")
 		return
+	}
+
+	//Sort if first read
+	if httpConn.firstRead {
+		httpConn.firstRead = false
+		httpConn.IsBinary = isBinary
 	}
 
 	// Check type

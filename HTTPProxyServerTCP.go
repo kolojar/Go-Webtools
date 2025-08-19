@@ -103,7 +103,7 @@ HTTP Proxy server for TCP object
 type HTTPProxyServerTCP struct {
 	idToClient       SafeMap[string, *HTTPProxyServerTCPConn]
 	clientToId       SafeMap[*TCPClientSimple, string]
-	httpServer       *HTTPWebTransportServer
+	httpServer       *HTTPWebSocketServer
 	tcpServerAddress string
 	reportTrafic     bool
 }
@@ -114,7 +114,7 @@ HTTP Proxy server for TCP connection object
 type HTTPProxyServerTCPConn struct {
 	tcpClient *TCPClientSimple
 	id        []byte
-	source    *HTTPWebTransportServerConn
+	source    *HTTPWebSocketServerConn
 	origin    *HTTPProxyServerTCP
 }
 
@@ -152,12 +152,16 @@ Creates new HTTP Proxy Server for TCP but does not starts it
 */
 func NewHTTPProxyServerTCP(httpProxyAddress string, tcpServerAddress string, reportTraffic bool) *HTTPProxyServerTCP {
 	sv := &HTTPProxyServerTCP{tcpServerAddress: tcpServerAddress, clientToId: MakeSafeMap[*TCPClientSimple, string](), idToClient: MakeSafeMap[string, *HTTPProxyServerTCPConn](), reportTrafic: reportTraffic}
-	sv.httpServer = NewHTTPWebTransportServer(httpProxyAddress, sv.handleWebTransportReadFunc, reportTraffic)
+	sv.httpServer = NewHTTPWebSocketServer(httpProxyAddress, sv.handleWebSocketReadFunc, nil, "", reportTraffic)
 	sv.httpServer.Logger.Prefix = "HTTPProxyServerTCP - " + sv.httpServer.Logger.Prefix
 	return sv
 }
 
-func (sv *HTTPProxyServerTCP) handleWebTransportReadFunc(conn *HTTPWebTransportServerConn, frame []byte, status uint8) {
+func (sv *HTTPProxyServerTCP) handleWebSocketReadFunc(conn *HTTPWebSocketServerConn, frame []byte, status uint8, isBinary bool) {
+	if status == TCP_CONNECT_STATUS {
+		conn.IsBinary = true
+		return
+	}
 	if status == TCP_DISCONNECT_STATUS {
 		//Close all connections with this HTTP WebTransport Conn
 		for _, d := range sv.idToClient.GetData() {
