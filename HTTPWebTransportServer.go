@@ -199,7 +199,7 @@ Writes to Client
 //}
 
 /*
-Starts HTTP Server
+Starts HTTP Server. Locks execution thread
 */
 func (sv *HTTPWebTransportServer) Start() {
 	sv.httpServer.Start()
@@ -210,4 +210,11 @@ Stops HTTP Server
 */
 func (sv *HTTPWebTransportServer) Stop() {
 	sv.httpServer.Stop()
+}
+
+func (sv *HTTPWebTransportServer) IsAlive() bool {
+	return sv.httpServer.IsAlive()
+}
+func (sv *HTTPWebTransportServer) GetAddress() string {
+	return sv.httpServer.GetAddress()
 }

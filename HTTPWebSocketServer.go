@@ -372,7 +372,7 @@ Writes to Client with opcode
 //}
 
 /*
-Starts HTTP Server
+Starts HTTP Server. Locks execution thread
 */
 func (sv *HTTPWebSocketServer) Start() {
 	sv.httpServer.Start()

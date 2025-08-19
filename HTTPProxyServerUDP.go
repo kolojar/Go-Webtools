@@ -144,7 +144,7 @@ func (sv *HTTPProxyServerUDP) handleUDPReadFunc(udp *UDPClient, data []byte, end
 }
 
 /*
-Starts HTTP Proxy Server for UDP
+Starts HTTP Proxy Server for UDP. Locks execution thread
 */
 func (sv *HTTPProxyServerUDP) Start() {
 	sv.httpServer.Start()
@@ -155,4 +155,10 @@ Stops HTTP Proxy Server for UDP
 */
 func (sv *HTTPProxyServerUDP) Stop() {
 	sv.httpServer.Stop()
+}
+func (sv *HTTPProxyServerUDP) IsAlive() bool {
+	return sv.httpServer.IsAlive()
+}
+func (sv *HTTPProxyServerUDP) GetAddress() string {
+	return sv.httpServer.GetAddress()
 }

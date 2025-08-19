@@ -248,7 +248,7 @@ func (sv *HTTPProxyServerTCP) handleTCPReadFunc(tcp *TCPClientSimple, data []byt
 }
 
 /*
-Starts HTTP Proxy Server for TCP
+Starts HTTP Proxy Server for TCP. Locks execution thread
 */
 func (sv *HTTPProxyServerTCP) Start() {
 	sv.httpServer.Start()
@@ -259,4 +259,11 @@ Stops HTTP Proxy Server for TCP
 */
 func (sv *HTTPProxyServerTCP) Stop() {
 	sv.httpServer.Stop()
+}
+
+func (sv *HTTPProxyServerTCP) IsAlive() bool {
+	return sv.httpServer.IsAlive()
+}
+func (sv *HTTPProxyServerTCP) GetAddress() string {
+	return sv.httpServer.GetAddress()
 }
