@@ -72,6 +72,13 @@ type HTTPWebSocketServer struct {
 	reportTraffic bool
 }
 
+func (sv *HTTPWebSocketServer) IsAlive() bool {
+	return sv.httpServer.IsAlive()
+}
+func (sv *HTTPWebSocketServer) GetAddress() string {
+	return sv.httpServer.GetAddress()
+}
+
 /*
 Creates new HTTP WebSocket Server but does not starts it
 */

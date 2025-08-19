@@ -75,11 +75,19 @@ type TCPServer struct {
 	address            *net.TCPAddr
 	Logger             *ConsoleLogger
 	requestedStop      bool
-	isRunning          bool
+	isAlive            bool
 	conns              SafeMap[*TCPClientSimple, *TCPServerConn]
 	framed             bool
 	useEncryption      bool
 	encryptionPassword string
+}
+
+func (sv *TCPServer) IsAlive() bool {
+	return sv.isAlive
+}
+
+func (sv *TCPServer) GetAddress() string {
+	return sv.address.String()
 }
 
 /*
@@ -111,7 +119,7 @@ Starts TCP Server. Locks execution thread
 */
 func (tcp *TCPServer) Start() {
 	//Check if already running
-	if tcp.isRunning {
+	if tcp.isAlive {
 		return
 	}
 
@@ -125,7 +133,7 @@ func (tcp *TCPServer) Start() {
 		tcp.Logger.Log(3, "Error listening to "+tcp.address.String()+" with error: "+err.Error())
 		return
 	}
-	tcp.isRunning = true
+	tcp.isAlive = true
 	tcp.Logger.Log(2, "Started listening on "+tcp.address.String())
 
 	//Listener loop
@@ -146,7 +154,7 @@ func (tcp *TCPServer) Start() {
 		cl.SetupEncryption(tcp.useEncryption, tcp.encryptionPassword)
 		cl.Connect()
 	}
-	tcp.isRunning = false
+	tcp.isAlive = false
 }
 
 func (tcp *TCPServer) readFuncLocal(client *TCPClientSimple, data []byte, status uint8) {
@@ -171,7 +179,7 @@ func (tcp *TCPServer) readFuncLocal(client *TCPClientSimple, data []byte, status
 Stops TCP server
 */
 func (tcp *TCPServer) Stop() {
-	if !tcp.isRunning {
+	if !tcp.isAlive {
 		return
 	}
 

@@ -39,6 +39,13 @@ func (sv *HTTPServer) GetRootPath() string {
 	return sv.rootPath
 }
 
+func (sv *HTTPServer) IsAlive() bool {
+	return sv.isAlive
+}
+func (sv *HTTPServer) GetAddress() string {
+	return sv.address
+}
+
 /*
 Creates new HTTP server but does not starts it. Adds new host path to HTTP server (used for shared scripts, css, images)
 */
