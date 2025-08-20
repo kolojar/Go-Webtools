@@ -404,3 +404,26 @@ Stops HTTP Server
 func (sv *HTTPWebSocketServer) Stop() {
 	sv.httpServer.Stop()
 }
+
+/*
+Broadcasts data to clients with specific url parameter/s supplied in filter, set filter to nil for all connections
+*/
+func (sv *HTTPWebSocketServer) BroadcastToClients(filterURLParams map[string]string, data []byte) {
+	for _, v := range sv.conns.GetValues() {
+		if filterURLParams != nil {
+			//Check parameters
+			var invalid bool = false
+			for k, v2 := range filterURLParams {
+				if v.urlParams[k] != v2 {
+					invalid = true
+					break
+				}
+			}
+			if invalid {
+				//Some do not match, skip connection
+				continue
+			}
+		}
+		v.Send(data)
+	}
+}
