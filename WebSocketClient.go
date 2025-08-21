@@ -61,16 +61,16 @@ func HTTPWebSocketGetAddressAndTarget(completeURL string) (string, string) {
 
 /*
 Standardized type of function
-*HTTPWebSocketClient = Client
+*WebSocketClient = Client
 Uint8 = status
 Bool = isBinary
 */
-type HTTPWebSocketClientReadFunc func(client *HTTPWebSocketClient, data []byte, status uint8, isBinary bool)
+type WebSocketClientReadFunc func(client *WebSocketClient, data []byte, status uint8, isBinary bool)
 
-type HTTPWebSocketClient struct {
+type WebSocketClient struct {
 	tcpClient      *TCPClientUniversal
 	Logger         *ConsoleLogger
-	readFunc       HTTPWebSocketClientReadFunc
+	readFunc       WebSocketClientReadFunc
 	awaitingReady  bool
 	awaitingStatus bool
 	address        string
@@ -79,16 +79,16 @@ type HTTPWebSocketClient struct {
 	webSocketKey   string
 }
 
-func (cl *HTTPWebSocketClient) IsAlive() bool {
+func (cl *WebSocketClient) IsAlive() bool {
 	return cl.tcpClient.IsAlive()
 }
 
 /*
 Creates new HTTP WebSocket Client but does not connects it, if you want to use default connection endpoint, add /websocket to end of address
 */
-func NewHTTPWebSocketClient(address string, readFunc HTTPWebSocketClientReadFunc, reportTraffic bool) (*HTTPWebSocketClient, error) {
+func NewWebSocketClient(address string, readFunc WebSocketClientReadFunc, reportTraffic bool) (*WebSocketClient, error) {
 	//Create client
-	cl := &HTTPWebSocketClient{Logger: NewConsoleLoggerForTraffic("HTTP-WSClient", reportTraffic), readFunc: readFunc, address: address}
+	cl := &WebSocketClient{Logger: NewConsoleLoggerForTraffic("HTTP-WSClient", reportTraffic), readFunc: readFunc, address: address}
 	var err error
 	var tcpAddress string
 	tcpAddress, cl.pathForHTTP = HTTPWebSocketGetAddressAndTarget(address)
@@ -120,7 +120,7 @@ func NewHTTPWebSocketClient(address string, readFunc HTTPWebSocketClientReadFunc
 /*
 Connects to HTTP server and start reading loop, does not locks execution thread
 */
-func (cl *HTTPWebSocketClient) Connect() {
+func (cl *WebSocketClient) Connect() {
 	if cl.tcpClient.IsAlive() {
 		return
 	}
@@ -163,14 +163,14 @@ func (cl *HTTPWebSocketClient) Connect() {
 /*
 Sends data to server
 */
-func (cl *HTTPWebSocketClient) Send(data []byte, opcode uint8) {
+func (cl *WebSocketClient) Send(data []byte, opcode uint8) {
 	cl.tcpClient.Send(data, map[string]any{"opcode": opcode})
 }
 
 /*
 Local readFunc for local TCP client
 */
-func (cl *HTTPWebSocketClient) readFuncLocalRaw(_ *TCPClientUniversal, data []byte, status uint8, otherData map[string]any) {
+func (cl *WebSocketClient) readFuncLocalRaw(_ *TCPClientUniversal, data []byte, status uint8, otherData map[string]any) {
 	if status == TCP_READ_DATA_STATUS && cl.awaitingReady {
 		//First request
 		if !strings.Contains(string(data), "HTTP/1.1 101 Switching Protocols") {
@@ -200,7 +200,7 @@ func (cl *HTTPWebSocketClient) readFuncLocalRaw(_ *TCPClientUniversal, data []by
 /*
 Local readFunc for local TCP client with WebSocket frame
 */
-func (cl *HTTPWebSocketClient) readFuncLocalWS(_ *TCPClientUniversal, data []byte, status uint8, otherData map[string]any) {
+func (cl *WebSocketClient) readFuncLocalWS(_ *TCPClientUniversal, data []byte, status uint8, otherData map[string]any) {
 	//Get opcode
 	isBinaryRaw := otherData["isBinary"]
 	if isBinaryRaw == nil || isBinaryRaw == "" {
@@ -219,6 +219,6 @@ func (cl *HTTPWebSocketClient) readFuncLocalWS(_ *TCPClientUniversal, data []byt
 /*
 Stops HTTP WebSocket client
 */
-func (ws *HTTPWebSocketClient) Stop() {
+func (ws *WebSocketClient) Stop() {
 	ws.tcpClient.Stop()
 }

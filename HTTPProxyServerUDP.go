@@ -6,7 +6,7 @@ HTTP Proxy server for UDP object
 type HTTPProxyServerUDP struct {
 	idToClient       SafeMap[string, *HTTPProxyServerUDPConn]
 	clientToId       SafeMap[*UDPClient, string]
-	httpServer       *HTTPWebSocketServer
+	httpServer       *WebSocketServer
 	udpServerAddress string
 	reportTrafic     bool
 }
@@ -17,7 +17,7 @@ HTTP Proxy server for UDP connection object
 type HTTPProxyServerUDPConn struct {
 	udpClient *UDPClient
 	id        []byte
-	source    *HTTPWebSocketServerConn
+	source    *WebSocketServerConn
 	origin    *HTTPProxyServerUDP
 }
 
@@ -57,7 +57,7 @@ func NewHTTPProxyServerUDP(httpProxyAddress string, udpServerAddress string, rep
 	return sv
 }
 
-func (sv *HTTPProxyServerUDP) handleWebSocketReadFunc(conn *HTTPWebSocketServerConn, frame []byte, status uint8, isBinary bool) {
+func (sv *HTTPProxyServerUDP) handleWebSocketReadFunc(conn *WebSocketServerConn, frame []byte, status uint8, isBinary bool) {
 	if status == TCP_CONNECT_STATUS {
 		conn.IsBinary = true
 		return

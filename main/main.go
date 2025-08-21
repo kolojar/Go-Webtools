@@ -162,7 +162,7 @@ func main() {
 		}
 	case "wsc":
 		{
-			cl, err := webtools.NewHTTPWebSocketClient("127.0.0.1:1234/websocket", readFuncHTTPWsCl, true)
+			cl, err := webtools.NewWebSocketClient("127.0.0.1:1234/websocket", readFuncHTTPWsCl, true)
 			if err != nil {
 				fmt.Println(err.Error())
 				return
@@ -223,13 +223,13 @@ func readFuncUDPCl(conn *webtools.UDPClient, data []byte, ended bool) {
 //	}
 //}
 
-func readFuncHTTPWsSv(conn *webtools.HTTPWebSocketServerConn, data []byte, status uint8, isBinary bool) {
+func readFuncHTTPWsSv(conn *webtools.WebSocketServerConn, data []byte, status uint8, isBinary bool) {
 	if status > 1 {
 		conn.Send(data)
 	}
 }
 
-func readFuncHTTPWsCl(conn *webtools.HTTPWebSocketClient, data []byte, status uint8, isBinary bool) {
+func readFuncHTTPWsCl(conn *webtools.WebSocketClient, data []byte, status uint8, isBinary bool) {
 	if status == webtools.TCP_READ_DATA_STATUS {
 		conn.Stop()
 	}

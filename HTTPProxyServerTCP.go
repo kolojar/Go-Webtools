@@ -103,7 +103,7 @@ HTTP Proxy server for TCP object
 type HTTPProxyServerTCP struct {
 	idToClient       SafeMap[string, *HTTPProxyServerTCPConn]
 	clientToId       SafeMap[*TCPClientSimple, string]
-	httpServer       *HTTPWebSocketServer
+	httpServer       *WebSocketServer
 	tcpServerAddress string
 	reportTrafic     bool
 }
@@ -114,7 +114,7 @@ HTTP Proxy server for TCP connection object
 type HTTPProxyServerTCPConn struct {
 	tcpClient *TCPClientSimple
 	id        []byte
-	source    *HTTPWebSocketServerConn
+	source    *WebSocketServerConn
 	origin    *HTTPProxyServerTCP
 }
 
@@ -157,7 +157,7 @@ func NewHTTPProxyServerTCP(httpProxyAddress string, tcpServerAddress string, rep
 	return sv
 }
 
-func (sv *HTTPProxyServerTCP) handleWebSocketReadFunc(conn *HTTPWebSocketServerConn, frame []byte, status uint8, isBinary bool) {
+func (sv *HTTPProxyServerTCP) handleWebSocketReadFunc(conn *WebSocketServerConn, frame []byte, status uint8, isBinary bool) {
 	if status == TCP_CONNECT_STATUS {
 		conn.IsBinary = true
 		return

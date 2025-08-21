@@ -7,7 +7,7 @@ type HTTPProxyClientUDP struct {
 	clientToId         SafeMap[*UDPServerConn, string]
 	idToClient         SafeMap[string, *UDPServerConn]
 	udpServer          *UDPServer
-	httpClient         *HTTPWebSocketClient
+	httpClient         *WebSocketClient
 	pendingConnections SafeMap[string, *UDPServerConn]
 	pendingConnsData   SafeMap[*UDPServerConn, [][]byte]
 }
@@ -22,7 +22,7 @@ Creates new HTTP Proxy Client for UDP but does not starts it, if you want to use
 func NewHTTPProxyClientUDP(httpProxyAddress string, tcpServerAddress string, reportTraffic bool) (*HTTPProxyClientUDP, error) {
 	cl := &HTTPProxyClientUDP{clientToId: MakeSafeMap[*UDPServerConn, string](), pendingConnections: MakeSafeMap[string, *UDPServerConn](), idToClient: MakeSafeMap[string, *UDPServerConn](), pendingConnsData: MakeSafeMap[*UDPServerConn, [][]byte]()}
 	var err error
-	cl.httpClient, err = NewHTTPWebSocketClient(httpProxyAddress, cl.handleWebTransportReadFunc, reportTraffic)
+	cl.httpClient, err = NewWebSocketClient(httpProxyAddress, cl.handleWebTransportReadFunc, reportTraffic)
 	if err != nil {
 		return nil, err
 	}
@@ -35,7 +35,7 @@ func NewHTTPProxyClientUDP(httpProxyAddress string, tcpServerAddress string, rep
 	return cl, nil
 }
 
-func (cl *HTTPProxyClientUDP) handleWebTransportReadFunc(client *HTTPWebSocketClient, frame []byte, status uint8, isBinary bool) {
+func (cl *HTTPProxyClientUDP) handleWebTransportReadFunc(client *WebSocketClient, frame []byte, status uint8, isBinary bool) {
 	if status == TCP_DISCONNECT_STATUS {
 		//Close all connections
 		cl.udpServer.Stop()

@@ -7,7 +7,7 @@ type HTTPProxyClientTCP struct {
 	clientToId         SafeMap[*TCPServerConn, string]
 	idToClient         SafeMap[string, *TCPServerConn]
 	tcpServer          *TCPServer
-	httpClient         *HTTPWebSocketClient
+	httpClient         *WebSocketClient
 	pendingConnections SafeMap[string, *TCPServerConn]
 	pendingConnsData   SafeMap[*TCPServerConn, [][]byte]
 }
@@ -22,7 +22,7 @@ Creates new HTTP Proxy Client for TCP but does not starts it, if you want to use
 func NewHTTPProxyClientTCP(httpProxyAddress string, tcpServerAddress string, reportTraffic bool) (*HTTPProxyClientTCP, error) {
 	cl := &HTTPProxyClientTCP{clientToId: MakeSafeMap[*TCPServerConn, string](), pendingConnections: MakeSafeMap[string, *TCPServerConn](), idToClient: MakeSafeMap[string, *TCPServerConn](), pendingConnsData: MakeSafeMap[*TCPServerConn, [][]byte]()}
 	var err error
-	cl.httpClient, err = NewHTTPWebSocketClient(httpProxyAddress, cl.handleWebTransportReadFunc, reportTraffic)
+	cl.httpClient, err = NewWebSocketClient(httpProxyAddress, cl.handleWebTransportReadFunc, reportTraffic)
 	if err != nil {
 		return nil, err
 	}
@@ -35,7 +35,7 @@ func NewHTTPProxyClientTCP(httpProxyAddress string, tcpServerAddress string, rep
 	return cl, nil
 }
 
-func (cl *HTTPProxyClientTCP) handleWebTransportReadFunc(_ *HTTPWebSocketClient, frame []byte, status uint8, isBinary bool) {
+func (cl *HTTPProxyClientTCP) handleWebTransportReadFunc(_ *WebSocketClient, frame []byte, status uint8, isBinary bool) {
 	if status == TCP_DISCONNECT_STATUS {
 		//Close all connections
 		cl.tcpServer.Stop()

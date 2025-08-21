@@ -29,74 +29,88 @@ func computeWebSocketKey(webSocketKey string) string {
 
 /*
 Standardized type of function
-*HTTPWebSocketServerConn = Connection
+*WebSocketServerConn = Connection
 String = message
 Uint8 = status
 Bool = isBinary
 */
-type HTTPWebSocketServerReadFunc func(conn *HTTPWebSocketServerConn, data []byte, status uint8, isBinary bool)
+type WebSocketServerReadFunc func(conn *WebSocketServerConn, data []byte, status uint8, isBinary bool)
 
 /*
 HTTP WebSocket server connection object
 */
-type HTTPWebSocketServerConn struct {
-	origin    *HTTPWebSocketServer
+type WebSocketServerConn struct {
+	origin    *WebSocketServer
 	Client    *TCPClientUniversal
 	IsBinary  bool
 	firstRead bool
 	urlParams map[string]string
 }
 
-func (httpConn *HTTPWebSocketServerConn) GetConn() *net.TCPConn {
+func (httpConn *WebSocketServerConn) GetConn() *net.TCPConn {
 	return httpConn.Client.GetConn()
 }
 
 /*
 Sends data to client, it is set by first recieved packed, can be changed using IsBinary property
 */
-func (httpConn *HTTPWebSocketServerConn) Send(data []byte) {
+func (httpConn *WebSocketServerConn) Send(data []byte) {
 	httpConn.Client.Send(data, map[string]any{"opcode": FormatByBool[uint8](httpConn.IsBinary, 2, 1)})
 }
 
 /*
 Closes connection to client
 */
-func (httpConn *HTTPWebSocketServerConn) Close() {
+func (httpConn *WebSocketServerConn) Close() {
 	httpConn.Client.Stop()
 }
 
 /*
 Gets URL parameter from original HTTP request
 */
-func (httpConn *HTTPWebSocketServerConn) GetURLParameter(key string) string {
+func (httpConn *WebSocketServerConn) GetURLParameter(key string) string {
 	return httpConn.urlParams[key]
+}
+
+/*
+Sets URL parameter from original HTTP request
+*/
+func (httpConn *WebSocketServerConn) SetURLParameter(key string, value string) {
+	httpConn.urlParams[key] = value
+}
+
+/*
+Removes URL parameter from original HTTP request
+*/
+func (httpConn *WebSocketServerConn) RemoveURLParameter(key string) {
+	delete(httpConn.urlParams, key)
 }
 
 /*
 HTTP WebSocket server for JavaScript with standards
 */
-type HTTPWebSocketServer struct {
+type WebSocketServer struct {
 	httpServer    *HTTPServer
 	Logger        *ConsoleLogger
-	conns         SafeMap[*TCPClientUniversal, *HTTPWebSocketServerConn]
-	readFunc      HTTPWebSocketServerReadFunc
+	conns         SafeMap[*TCPClientUniversal, *WebSocketServerConn]
+	readFunc      WebSocketServerReadFunc
 	onAccessFunc  HTTPAccessFunc
 	websocketURL  string
 	reportTraffic bool
 }
 
-func (sv *HTTPWebSocketServer) IsAlive() bool {
+func (sv *WebSocketServer) IsAlive() bool {
 	return sv.httpServer.IsAlive()
 }
-func (sv *HTTPWebSocketServer) GetAddress() string {
+func (sv *WebSocketServer) GetAddress() string {
 	return sv.httpServer.GetAddress()
 }
 
 /*
 Creates new HTTP WebSocket Server but does not starts it
 */
-func NewHTTPWebSocketServer(address string, readFunc HTTPWebSocketServerReadFunc, onAccessFunc HTTPAccessFunc, rootPath string, reportTraffic bool) *HTTPWebSocketServer {
-	sv := &HTTPWebSocketServer{Logger: NewConsoleLoggerForTraffic("HTTP-WSServer", reportTraffic), reportTraffic: reportTraffic, readFunc: readFunc, conns: MakeSafeMap[*TCPClientUniversal, *HTTPWebSocketServerConn](), onAccessFunc: onAccessFunc, websocketURL: "/websocket"}
+func NewHTTPWebSocketServer(address string, readFunc WebSocketServerReadFunc, onAccessFunc HTTPAccessFunc, rootPath string, reportTraffic bool) *WebSocketServer {
+	sv := &WebSocketServer{Logger: NewConsoleLoggerForTraffic("HTTP-WSServer", reportTraffic), reportTraffic: reportTraffic, readFunc: readFunc, conns: MakeSafeMap[*TCPClientUniversal, *WebSocketServerConn](), onAccessFunc: onAccessFunc, websocketURL: "/websocket"}
 	sv.httpServer = NewHTTPServer(address, sv.handleHTTPAccess, rootPath, false)
 	sv.httpServer.Logger = sv.Logger
 	return sv
@@ -105,7 +119,7 @@ func NewHTTPWebSocketServer(address string, readFunc HTTPWebSocketServerReadFunc
 /*
 Sets URL of WebSocket
 */
-func (sv *HTTPWebSocketServer) SetWebSocketURL(newURL string) error {
+func (sv *WebSocketServer) SetWebSocketURL(newURL string) error {
 	if !strings.HasPrefix(newURL, "/") {
 		return errors.New("url must start with /")
 	}
@@ -116,11 +130,11 @@ func (sv *HTTPWebSocketServer) SetWebSocketURL(newURL string) error {
 /*
 Gets HTTP server
 */
-func (sv *HTTPWebSocketServer) GetHTTPServer() *HTTPServer {
+func (sv *WebSocketServer) GetHTTPServer() *HTTPServer {
 	return sv.httpServer
 }
 
-func (sv *HTTPWebSocketServer) handleHTTPAccess(_ *HTTPServer, w http.ResponseWriter, r *http.Request, params map[string]string) bool {
+func (sv *WebSocketServer) handleHTTPAccess(_ *HTTPServer, w http.ResponseWriter, r *http.Request, params map[string]string) bool {
 	if r.Method == http.MethodGet && r.URL.Path == sv.websocketURL {
 		//Websocket request - Correct URL and Method
 		sv.Logger.Log(1, "Preparing connection from: "+r.RemoteAddr)
@@ -167,7 +181,7 @@ func (sv *HTTPWebSocketServer) handleHTTPAccess(_ *HTTPServer, w http.ResponseWr
 				D: writeToWebSocketFrameHandler,
 				E: false,
 			})
-		sv.conns.Set(cl, &HTTPWebSocketServerConn{origin: sv, Client: cl, urlParams: params, IsBinary: false, firstRead: true})
+		sv.conns.Set(cl, &WebSocketServerConn{origin: sv, Client: cl, urlParams: params, IsBinary: false, firstRead: true})
 		cl.Connect()
 
 		//sv.Logger.Log(2, "Connection from: "+conn.RemoteAddr().String()+" connected locally to: "+conn.LocalAddr().String())
@@ -332,7 +346,7 @@ func writeToWebSocketFrameHandler(cl *TCPClientUniversal, data []byte, otherData
 	return writeToTCPHandler(cl, PackWebSocketFrame(data, opcode.(uint8), cl.Logger), otherData)
 }
 
-func (sv *HTTPWebSocketServer) readFuncLocal(cl *TCPClientUniversal, data []byte, status uint8, otherData map[string]any) {
+func (sv *WebSocketServer) readFuncLocal(cl *TCPClientUniversal, data []byte, status uint8, otherData map[string]any) {
 	if status != TCP_READ_DATA_STATUS && status != TCP_DISCONNECT_STATUS {
 		//Non data requests
 		return
@@ -347,7 +361,7 @@ func (sv *HTTPWebSocketServer) readFuncLocal(cl *TCPClientUniversal, data []byte
 	isBinary := isBinaryRaw.(bool)
 
 	//Get connection
-	var httpConn *HTTPWebSocketServerConn = sv.conns.Get(cl)
+	var httpConn *WebSocketServerConn = sv.conns.Get(cl)
 	if httpConn == nil {
 		sv.Logger.Log(3, "Connection for client connected from: "+cl.GetConn().RemoteAddr().String()+" connected locally to: "+cl.GetConn().LocalAddr().String()+" not found!")
 		return
@@ -394,21 +408,21 @@ Writes to Client with opcode
 /*
 Starts HTTP Server. Locks execution thread
 */
-func (sv *HTTPWebSocketServer) Start() {
+func (sv *WebSocketServer) Start() {
 	sv.httpServer.Start()
 }
 
 /*
 Stops HTTP Server
 */
-func (sv *HTTPWebSocketServer) Stop() {
+func (sv *WebSocketServer) Stop() {
 	sv.httpServer.Stop()
 }
 
 /*
 Broadcasts data to clients with specific url parameter/s supplied in filter, set filter to nil for all connections
 */
-func (sv *HTTPWebSocketServer) BroadcastToClients(filterURLParams map[string]string, data []byte) {
+func (sv *WebSocketServer) BroadcastToClients(filterURLParams map[string]string, data []byte) {
 	for _, v := range sv.conns.GetValues() {
 		if filterURLParams != nil {
 			//Check parameters
