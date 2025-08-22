@@ -1,5 +1,3 @@
-package webtools
-
 type UDPBridge struct {
 	clientAddress  string
 	udpServer      *UDPServer
