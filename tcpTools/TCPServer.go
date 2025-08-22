@@ -1,19 +1,13 @@
-package webtools
+package tcptools
 
 import (
 	"net"
 	"strconv"
 	"time"
+	"webtools"
 )
 
 const BUFFER_SIZE = 1024 * 16
-
-/*
-Creates new ConsoleLogger with option to disable traffic report. Traffic reports are reports with 0 level
-*/
-func NewConsoleLoggerForTraffic(prefix string, reportTraffic bool) *ConsoleLogger {
-	return NewConsoleLogger(prefix, FormatByBool[uint8](reportTraffic, 0, 1))
-}
 
 /*
 Server connection interface
@@ -73,10 +67,10 @@ type TCPServer struct {
 	listener           *net.TCPListener
 	readFunc           TCPServerReadFunc
 	address            *net.TCPAddr
-	Logger             *ConsoleLogger
+	Logger             *webtools.ConsoleLogger
 	requestedStop      bool
 	isAlive            bool
-	conns              SafeMap[*TCPClientSimple, *TCPServerConn]
+	conns              webtools.SafeMap[*TCPClientSimple, *TCPServerConn]
 	framed             bool
 	useEncryption      bool
 	encryptionPassword string
@@ -99,11 +93,7 @@ func NewTCPServer(address string, readFunc TCPServerReadFunc, reportTraffic bool
 	if err != nil {
 		return nil, err
 	}
-	level := uint8(0)
-	if !reportTraffic {
-		level = 1
-	}
-	return &TCPServer{address: addressObj, readFunc: readFunc, Logger: NewConsoleLogger("TCPServer", level), conns: MakeSafeMap[*TCPClientSimple, *TCPServerConn](), framed: framed}, nil
+	return &TCPServer{address: addressObj, readFunc: readFunc, Logger: webtools.NewConsoleLoggerForTraffic("TCPServer", reportTraffic), conns: webtools.MakeSafeMap[*TCPClientSimple, *TCPServerConn](), framed: framed}, nil
 }
 
 /*
@@ -149,7 +139,7 @@ func (tcp *TCPServer) Start() {
 		}
 
 		//Handle connection
-		cl := NewTCPClientSimpleFromConnection(conn, FormatByBool(tcp.framed, 0, -1), false, tcp.readFuncLocal, false)
+		cl := NewTCPClientSimpleFromConnection(conn, webtools.FormatByBool(tcp.framed, 0, -1), false, tcp.readFuncLocal, false)
 		cl.SetLogger(tcp.Logger)
 		cl.SetupEncryption(tcp.useEncryption, tcp.encryptionPassword)
 		cl.Connect()
@@ -164,7 +154,7 @@ func (tcp *TCPServer) readFuncLocal(client *TCPClientSimple, data []byte, status
 		tcpConn = &TCPServerConn{origin: tcp, Client: client}
 		tcp.conns.Set(client, tcpConn)
 	}
-	if status == TCP_DISCONNECT_STATUS {
+	if status == webtools.TCP_DISCONNECT_STATUS {
 		tcp.conns.Delete(client)
 	}
 	tcp.Logger.Log(0, "Count of connections: "+strconv.Itoa(tcp.conns.Len()))

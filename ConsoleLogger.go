@@ -90,3 +90,10 @@ func MapToString[K comparable, V any](m map[K]V) string {
 	result += "}"
 	return result
 }
+
+/*
+Creates new ConsoleLogger with option to disable traffic report. Traffic reports are reports with 0 level
+*/
+func NewConsoleLoggerForTraffic(prefix string, reportTraffic bool) *ConsoleLogger {
+	return NewConsoleLogger(prefix, FormatByBool[uint8](reportTraffic, 0, 1))
+}

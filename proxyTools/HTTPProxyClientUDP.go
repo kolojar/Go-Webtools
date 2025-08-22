@@ -1,15 +1,20 @@
-package webtools
+package proxytools
+
+import (
+	"webtools"
+	httptools "webtools/httpTools"
+)
 
 /*
 HTTP Proxy client for UDP object
 */
 type HTTPProxyClientUDP struct {
-	clientToId         SafeMap[*UDPServerConn, string]
-	idToClient         SafeMap[string, *UDPServerConn]
+	clientToId         webtools.SafeMap[*UDPServerConn, string]
+	idToClient         webtools.SafeMap[string, *UDPServerConn]
 	udpServer          *UDPServer
-	httpClient         *WebSocketClient
-	pendingConnections SafeMap[string, *UDPServerConn]
-	pendingConnsData   SafeMap[*UDPServerConn, [][]byte]
+	httpClient         *httptools.WebSocketClient
+	pendingConnections webtools.SafeMap[string, *UDPServerConn]
+	pendingConnsData   webtools.SafeMap[*UDPServerConn, [][]byte]
 }
 
 func (cl *HTTPProxyClientUDP) IsAlive() bool {
@@ -20,9 +25,9 @@ func (cl *HTTPProxyClientUDP) IsAlive() bool {
 Creates new HTTP Proxy Client for UDP but does not starts it, if you want to use default connection endpoint, add /webtransport to end of address
 */
 func NewHTTPProxyClientUDP(httpProxyAddress string, tcpServerAddress string, reportTraffic bool) (*HTTPProxyClientUDP, error) {
-	cl := &HTTPProxyClientUDP{clientToId: MakeSafeMap[*UDPServerConn, string](), pendingConnections: MakeSafeMap[string, *UDPServerConn](), idToClient: MakeSafeMap[string, *UDPServerConn](), pendingConnsData: MakeSafeMap[*UDPServerConn, [][]byte]()}
+	cl := &HTTPProxyClientUDP{clientToId: webtools.MakeSafeMap[*UDPServerConn, string](), pendingConnections: webtools.MakeSafeMap[string, *UDPServerConn](), idToClient: webtools.MakeSafeMap[string, *UDPServerConn](), pendingConnsData: webtools.MakeSafeMap[*UDPServerConn, [][]byte]()}
 	var err error
-	cl.httpClient, err = NewWebSocketClient(httpProxyAddress, cl.handleWebTransportReadFunc, reportTraffic)
+	cl.httpClient, err = httptools.NewWebSocketClient(httpProxyAddress, cl.handleWebTransportReadFunc, reportTraffic)
 	if err != nil {
 		return nil, err
 	}
@@ -35,13 +40,13 @@ func NewHTTPProxyClientUDP(httpProxyAddress string, tcpServerAddress string, rep
 	return cl, nil
 }
 
-func (cl *HTTPProxyClientUDP) handleWebTransportReadFunc(client *WebSocketClient, frame []byte, status uint8, isBinary bool) {
-	if status == TCP_DISCONNECT_STATUS {
+func (cl *HTTPProxyClientUDP) handleWebTransportReadFunc(client *httptools.WebSocketClient, frame []byte, status uint8, isBinary bool) {
+	if status == webtools.TCP_DISCONNECT_STATUS {
 		//Close all connections
 		cl.udpServer.Stop()
 		return
 	}
-	if status != TCP_READ_DATA_STATUS {
+	if status != webtools.TCP_READ_DATA_STATUS {
 		return
 	}
 
@@ -99,7 +104,7 @@ func (cl *HTTPProxyClientUDP) handleUDPReadFunc(udpConn *UDPServerConn, data []b
 	id := cl.clientToId.Get(udpConn)
 	if id == "" {
 		//No connection found, request new
-		tempId := GenerateRandomId()
+		tempId := webtools.GenerateRandomId()
 		cl.pendingConnections.Set(tempId, udpConn)
 		cl.httpClient.Logger.Log(1, "Preparing new connection with temporary id: "+tempId+" for connection connected to: "+udpConn.Address.String())
 		cl.httpClient.Send(PackProxyFrame(PROXY_FRAME_TYPE_CONNECT, []byte("0"), []byte(tempId)), 2)

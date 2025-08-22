@@ -1,15 +1,21 @@
-package webtools
+package proxytools
+
+import (
+	"webtools"
+	httptools "webtools/httpTools"
+	tcptools "webtools/tcpTools"
+)
 
 /*
 HTTP Proxy client for TCP object
 */
 type HTTPProxyClientTCP struct {
-	clientToId         SafeMap[*TCPServerConn, string]
-	idToClient         SafeMap[string, *TCPServerConn]
-	tcpServer          *TCPServer
-	httpClient         *WebSocketClient
-	pendingConnections SafeMap[string, *TCPServerConn]
-	pendingConnsData   SafeMap[*TCPServerConn, [][]byte]
+	clientToId         webtools.SafeMap[*tcptools.TCPServerConn, string]
+	idToClient         webtools.SafeMap[string, *tcptools.TCPServerConn]
+	tcpServer          *tcptools.TCPServer
+	httpClient         *httptools.WebSocketClient
+	pendingConnections webtools.SafeMap[string, *tcptools.TCPServerConn]
+	pendingConnsData   webtools.SafeMap[*tcptools.TCPServerConn, [][]byte]
 }
 
 func (cl *HTTPProxyClientTCP) IsAlive() bool {
@@ -20,14 +26,14 @@ func (cl *HTTPProxyClientTCP) IsAlive() bool {
 Creates new HTTP Proxy Client for TCP but does not starts it, if you want to use default connection endpoint, add /webtransport to end of address
 */
 func NewHTTPProxyClientTCP(httpProxyAddress string, tcpServerAddress string, reportTraffic bool) (*HTTPProxyClientTCP, error) {
-	cl := &HTTPProxyClientTCP{clientToId: MakeSafeMap[*TCPServerConn, string](), pendingConnections: MakeSafeMap[string, *TCPServerConn](), idToClient: MakeSafeMap[string, *TCPServerConn](), pendingConnsData: MakeSafeMap[*TCPServerConn, [][]byte]()}
+	cl := &HTTPProxyClientTCP{clientToId: webtools.MakeSafeMap[*tcptools.TCPServerConn, string](), pendingConnections: webtools.MakeSafeMap[string, *tcptools.TCPServerConn](), idToClient: webtools.MakeSafeMap[string, *tcptools.TCPServerConn](), pendingConnsData: webtools.MakeSafeMap[*tcptools.TCPServerConn, [][]byte]()}
 	var err error
-	cl.httpClient, err = NewWebSocketClient(httpProxyAddress, cl.handleWebTransportReadFunc, reportTraffic)
+	cl.httpClient, err = httptools.NewWebSocketClient(httpProxyAddress, cl.handleWebTransportReadFunc, reportTraffic)
 	if err != nil {
 		return nil, err
 	}
 	cl.httpClient.Logger.Prefix = "HTTPProxyClientTCP - " + cl.httpClient.Logger.Prefix
-	cl.tcpServer, err = NewTCPServer(tcpServerAddress, cl.handleTCPReadFunc, reportTraffic, false)
+	cl.tcpServer, err = tcptools.NewTCPServer(tcpServerAddress, cl.handleTCPReadFunc, reportTraffic, false)
 	if err != nil {
 		return nil, err
 	}
@@ -35,13 +41,13 @@ func NewHTTPProxyClientTCP(httpProxyAddress string, tcpServerAddress string, rep
 	return cl, nil
 }
 
-func (cl *HTTPProxyClientTCP) handleWebTransportReadFunc(_ *WebSocketClient, frame []byte, status uint8, isBinary bool) {
-	if status == TCP_DISCONNECT_STATUS {
+func (cl *HTTPProxyClientTCP) handleWebTransportReadFunc(_ *httptools.WebSocketClient, frame []byte, status uint8, isBinary bool) {
+	if status == webtools.TCP_DISCONNECT_STATUS {
 		//Close all connections
 		cl.tcpServer.Stop()
 		return
 	}
-	if status != TCP_READ_DATA_STATUS {
+	if status != webtools.TCP_READ_DATA_STATUS {
 		return
 	}
 
@@ -89,8 +95,8 @@ func (cl *HTTPProxyClientTCP) handleWebTransportReadFunc(_ *WebSocketClient, fra
 	}
 }
 
-func (cl *HTTPProxyClientTCP) handleTCPReadFunc(tcpConn *TCPServerConn, data []byte, status uint8) {
-	if status == TCP_CONNECT_STATUS {
+func (cl *HTTPProxyClientTCP) handleTCPReadFunc(tcpConn *tcptools.TCPServerConn, data []byte, status uint8) {
+	if status == webtools.TCP_CONNECT_STATUS {
 		return
 	}
 	if cl.pendingConnsData.Get(tcpConn) != nil {
@@ -102,7 +108,7 @@ func (cl *HTTPProxyClientTCP) handleTCPReadFunc(tcpConn *TCPServerConn, data []b
 	id := cl.clientToId.Get(tcpConn)
 	if id == "" {
 		//No connection found, request new
-		tempId := GenerateRandomId()
+		tempId := webtools.GenerateRandomId()
 		cl.pendingConnections.Set(tempId, tcpConn)
 		cl.httpClient.Logger.Log(1, "Preparing new connection with temporary id: "+tempId+" for connection connected to: "+tcpConn.GetConn().RemoteAddr().String()+" connected locally to: "+tcpConn.GetConn().LocalAddr().String())
 		cl.httpClient.Send(PackProxyFrame(PROXY_FRAME_TYPE_CONNECT, []byte("0"), []byte(tempId)), 2)
@@ -110,7 +116,7 @@ func (cl *HTTPProxyClientTCP) handleTCPReadFunc(tcpConn *TCPServerConn, data []b
 		return
 	}
 
-	if status == TCP_DISCONNECT_STATUS {
+	if status == webtools.TCP_DISCONNECT_STATUS {
 		//Connection ennded
 		cl.httpClient.Send(PackProxyFrame(PROXY_FRAME_TYPE_CLOSE, []byte(id), nil), 2)
 		return

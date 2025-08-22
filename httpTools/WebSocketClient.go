@@ -1,9 +1,11 @@
-package webtools
+package httptools
 
 import (
 	"encoding/base64"
 	"strings"
 	"time"
+	"webtools"
+	tcptools "webtools/tcpTools"
 )
 
 /*
@@ -68,8 +70,8 @@ Bool = isBinary
 type WebSocketClientReadFunc func(client *WebSocketClient, data []byte, status uint8, isBinary bool)
 
 type WebSocketClient struct {
-	tcpClient      *TCPClientUniversal
-	Logger         *ConsoleLogger
+	tcpClient      *tcptools.TCPClientUniversal
+	Logger         *webtools.ConsoleLogger
 	readFunc       WebSocketClientReadFunc
 	awaitingReady  bool
 	awaitingStatus bool
@@ -88,27 +90,27 @@ Creates new HTTP WebSocket Client but does not connects it, if you want to use d
 */
 func NewWebSocketClient(address string, readFunc WebSocketClientReadFunc, reportTraffic bool) (*WebSocketClient, error) {
 	//Create client
-	cl := &WebSocketClient{Logger: NewConsoleLoggerForTraffic("HTTP-WSClient", reportTraffic), readFunc: readFunc, address: address}
+	cl := &WebSocketClient{Logger: webtools.NewConsoleLoggerForTraffic("HTTP-WSClient", reportTraffic), readFunc: readFunc, address: address}
 	var err error
 	var tcpAddress string
 	tcpAddress, cl.pathForHTTP = HTTPWebSocketGetAddressAndTarget(address)
-	cl.tcpClient, err = NewTCPClientUniversal(tcpAddress, reportTraffic)
+	cl.tcpClient, err = tcptools.NewTCPClientUniversal(tcpAddress, reportTraffic)
 	cl.tcpClient.Logger = cl.Logger
 	cl.tcpClient.HandlerFuncs = append(cl.tcpClient.HandlerFuncs,
-		FiveValuePair[int, TCPClientUniversalReadHandlerFunc, TCPClientUniversalOnReadFunc, TCPClientUniversalOnWriteHandlerFunc, bool]{
-			A: 1,
-			B: handleTCPRead,
-			C: cl.readFuncLocalRaw,
-			D: writeToTCPHandler,
-			E: false,
+		tcptools.TCPClientUniversalHanderFuncs{
+			UseCount:               1,
+			ReadHandler:            tcptools.HandleTCPRead,
+			ReadFunc:               cl.readFuncLocalRaw,
+			WriteHandler:           tcptools.WriteToTCPHandler,
+			CanOneWriteAfterSwitch: false,
 		})
 	cl.tcpClient.HandlerFuncs = append(cl.tcpClient.HandlerFuncs,
-		FiveValuePair[int, TCPClientUniversalReadHandlerFunc, TCPClientUniversalOnReadFunc, TCPClientUniversalOnWriteHandlerFunc, bool]{
-			A: -1,
-			B: handleWebSocketFrameRead,
-			C: cl.readFuncLocalWS,
-			D: writeToWebSocketFrameHandler,
-			E: false,
+		tcptools.TCPClientUniversalHanderFuncs{
+			UseCount:               -1,
+			ReadHandler:            HandleWebSocketFrameRead,
+			ReadFunc:               cl.readFuncLocalWS,
+			WriteHandler:           WriteToWebSocketFrameHandler,
+			CanOneWriteAfterSwitch: false,
 		})
 	if err != nil {
 		return nil, err
@@ -128,7 +130,7 @@ func (cl *WebSocketClient) Connect() {
 	cl.tcpClient.Connect()
 
 	//Reset ready state
-	cl.tcpClient.Logger.Log(1, "Upgrading connection with: "+cl.tcpClient.address.String())
+	cl.tcpClient.Logger.Log(1, "Upgrading connection with: "+cl.tcpClient.GetAddress().String())
 	cl.awaitingReady = true
 	cl.hijacked = false
 
@@ -136,7 +138,7 @@ func (cl *WebSocketClient) Connect() {
 	host := strings.SplitN(cl.address, ":", 2)[0]
 
 	//Generate random key
-	cl.webSocketKey = base64.StdEncoding.EncodeToString([]byte(GenerateRandomString(24)))
+	cl.webSocketKey = base64.StdEncoding.EncodeToString([]byte(webtools.GenerateRandomString(24)))
 
 	//Make handshake GET
 	request := "GET " + cl.pathForHTTP + " HTTP/1.1\r\n" +
@@ -153,9 +155,9 @@ func (cl *WebSocketClient) Connect() {
 	if cl.awaitingStatus {
 		//Successfully connected
 		cl.hijacked = true
-		cl.tcpClient.Logger.Log(1, "Upgraded connection with: "+cl.tcpClient.address.String())
+		cl.tcpClient.Logger.Log(1, "Upgraded connection with: "+cl.tcpClient.GetAddress().String())
 	} else {
-		cl.tcpClient.Logger.Log(3, "Failed to upgrade connection with: "+cl.tcpClient.address.String())
+		cl.tcpClient.Logger.Log(3, "Failed to upgrade connection with: "+cl.tcpClient.GetAddress().String())
 		cl.tcpClient.Stop()
 	}
 }
@@ -170,8 +172,8 @@ func (cl *WebSocketClient) Send(data []byte, opcode uint8) {
 /*
 Local readFunc for local TCP client
 */
-func (cl *WebSocketClient) readFuncLocalRaw(_ *TCPClientUniversal, data []byte, status uint8, otherData map[string]any) {
-	if status == TCP_READ_DATA_STATUS && cl.awaitingReady {
+func (cl *WebSocketClient) readFuncLocalRaw(_ *tcptools.TCPClientUniversal, data []byte, status uint8, otherData map[string]any) {
+	if status == webtools.TCP_READ_DATA_STATUS && cl.awaitingReady {
 		//First request
 		if !strings.Contains(string(data), "HTTP/1.1 101 Switching Protocols") {
 			//Invalid switch
@@ -186,7 +188,7 @@ func (cl *WebSocketClient) readFuncLocalRaw(_ *TCPClientUniversal, data []byte, 
 		cl.awaitingReady = false
 		return
 	} else {
-		if status != TCP_READ_DATA_STATUS {
+		if status != webtools.TCP_READ_DATA_STATUS {
 			return
 		}
 		//Other requests
@@ -200,7 +202,7 @@ func (cl *WebSocketClient) readFuncLocalRaw(_ *TCPClientUniversal, data []byte, 
 /*
 Local readFunc for local TCP client with WebSocket frame
 */
-func (cl *WebSocketClient) readFuncLocalWS(_ *TCPClientUniversal, data []byte, status uint8, otherData map[string]any) {
+func (cl *WebSocketClient) readFuncLocalWS(_ *tcptools.TCPClientUniversal, data []byte, status uint8, otherData map[string]any) {
 	//Get opcode
 	isBinaryRaw := otherData["isBinary"]
 	if isBinaryRaw == nil || isBinaryRaw == "" {

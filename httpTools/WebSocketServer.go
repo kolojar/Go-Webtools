@@ -1,4 +1,4 @@
-package webtools
+package httptools
 
 import (
 	"crypto/sha1"
@@ -9,6 +9,8 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"webtools"
+	tcptools "webtools/tcpTools"
 )
 
 const webSocketGuid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
@@ -41,7 +43,7 @@ HTTP WebSocket server connection object
 */
 type WebSocketServerConn struct {
 	origin    *WebSocketServer
-	Client    *TCPClientUniversal
+	Client    *tcptools.TCPClientUniversal
 	IsBinary  bool
 	firstRead bool
 	urlParams map[string]string
@@ -55,7 +57,7 @@ func (httpConn *WebSocketServerConn) GetConn() *net.TCPConn {
 Sends data to client, it is set by first recieved packed, can be changed using IsBinary property
 */
 func (httpConn *WebSocketServerConn) Send(data []byte) {
-	httpConn.Client.Send(data, map[string]any{"opcode": FormatByBool[uint8](httpConn.IsBinary, 2, 1)})
+	httpConn.Client.Send(data, map[string]any{"opcode": webtools.FormatByBool[uint8](httpConn.IsBinary, 2, 1)})
 }
 
 /*
@@ -91,8 +93,8 @@ HTTP WebSocket server for JavaScript with standards
 */
 type WebSocketServer struct {
 	httpServer    *HTTPServer
-	Logger        *ConsoleLogger
-	conns         SafeMap[*TCPClientUniversal, *WebSocketServerConn]
+	Logger        *webtools.ConsoleLogger
+	conns         webtools.SafeMap[*tcptools.TCPClientUniversal, *WebSocketServerConn]
 	readFunc      WebSocketServerReadFunc
 	onAccessFunc  HTTPAccessFunc
 	websocketURL  string
@@ -110,7 +112,7 @@ func (sv *WebSocketServer) GetAddress() string {
 Creates new HTTP WebSocket Server but does not starts it
 */
 func NewHTTPWebSocketServer(address string, readFunc WebSocketServerReadFunc, onAccessFunc HTTPAccessFunc, rootPath string, reportTraffic bool) *WebSocketServer {
-	sv := &WebSocketServer{Logger: NewConsoleLoggerForTraffic("HTTP-WSServer", reportTraffic), reportTraffic: reportTraffic, readFunc: readFunc, conns: MakeSafeMap[*TCPClientUniversal, *WebSocketServerConn](), onAccessFunc: onAccessFunc, websocketURL: "/websocket"}
+	sv := &WebSocketServer{Logger: webtools.NewConsoleLoggerForTraffic("HTTP-WSServer", reportTraffic), reportTraffic: reportTraffic, readFunc: readFunc, conns: webtools.MakeSafeMap[*tcptools.TCPClientUniversal, *WebSocketServerConn](), onAccessFunc: onAccessFunc, websocketURL: "/websocket"}
 	sv.httpServer = NewHTTPServer(address, sv.handleHTTPAccess, rootPath, false)
 	sv.httpServer.Logger = sv.Logger
 	return sv
@@ -171,15 +173,15 @@ func (sv *WebSocketServer) handleHTTPAccess(_ *HTTPServer, w http.ResponseWriter
 		}
 
 		//Make client
-		cl := NewTCPClientUniversalFromConnection(conn.(*net.TCPConn), sv.reportTraffic)
+		cl := tcptools.NewTCPClientUniversalFromConnection(conn.(*net.TCPConn), sv.reportTraffic)
 		cl.Logger = sv.Logger
 		cl.HandlerFuncs = append(cl.HandlerFuncs,
-			FiveValuePair[int, TCPClientUniversalReadHandlerFunc, TCPClientUniversalOnReadFunc, TCPClientUniversalOnWriteHandlerFunc, bool]{
-				A: -1,
-				B: handleWebSocketFrameRead,
-				C: sv.readFuncLocal,
-				D: writeToWebSocketFrameHandler,
-				E: false,
+			tcptools.TCPClientUniversalHanderFuncs{
+				UseCount:               -1,
+				ReadHandler:            HandleWebSocketFrameRead,
+				ReadFunc:               sv.readFuncLocal,
+				WriteHandler:           WriteToWebSocketFrameHandler,
+				CanOneWriteAfterSwitch: false,
 			})
 		sv.conns.Set(cl, &WebSocketServerConn{origin: sv, Client: cl, urlParams: params, IsBinary: false, firstRead: true})
 		cl.Connect()
@@ -196,7 +198,7 @@ func (sv *WebSocketServer) handleHTTPAccess(_ *HTTPServer, w http.ResponseWriter
 	return false
 }
 
-func handleWebSocketFrameRead(cl *TCPClientUniversal, limit int, logger *ConsoleLogger, readFunc TCPClientUniversalOnReadFuncIntenal) (bool, error) {
+func HandleWebSocketFrameRead(cl *tcptools.TCPClientUniversal, limit int, logger *webtools.ConsoleLogger, readFunc tcptools.TCPClientUniversalOnReadFuncIntenal) (bool, error) {
 	for i := 0; i < limit || limit < 0; i++ {
 		//Read header of frame
 		header := make([]byte, 2)
@@ -274,7 +276,7 @@ func handleWebSocketFrameRead(cl *TCPClientUniversal, limit int, logger *Console
 		if opcode == 9 {
 			//Ping -> Send pong
 			logger.Log(1, "Got ping - Sending pong responce...")
-			err := writeToWebSocketFrameHandler(cl, payload, map[string]any{"opcode": uint8(10)})
+			err := WriteToWebSocketFrameHandler(cl, payload, map[string]any{"opcode": uint8(10)})
 			if err != nil {
 				logger.Log(3, "Error sending pong: "+err.Error())
 			}
@@ -303,7 +305,7 @@ Sources: https://en.wikipedia.org/wiki/WebSocket#Opcodes
 Some fixes applied from ChatGPT (big payloads)
 OpCode must be in range form 0 to 16 (from Wikipedia) in hex format
 */
-func PackWebSocketFrame(payload []byte, opcode uint8, logger *ConsoleLogger) []byte {
+func PackWebSocketFrame(payload []byte, opcode uint8, logger *webtools.ConsoleLogger) []byte {
 	//Check opcode size
 	if opcode >= 16 {
 		logger.Log(3, "Opcode must be in range from 0 to 15 (less than 16), ignoring...")
@@ -333,7 +335,7 @@ func PackWebSocketFrame(payload []byte, opcode uint8, logger *ConsoleLogger) []b
 	return frame
 }
 
-func writeToWebSocketFrameHandler(cl *TCPClientUniversal, data []byte, otherData map[string]any) error {
+func WriteToWebSocketFrameHandler(cl *tcptools.TCPClientUniversal, data []byte, otherData map[string]any) error {
 	//Get opcode
 	opcode := otherData["opcode"]
 	if opcode == nil || opcode == "" {
@@ -343,11 +345,11 @@ func writeToWebSocketFrameHandler(cl *TCPClientUniversal, data []byte, otherData
 
 	//Send
 	//	writeToTCP(conn, PackWebSocketFrame(payload, opcode, logger), logger)
-	return writeToTCPHandler(cl, PackWebSocketFrame(data, opcode.(uint8), cl.Logger), otherData)
+	return tcptools.WriteToTCPHandler(cl, PackWebSocketFrame(data, opcode.(uint8), cl.Logger), otherData)
 }
 
-func (sv *WebSocketServer) readFuncLocal(cl *TCPClientUniversal, data []byte, status uint8, otherData map[string]any) {
-	if status != TCP_READ_DATA_STATUS && status != TCP_DISCONNECT_STATUS {
+func (sv *WebSocketServer) readFuncLocal(cl *tcptools.TCPClientUniversal, data []byte, status uint8, otherData map[string]any) {
+	if status != webtools.TCP_READ_DATA_STATUS && status != webtools.TCP_DISCONNECT_STATUS {
 		//Non data requests
 		return
 	}
@@ -375,7 +377,7 @@ func (sv *WebSocketServer) readFuncLocal(cl *TCPClientUniversal, data []byte, st
 
 	// Check type
 	if isBinary != httpConn.IsBinary {
-		sv.Logger.Log(2, "Connection from: "+cl.GetConn().RemoteAddr().String()+" connected locally to: "+cl.GetConn().LocalAddr().String()+" has got data that are marked as "+FormatByBool(isBinary, "binary", "text")+" but this connection is marked as "+FormatByBool(httpConn.IsBinary, "binary", "text")+". Consilider changing properties of websocketConnection.")
+		sv.Logger.Log(2, "Connection from: "+cl.GetConn().RemoteAddr().String()+" connected locally to: "+cl.GetConn().LocalAddr().String()+" has got data that are marked as "+webtools.FormatByBool(isBinary, "binary", "text")+" but this connection is marked as "+webtools.FormatByBool(httpConn.IsBinary, "binary", "text")+". Consilider changing properties of websocketConnection.")
 	}
 
 	//Process read

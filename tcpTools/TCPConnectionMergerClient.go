@@ -1,22 +1,24 @@
-package webtools
+package tcptools
 
 import (
 	"encoding/json"
 	"net"
 	"slices"
 	"strconv"
+	"webtools"
+	proxytools "webtools/proxyTools"
 )
 
 /*
 TCP Connection merger client object
 */
 type TCPConnectionMergerClient struct {
-	clientToId                     SafeMap[*TCPServerConn, string]
-	idToClient                     SafeMap[string, *TCPServerConn]
+	clientToId                     webtools.SafeMap[*TCPServerConn, string]
+	idToClient                     webtools.SafeMap[string, *TCPServerConn]
 	tcpServers                     []*TCPServer
 	tcpClient                      *TCPClientSimple
-	pendingConnections             SafeMap[string, *TCPServerConn]
-	pendingConnsData               SafeMap[*TCPServerConn, [][]byte]
+	pendingConnections             webtools.SafeMap[string, *TCPServerConn]
+	pendingConnsData               webtools.SafeMap[*TCPServerConn, [][]byte]
 	tcpServerAddressesToLocalPorts map[string]string
 	localServersIPPrefix           string
 	reportTrafic                   bool
@@ -30,7 +32,7 @@ func (cl *TCPConnectionMergerClient) IsAlive() bool {
 Creates new TCP Connection merger Client but does not starts it
 */
 func NewTCPConnectionMergerClient(tcpMergedAddress string, localServersIPPrefix string, tcpServerAddressesToLocalPorts map[string]string, reportTraffic bool) (*TCPConnectionMergerClient, error) {
-	cl := &TCPConnectionMergerClient{clientToId: MakeSafeMap[*TCPServerConn, string](), pendingConnections: MakeSafeMap[string, *TCPServerConn](), idToClient: MakeSafeMap[string, *TCPServerConn](), pendingConnsData: MakeSafeMap[*TCPServerConn, [][]byte](), tcpServerAddressesToLocalPorts: tcpServerAddressesToLocalPorts, tcpServers: make([]*TCPServer, 0), localServersIPPrefix: localServersIPPrefix, reportTrafic: reportTraffic}
+	cl := &TCPConnectionMergerClient{clientToId: webtools.MakeSafeMap[*TCPServerConn, string](), pendingConnections: webtools.MakeSafeMap[string, *TCPServerConn](), idToClient: webtools.MakeSafeMap[string, *TCPServerConn](), pendingConnsData: webtools.MakeSafeMap[*TCPServerConn, [][]byte](), tcpServerAddressesToLocalPorts: tcpServerAddressesToLocalPorts, tcpServers: make([]*TCPServer, 0), localServersIPPrefix: localServersIPPrefix, reportTrafic: reportTraffic}
 	var err error
 	cl.tcpClient, err = NewTCPClientSimple(tcpMergedAddress, 0, false, cl.handleRemoteTCPReadFunc, reportTraffic)
 	if err != nil {
@@ -42,30 +44,29 @@ func NewTCPConnectionMergerClient(tcpMergedAddress string, localServersIPPrefix 
 }
 
 func (cl *TCPConnectionMergerClient) handleRemoteTCPReadFunc(_ *TCPClientSimple, frame []byte, status uint8) {
-	if status == TCP_DISCONNECT_STATUS {
+	if status == webtools.TCP_DISCONNECT_STATUS {
 		//Close all connections
 		for i := 0; i < len(cl.tcpServers); i++ {
 			cl.tcpServers[i].Stop()
 		}
 		return
 	}
-	if status != TCP_READ_DATA_STATUS {
+	if status != webtools.TCP_READ_DATA_STATUS {
 		return
 	}
 
 	//Unpack
-	for _, frame := range UnpackProxyFrame(frame, cl.tcpClient.GetLogger()) {
-		operation, id, data := frame.A, frame.B, frame.C
-		if operation == 0 {
+	for _, frame := range proxytools.UnpackProxyFrame(frame, cl.tcpClient.GetLogger()) {
+		if frame.Operation == 0 {
 			return
 		}
 
-		switch operation {
+		switch frame.Operation {
 		case TCP_MERGER_FRAME_TYPE_LIST_CONNECTIONS:
 			{
 				//List remote TCP servers
 				var addresses []string
-				err := json.Unmarshal(data, &addresses)
+				err := json.Unmarshal(frame.Data, &addresses)
 				if err != nil {
 					cl.tcpClient.GetLogger().Log(3, "Error unmarshalling server list: "+err.Error())
 					return
@@ -92,44 +93,44 @@ func (cl *TCPConnectionMergerClient) handleRemoteTCPReadFunc(_ *TCPClientSimple,
 				}
 				return
 			}
-		case PROXY_FRAME_TYPE_CONNECT:
+		case proxytools.PROXY_FRAME_TYPE_CONNECT:
 			{
 				//Confirmed connection
-				conn := cl.pendingConnections.Get(string(data))
+				conn := cl.pendingConnections.Get(string(frame.Data))
 				if conn == nil {
-					cl.tcpClient.GetLogger().Log(3, "Pending connection with temporary id: "+string(data)+" not found")
+					cl.tcpClient.GetLogger().Log(3, "Pending connection with temporary id: "+string(frame.Data)+" not found")
 					return
 				}
-				cl.pendingConnections.Delete(string(data))
-				cl.clientToId.Set(conn, string(id))
-				cl.idToClient.Set(string(id), conn)
-				cl.tcpClient.GetLogger().Log(1, "Prepared new connection with temporary id: "+string(data)+" for connection connected to: "+conn.GetConn().RemoteAddr().String()+" connected locally to: "+conn.GetConn().LocalAddr().String()+" with new id: "+string(id))
+				cl.pendingConnections.Delete(string(frame.Data))
+				cl.clientToId.Set(conn, string(frame.Id))
+				cl.idToClient.Set(string(frame.Id), conn)
+				cl.tcpClient.GetLogger().Log(1, "Prepared new connection with temporary id: "+string(frame.Data)+" for connection connected to: "+conn.GetConn().RemoteAddr().String()+" connected locally to: "+conn.GetConn().LocalAddr().String()+" with new id: "+string(frame.Id))
 
 				//Process pending data
 				for len(cl.pendingConnsData.Get(conn)) > 0 {
 					//Resend data
-					cl.tcpClient.Send(PackProxyFrame(PROXY_FRAME_TYPE_DATA, id, cl.pendingConnsData.Get(conn)[0]))
+					cl.tcpClient.Send(proxytools.PackProxyFrame(proxytools.PROXY_FRAME_TYPE_DATA, frame.Id, cl.pendingConnsData.Get(conn)[0]))
 					cl.pendingConnsData.Set(conn, cl.pendingConnsData.Get(conn)[1:])
 				}
 				cl.pendingConnsData.Delete(conn)
 				return
 			}
-		case PROXY_FRAME_TYPE_CLOSE:
+		case proxytools.PROXY_FRAME_TYPE_CLOSE:
 			{
 				//Close connection
-				cl.idToClient.Get(string(id)).Close()
+				cl.idToClient.Get(string(frame.Id)).Close()
 			}
-		case PROXY_FRAME_TYPE_DATA:
+		case proxytools.PROXY_FRAME_TYPE_DATA:
 			{
 				//Resend data
-				cl.idToClient.Get(string(id)).Send(data)
+				cl.idToClient.Get(string(frame.Id)).Send(frame.Data)
 			}
 		}
 	}
 }
 
 func (cl *TCPConnectionMergerClient) handleLocalTCPReadFunc(tcpConn *TCPServerConn, data []byte, status uint8) {
-	if status == TCP_CONNECT_STATUS {
+	if status == webtools.TCP_CONNECT_STATUS {
 		return
 	}
 	if cl.pendingConnsData.Get(tcpConn) != nil {
@@ -141,21 +142,21 @@ func (cl *TCPConnectionMergerClient) handleLocalTCPReadFunc(tcpConn *TCPServerCo
 	id := cl.clientToId.Get(tcpConn)
 	if id == "" {
 		//No connection found, request new
-		tempId := GenerateRandomId()
+		tempId := webtools.GenerateRandomId()
 		cl.pendingConnections.Set(tempId, tcpConn)
 		cl.tcpClient.GetLogger().Log(1, "Preparing new connection with temporary id: "+tempId+" for connection connected to: "+tcpConn.GetConn().RemoteAddr().String()+" connected locally to: "+tcpConn.GetConn().LocalAddr().String())
-		cl.tcpClient.Send(PackProxyFrame(PROXY_FRAME_TYPE_CONNECT, []byte(strconv.Itoa(slices.Index(cl.tcpServers, tcpConn.origin))), []byte(tempId)))
+		cl.tcpClient.Send(proxytools.PackProxyFrame(proxytools.PROXY_FRAME_TYPE_CONNECT, []byte(strconv.Itoa(slices.Index(cl.tcpServers, tcpConn.origin))), []byte(tempId)))
 		cl.pendingConnsData.Set(tcpConn, append(make([][]byte, 0), data))
 		return
 	}
 
-	if status == TCP_DISCONNECT_STATUS {
+	if status == webtools.TCP_DISCONNECT_STATUS {
 		//Connection ended
-		cl.tcpClient.Send(PackProxyFrame(PROXY_FRAME_TYPE_CLOSE, []byte(id), nil))
+		cl.tcpClient.Send(proxytools.PackProxyFrame(proxytools.PROXY_FRAME_TYPE_CLOSE, []byte(id), nil))
 		return
 	}
 	//Send data
-	cl.tcpClient.Send(PackProxyFrame(PROXY_FRAME_TYPE_DATA, []byte(id), data))
+	cl.tcpClient.Send(proxytools.PackProxyFrame(proxytools.PROXY_FRAME_TYPE_DATA, []byte(id), data))
 }
 
 /*
@@ -163,7 +164,7 @@ Connects to TCP Connection merger server and start reading loop, does not locks 
 */
 func (cl *TCPConnectionMergerClient) Connect() {
 	cl.tcpClient.Connect()
-	cl.tcpClient.Send(PackProxyFrame(TCP_MERGER_FRAME_TYPE_LIST_CONNECTIONS, []byte{0}, nil))
+	cl.tcpClient.Send(proxytools.PackProxyFrame(TCP_MERGER_FRAME_TYPE_LIST_CONNECTIONS, []byte{0}, nil))
 }
 
 /*
