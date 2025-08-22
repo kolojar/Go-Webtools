@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"strconv"
 	"webtools"
-	proxytools "webtools/proxyTools"
 )
 
 const TCP_MERGER_FRAME_TYPE_LIST_CONNECTIONS = uint8(4)
@@ -34,7 +33,7 @@ type TCPConnectionMergerServerTCPConn struct {
 Creates frame and sends it to remote TCP client
 */
 func (cl *TCPConnectionMergerServerTCPConn) SendToRemoteTCP(operation uint8, data []byte) {
-	cl.source.Send(proxytools.PackProxyFrame(operation, cl.id, data))
+	cl.source.Send(webtools.PackWebtoolsFrame(operation, cl.id, data))
 }
 
 /*
@@ -54,7 +53,7 @@ func (cl *TCPConnectionMergerServerTCPConn) Close(isInitiator bool) {
 	cl.tcpClient.Stop()
 	cl.origin.idToClient.Delete(string(cl.id))
 	if isInitiator {
-		cl.SendToRemoteTCP(proxytools.PROXY_FRAME_TYPE_CLOSE, nil)
+		cl.SendToRemoteTCP(webtools.WEBTOOLS_FRAME_TYPE_CLOSE, nil)
 	}
 	cl.origin.clientToId.Delete(cl.tcpClient)
 }
@@ -91,15 +90,15 @@ func (sv *TCPConnectionMergerServer) handleMergedTCPReadFunc(conn *TCPServerConn
 	}
 
 	//Unpack frame
-	for _, frame := range proxytools.UnpackProxyFrame(frame, conn.origin.Logger) {
+	for _, frame := range webtools.UnpackWebtoolsFrame(frame, conn.origin.Logger) {
 		if frame.Operation == 0 {
 			return
 		}
 
 		//Sort connections
-		if sv.idToClient.Get(string(frame.Id)) == nil || frame.Operation == proxytools.PROXY_FRAME_TYPE_CONNECT || frame.Operation == TCP_MERGER_FRAME_TYPE_LIST_CONNECTIONS {
+		if sv.idToClient.Get(string(frame.Id)) == nil || frame.Operation == webtools.WEBTOOLS_FRAME_TYPE_CONNECT || frame.Operation == TCP_MERGER_FRAME_TYPE_LIST_CONNECTIONS {
 			switch frame.Operation {
-			case proxytools.PROXY_FRAME_TYPE_CONNECT:
+			case webtools.WEBTOOLS_FRAME_TYPE_CONNECT:
 				//Get connection list id
 				i, err2 := strconv.Atoi(string(frame.Id))
 				if err2 != nil {
@@ -116,9 +115,9 @@ func (sv *TCPConnectionMergerServer) handleMergedTCPReadFunc(conn *TCPServerConn
 					return
 				}
 				cl.Connect()
-				sv.idToClient.Set(string(frame.Id), &TCPConnectionMergerServerTCPConn{tcpClient: cl, id: id, source: conn, origin: sv})
-				sv.clientToId.Set(cl, string(id))
-				sv.idToClient.Get(string(id)).SendToRemoteTCP(PROXY_FRAME_TYPE_CONNECT, data)
+				sv.idToClient.Set(string(frame.Id), &TCPConnectionMergerServerTCPConn{tcpClient: cl, id: frame.Id, source: conn, origin: sv})
+				sv.clientToId.Set(cl, string(frame.Id))
+				sv.idToClient.Get(string(frame.Id)).SendToRemoteTCP(webtools.WEBTOOLS_FRAME_TYPE_CONNECT, frame.Data)
 				return
 			case TCP_MERGER_FRAME_TYPE_LIST_CONNECTIONS:
 				//List available connections on server
@@ -127,31 +126,31 @@ func (sv *TCPConnectionMergerServer) handleMergedTCPReadFunc(conn *TCPServerConn
 					conn.origin.Logger.Log(3, "Could not create connection list: "+err.Error())
 					return
 				}
-				conn.Send(PackProxyFrame(TCP_MERGER_FRAME_TYPE_LIST_CONNECTIONS, []byte{0}, addrs))
+				conn.Send(webtools.PackWebtoolsFrame(TCP_MERGER_FRAME_TYPE_LIST_CONNECTIONS, []byte{0}, addrs))
 				return
 			default:
-				conn.origin.Logger.Log(3, "Could not find connection to id: "+string(id))
+				conn.origin.Logger.Log(3, "Could not find connection to id: "+string(frame.Id))
 				return
 			}
 		}
 
-		cl := sv.idToClient.Get(string(id))
+		cl := sv.idToClient.Get(string(frame.Id))
 		if !cl.tcpClient.IsAlive() {
-			conn.origin.Logger.Log(3, "Connection with id: "+string(id)+" connected to: "+conn.GetConn().RemoteAddr().String()+" connected locally to: "+conn.GetConn().LocalAddr().String()+" closed")
+			conn.origin.Logger.Log(3, "Connection with id: "+string(frame.Id)+" connected to: "+conn.GetConn().RemoteAddr().String()+" connected locally to: "+conn.GetConn().LocalAddr().String()+" closed")
 			return
 		}
 
 		//Sort operations
-		switch operation {
-		case PROXY_FRAME_TYPE_CLOSE:
+		switch frame.Operation {
+		case webtools.WEBTOOLS_FRAME_TYPE_CLOSE:
 			{
 				//Close connection
 				cl.Close(false)
 			}
-		case PROXY_FRAME_TYPE_DATA:
+		case webtools.WEBTOOLS_FRAME_TYPE_DATA:
 			{
 				//Send to TCP
-				cl.SendToLocalTCP(data)
+				cl.SendToLocalTCP(frame.Data)
 			}
 		}
 	}
@@ -176,7 +175,7 @@ func (sv *TCPConnectionMergerServer) handleLocalTCPReadFunc(tcp *TCPClientSimple
 	}
 
 	//Send to client
-	cl.SendToRemoteTCP(PROXY_FRAME_TYPE_DATA, data)
+	cl.SendToRemoteTCP(webtools.WEBTOOLS_FRAME_TYPE_DATA, data)
 }
 
 /*

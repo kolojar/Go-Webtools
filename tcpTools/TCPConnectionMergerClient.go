@@ -6,7 +6,6 @@ import (
 	"slices"
 	"strconv"
 	"webtools"
-	proxytools "webtools/proxyTools"
 )
 
 /*
@@ -56,7 +55,7 @@ func (cl *TCPConnectionMergerClient) handleRemoteTCPReadFunc(_ *TCPClientSimple,
 	}
 
 	//Unpack
-	for _, frame := range proxytools.UnpackProxyFrame(frame, cl.tcpClient.GetLogger()) {
+	for _, frame := range webtools.UnpackWebtoolsFrame(frame, cl.tcpClient.GetLogger()) {
 		if frame.Operation == 0 {
 			return
 		}
@@ -93,7 +92,7 @@ func (cl *TCPConnectionMergerClient) handleRemoteTCPReadFunc(_ *TCPClientSimple,
 				}
 				return
 			}
-		case proxytools.PROXY_FRAME_TYPE_CONNECT:
+		case webtools.WEBTOOLS_FRAME_TYPE_CONNECT:
 			{
 				//Confirmed connection
 				conn := cl.pendingConnections.Get(string(frame.Data))
@@ -109,18 +108,18 @@ func (cl *TCPConnectionMergerClient) handleRemoteTCPReadFunc(_ *TCPClientSimple,
 				//Process pending data
 				for len(cl.pendingConnsData.Get(conn)) > 0 {
 					//Resend data
-					cl.tcpClient.Send(proxytools.PackProxyFrame(proxytools.PROXY_FRAME_TYPE_DATA, frame.Id, cl.pendingConnsData.Get(conn)[0]))
+					cl.tcpClient.Send(webtools.PackWebtoolsFrame(webtools.WEBTOOLS_FRAME_TYPE_DATA, frame.Id, cl.pendingConnsData.Get(conn)[0]))
 					cl.pendingConnsData.Set(conn, cl.pendingConnsData.Get(conn)[1:])
 				}
 				cl.pendingConnsData.Delete(conn)
 				return
 			}
-		case proxytools.PROXY_FRAME_TYPE_CLOSE:
+		case webtools.WEBTOOLS_FRAME_TYPE_CLOSE:
 			{
 				//Close connection
 				cl.idToClient.Get(string(frame.Id)).Close()
 			}
-		case proxytools.PROXY_FRAME_TYPE_DATA:
+		case webtools.WEBTOOLS_FRAME_TYPE_DATA:
 			{
 				//Resend data
 				cl.idToClient.Get(string(frame.Id)).Send(frame.Data)
@@ -145,18 +144,18 @@ func (cl *TCPConnectionMergerClient) handleLocalTCPReadFunc(tcpConn *TCPServerCo
 		tempId := webtools.GenerateRandomId()
 		cl.pendingConnections.Set(tempId, tcpConn)
 		cl.tcpClient.GetLogger().Log(1, "Preparing new connection with temporary id: "+tempId+" for connection connected to: "+tcpConn.GetConn().RemoteAddr().String()+" connected locally to: "+tcpConn.GetConn().LocalAddr().String())
-		cl.tcpClient.Send(proxytools.PackProxyFrame(proxytools.PROXY_FRAME_TYPE_CONNECT, []byte(strconv.Itoa(slices.Index(cl.tcpServers, tcpConn.origin))), []byte(tempId)))
+		cl.tcpClient.Send(webtools.PackWebtoolsFrame(webtools.WEBTOOLS_FRAME_TYPE_CONNECT, []byte(strconv.Itoa(slices.Index(cl.tcpServers, tcpConn.origin))), []byte(tempId)))
 		cl.pendingConnsData.Set(tcpConn, append(make([][]byte, 0), data))
 		return
 	}
 
 	if status == webtools.TCP_DISCONNECT_STATUS {
 		//Connection ended
-		cl.tcpClient.Send(proxytools.PackProxyFrame(proxytools.PROXY_FRAME_TYPE_CLOSE, []byte(id), nil))
+		cl.tcpClient.Send(webtools.PackWebtoolsFrame(webtools.WEBTOOLS_FRAME_TYPE_CLOSE, []byte(id), nil))
 		return
 	}
 	//Send data
-	cl.tcpClient.Send(proxytools.PackProxyFrame(proxytools.PROXY_FRAME_TYPE_DATA, []byte(id), data))
+	cl.tcpClient.Send(webtools.PackWebtoolsFrame(webtools.WEBTOOLS_FRAME_TYPE_DATA, []byte(id), data))
 }
 
 /*
@@ -164,7 +163,7 @@ Connects to TCP Connection merger server and start reading loop, does not locks 
 */
 func (cl *TCPConnectionMergerClient) Connect() {
 	cl.tcpClient.Connect()
-	cl.tcpClient.Send(proxytools.PackProxyFrame(TCP_MERGER_FRAME_TYPE_LIST_CONNECTIONS, []byte{0}, nil))
+	cl.tcpClient.Send(webtools.PackWebtoolsFrame(TCP_MERGER_FRAME_TYPE_LIST_CONNECTIONS, []byte{0}, nil))
 }
 
 /*

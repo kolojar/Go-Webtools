@@ -7,6 +7,10 @@ import (
 	"strings"
 	"time"
 	"webtools"
+	httptools "webtools/httpTools"
+	proxytools "webtools/proxyTools"
+	tcptools "webtools/tcpTools"
+	udptools "webtools/udpTools"
 )
 
 func main() {
@@ -14,14 +18,14 @@ func main() {
 	switch os.Args[1] {
 	case "ts":
 		{
-			server, _ := webtools.NewTCPServer("127.0.0.1:7777", readFuncTCPSv, true, true)
+			server, _ := tcptools.NewTCPServer("127.0.0.1:7777", readFuncTCPSv, true, true)
 			server.SetupEncryption(true, "1234")
 			server.Start()
 			break
 		}
 	case "tc":
 		{
-			client, _ := webtools.NewTCPClientSimple("127.0.0.1:17777", 0, false, readFuncTCPCl, true)
+			client, _ := tcptools.NewTCPClientSimple("127.0.0.1:7777", 0, false, readFuncTCPCl, true)
 			client.SetupEncryption(true, "1234")
 			client.Connect()
 			for i := 0; i < 100; i++ {
@@ -34,13 +38,13 @@ func main() {
 		}
 	case "us":
 		{
-			server, _ := webtools.NewUDPServer("127.0.0.1:7777", readFuncUDPSv, true)
+			server, _ := udptools.NewUDPServer("127.0.0.1:7777", readFuncUDPSv, true)
 			server.Start()
 			break
 		}
 	case "uc":
 		{
-			client, _ := webtools.NewUDPClient("127.0.0.1:17777", readFuncUDPCl, true)
+			client, _ := udptools.NewUDPClient("127.0.0.1:17777", readFuncUDPCl, true)
 			client.Connect()
 			for i := 0; i < 500; i++ {
 				client.Send([]byte("Test"))
@@ -54,7 +58,7 @@ func main() {
 		}
 	case "hs":
 		{
-			sv := webtools.NewHTTPServer("127.0.0.1:7777", nil, "", false)
+			sv := httptools.NewHTTPServer("127.0.0.1:7777", nil, "", false)
 			sv.HostPaths["/test"] = "./test"
 			sv.Start()
 		}
@@ -74,12 +78,12 @@ func main() {
 	//	}
 	case "hpst":
 		{
-			sv := webtools.NewHTTPProxyServerTCP("127.0.0.1:8880", "127.0.0.1:7777", true)
+			sv := proxytools.NewHTTPProxyServerTCP("127.0.0.1:8880", "127.0.0.1:7777", true)
 			sv.Start()
 		}
 	case "hpct":
 		{
-			cl, err := webtools.NewHTTPProxyClientTCP("127.0.0.1:8880/websocket", "127.0.0.1:17777", true)
+			cl, err := proxytools.NewHTTPProxyClientTCP("127.0.0.1:8880/websocket", "127.0.0.1:17777", true)
 			if err != nil {
 				fmt.Println(err.Error())
 				return
@@ -88,11 +92,6 @@ func main() {
 			for cl.IsAlive() {
 				time.Sleep(1 * time.Second)
 			}
-		}
-	case "br":
-		{
-			br := webtools.NewUDPBridge("127.0.0.1:7777", "127.0.0.1:17777")
-			br.Start()
 		}
 	//case "hpsu":
 	//	{
@@ -113,12 +112,12 @@ func main() {
 	//	}
 	case "tpsu":
 		{
-			sv, _ := webtools.NewTCPProxyServerUDP("127.0.0.1:5679", "127.0.0.1:7777", true)
+			sv, _ := proxytools.NewTCPProxyServerUDP("127.0.0.1:5679", "127.0.0.1:7777", true)
 			sv.Start()
 		}
 	case "tpcu":
 		{
-			cl, err := webtools.NewTCPProxyClientUDP("127.0.0.1:5681", "127.0.0.1:17777", true)
+			cl, err := proxytools.NewTCPProxyClientUDP("127.0.0.1:5681", "127.0.0.1:17777", true)
 			if err != nil {
 				fmt.Println(err)
 				return
@@ -130,12 +129,12 @@ func main() {
 		}
 	case "tcms":
 		{
-			sv, _ := webtools.NewTCPConnectionMergerServer("127.0.0.1:8882", []string{"127.0.0.1:5679", "127.0.0.1:7777", "127.0.0.1:8888"}, true)
+			sv, _ := tcptools.NewTCPConnectionMergerServer("127.0.0.1:8882", []string{"127.0.0.1:5679", "127.0.0.1:7777", "127.0.0.1:8888"}, true)
 			sv.Start()
 		}
 	case "tcmc":
 		{
-			cl, _ := webtools.NewTCPConnectionMergerClient("127.0.0.1:8882", "127.0.0.1", map[string]string{"127.0.0.1:5679": "5681", "127.0.0.1:7777": "17777", "127.0.0.1:8888": "8888"}, true)
+			cl, _ := tcptools.NewTCPConnectionMergerClient("127.0.0.1:8882", "127.0.0.1", map[string]string{"127.0.0.1:5679": "5681", "127.0.0.1:7777": "17777", "127.0.0.1:8888": "8888"}, true)
 			cl.Connect()
 			for cl.IsAlive() {
 				time.Sleep(1 * time.Second)
@@ -143,12 +142,12 @@ func main() {
 		}
 	case "hpst2":
 		{
-			sv := webtools.NewHTTPProxyServerTCP("127.0.0.1:9013", "127.0.0.1:9012", true)
+			sv := proxytools.NewHTTPProxyServerTCP("127.0.0.1:9013", "127.0.0.1:9012", true)
 			sv.Start()
 		}
 	case "hpct2":
 		{
-			cl, _ := webtools.NewHTTPProxyClientTCP("127.0.0.1:9013", "127.0.0.1:9014", true)
+			cl, _ := proxytools.NewHTTPProxyClientTCP("127.0.0.1:9013", "127.0.0.1:9014", true)
 			cl.Connect()
 			for cl.IsAlive() {
 				time.Sleep(1 * time.Second)
@@ -156,13 +155,13 @@ func main() {
 		}
 	case "wss":
 		{
-			sv := webtools.NewHTTPWebSocketServer("127.0.0.1:1234", readFuncHTTPWsSv, nil, "", true)
+			sv := httptools.NewHTTPWebSocketServer("127.0.0.1:1234", readFuncHTTPWsSv, nil, "", true)
 			sv.GetHTTPServer().HostPaths["/test"] = "./test"
 			sv.Start()
 		}
 	case "wsc":
 		{
-			cl, err := webtools.NewWebSocketClient("127.0.0.1:1234/websocket", readFuncHTTPWsCl, true)
+			cl, err := httptools.NewWebSocketClient("127.0.0.1:1234/websocket", readFuncHTTPWsCl, true)
 			if err != nil {
 				fmt.Println(err.Error())
 				return
@@ -179,13 +178,13 @@ func main() {
 
 var rc int = 0
 
-func readFuncTCPSv(conn *webtools.TCPServerConn, data []byte, status uint8) {
+func readFuncTCPSv(conn *tcptools.TCPServerConn, data []byte, status uint8) {
 	if status == webtools.TCP_READ_DATA_STATUS {
 		conn.Send(data)
 	}
 }
 
-func readFuncTCPCl(conn *webtools.TCPClientSimple, data []byte, status uint8) {
+func readFuncTCPCl(conn *tcptools.TCPClientSimple, data []byte, status uint8) {
 	//conn.Send(data)
 	//if !ended {
 	//	//conn.Stop()
@@ -194,13 +193,13 @@ func readFuncTCPCl(conn *webtools.TCPClientSimple, data []byte, status uint8) {
 	rc += len(strings.Split(string(data), "|")) - 1
 }
 
-func readFuncUDPSv(conn *webtools.UDPServerConn, data []byte, ended bool) {
+func readFuncUDPSv(conn *udptools.UDPServerConn, data []byte, ended bool) {
 	if !ended {
 		conn.Send(data)
 	}
 }
 
-func readFuncUDPCl(conn *webtools.UDPClient, data []byte, ended bool) {
+func readFuncUDPCl(conn *udptools.UDPClient, data []byte, ended bool) {
 	//conn.Send(data)
 	//if !ended {
 	//	conn.Stop()
@@ -223,13 +222,13 @@ func readFuncUDPCl(conn *webtools.UDPClient, data []byte, ended bool) {
 //	}
 //}
 
-func readFuncHTTPWsSv(conn *webtools.WebSocketServerConn, data []byte, status uint8, isBinary bool) {
+func readFuncHTTPWsSv(conn *httptools.WebSocketServerConn, data []byte, status uint8, isBinary bool) {
 	if status > 1 {
 		conn.Send(data)
 	}
 }
 
-func readFuncHTTPWsCl(conn *webtools.WebSocketClient, data []byte, status uint8, isBinary bool) {
+func readFuncHTTPWsCl(conn *httptools.WebSocketClient, data []byte, status uint8, isBinary bool) {
 	if status == webtools.TCP_READ_DATA_STATUS {
 		conn.Stop()
 	}

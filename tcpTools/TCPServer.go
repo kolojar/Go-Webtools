@@ -7,8 +7,6 @@ import (
 	"webtools"
 )
 
-const BUFFER_SIZE = 1024 * 16
-
 /*
 Server connection interface
 */
