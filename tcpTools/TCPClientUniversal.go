@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 	"webtools"
+	"webtools/encryption"
 )
 
 /*
@@ -177,7 +178,7 @@ func (tcp *TCPClientUniversal) localReadFunc(data []byte, otherData map[string]a
 		//Decrypt
 		tcp.Logger.Log(0, "Reading enrypted from: "+tcp.conn.RemoteAddr().String()+" connected locally to: "+tcp.conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data)+" | Other data: "+webtools.MapToString(otherData))
 		var err error
-		data, err = webtools.Decrypt(tcp.encryptionPassword, data)
+		data, err = encryption.DecryptSymmetric(tcp.encryptionPassword, data)
 		if err != nil {
 			tcp.Logger.Log(3, "Error decrypting: "+err.Error())
 			return
@@ -217,7 +218,7 @@ func (tcp *TCPClientUniversal) Send(data []byte, otherData map[string]any) {
 		if tcp.useEncryption {
 			//Encrypt
 			var err error
-			data, err = webtools.Encrypt(tcp.encryptionPassword, data)
+			data, err = encryption.EncryptSymmetric(tcp.encryptionPassword, data)
 			if err != nil {
 				tcp.Logger.Log(3, "Error encrypting: "+err.Error())
 				return

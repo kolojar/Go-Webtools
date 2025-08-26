@@ -1,4 +1,4 @@
-package webtools
+package encryption
 
 import (
 	"bytes"
@@ -7,22 +7,16 @@ import (
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
-	"crypto/sha512"
 	"encoding/hex"
 	"errors"
 	"io"
 	"strconv"
 )
 
-type PasswordObject struct {
-	Hash string //In hex format
-	Salt string //In hex format
-}
-
 /*
-Encrypts data using specified key
+Encrypts data using specified key (symmetric encryption)
 */
-func Encrypt(plainKey string, dataToEncrypt []byte) ([]byte, error) {
+func EncryptSymmetric(plainKey string, dataToEncrypt []byte) ([]byte, error) {
 	//Make key
 	salt, _ := GeneratePasswordSalt(32)
 	saltData, _ := hex.DecodeString(salt)
@@ -65,9 +59,9 @@ func Encrypt(plainKey string, dataToEncrypt []byte) ([]byte, error) {
 }
 
 /*
-Decrypts data using specified key
+Decrypts data using specified key (symmetric encryption)
 */
-func Decrypt(plainKey string, encryptedData []byte) ([]byte, error) {
+func DecryptSymmetric(plainKey string, encryptedData []byte) ([]byte, error) {
 	//Check encrypted text lenght
 	if len(encryptedData) < 48 {
 		return nil, errors.New("ciphertext too short")
@@ -196,75 +190,4 @@ func pkcs7Unpad(data []byte) ([]byte, error) {
 	}
 
 	return data[:len(data)-padding], nil
-}
-
-/*
-Removes padding from text to support encryption algorythm
-*/
-//func unpadText(text string) string {
-//	lastChar := text[len(text)-1]
-//	for strings.HasSuffix(text, "\x10") {
-//		text = strings.TrimSuffix(text, "\x10")
-//	}
-//	if lastChar != '|' {
-//		charCount, _ := strconv.ParseInt(string(lastChar), aes.BlockSize, 32)
-//		text = text[:len(text)-int(charCount)]
-//	}
-//	return strings.TrimSuffix(text, "|")
-//}
-
-/*
-Creates password hash in hexadecimal format
-*/
-func MakePasswordHash(plainPassword string, plainSalt string) (PasswordObject, error) {
-	//Decode salt
-	salt, err := hex.DecodeString(plainSalt)
-	if err != nil {
-		return PasswordObject{}, err
-	}
-
-	//Make hash
-	hmacHash := hmac.New(sha512.New, salt)
-	hmacHash.Write([]byte(plainPassword))
-	return PasswordObject{Hash: hex.EncodeToString(hmacHash.Sum(nil)), Salt: plainSalt}, nil
-}
-
-/*
-Checks password (automatically hashes)
-*/
-func (passwordObject PasswordObject) CheckPassword(plainPassword string) (bool, error) {
-	obj, err := MakePasswordHash(plainPassword, passwordObject.Salt)
-	if err != nil {
-		return false, err
-	}
-	return passwordObject.CheckPasswordHash(obj.Hash)
-}
-
-/*
-Checks password hash
-*/
-func (passwordObject PasswordObject) CheckPasswordHash(passwordHash string) (bool, error) {
-	//Decode hex format
-	hash1, err := hex.DecodeString(passwordHash)
-	if err != nil {
-		return false, err
-	}
-	hash2, err := hex.DecodeString(passwordObject.Hash)
-	if err != nil {
-		return false, err
-	}
-	return hmac.Equal(hash1, hash2), nil
-}
-
-/*
-Generates salt for password hashing in hexadecimal format
-Use 32 or 64 byte salt
-*/
-func GeneratePasswordSalt(lenght int) (string, error) {
-	salt := make([]byte, lenght)
-	_, err := io.ReadFull(rand.Reader, salt)
-	if err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(salt), nil
 }
