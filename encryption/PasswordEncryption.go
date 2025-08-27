@@ -14,7 +14,7 @@ type PasswordObject struct {
 }
 
 /*
-Creates password hash in hexadecimal format
+MakePasswordHash makes password hash in hexadecimal format
 */
 func MakePasswordHash(plainPassword string, plainSalt string) (PasswordObject, error) {
 	// Decode salt
@@ -30,7 +30,7 @@ func MakePasswordHash(plainPassword string, plainSalt string) (PasswordObject, e
 }
 
 /*
-Checks password (automatically hashes)
+CheckPassword checks password (automatically hashes)
 */
 func (passwordObject PasswordObject) CheckPassword(plainPassword string) (bool, error) {
 	obj, err := MakePasswordHash(plainPassword, passwordObject.Salt)
@@ -41,7 +41,7 @@ func (passwordObject PasswordObject) CheckPassword(plainPassword string) (bool, 
 }
 
 /*
-Checks password hash
+CheckPasswordHash checks password hash
 */
 func (passwordObject PasswordObject) CheckPasswordHash(passwordHash string) (bool, error) {
 	// Decode hex format
@@ -57,7 +57,7 @@ func (passwordObject PasswordObject) CheckPasswordHash(passwordHash string) (boo
 }
 
 /*
-Generates salt for password hashing in hexadecimal format
+GeneratePasswordSalt generates salt for password hashing in hexadecimal format
 Use 32 or 64 byte salt
 */
 func GeneratePasswordSalt(lenght int) (string, error) {

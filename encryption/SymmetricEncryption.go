@@ -14,7 +14,7 @@ import (
 )
 
 /*
-Encrypts data using specified key (symmetric encryption)
+EncryptSymmetric encrypts data using specified key (symmetric encryption)
 */
 func EncryptSymmetric(password []byte, dataToEncrypt []byte) ([]byte, error) {
 	if password == nil {
@@ -64,7 +64,7 @@ func EncryptSymmetric(password []byte, dataToEncrypt []byte) ([]byte, error) {
 }
 
 /*
-Decrypts data using specified key (symmetric encryption)
+DecryptSymmetric decrypts data using specified key (symmetric encryption)
 */
 func DecryptSymmetric(password []byte, encryptedData []byte) ([]byte, error) {
 	if password == nil {

@@ -1,3 +1,4 @@
+// Package encryption adds support for: symetric - AES + PKCS7Pad; asymetric encryption - OAEP + Signature; passwords - hmac hashes
 package encryption
 
 import (
@@ -15,7 +16,7 @@ import (
 )
 
 /*
-Asymmectric encryption support using OAEP
+AsymmetricEncryption support using OAEP
 */
 type AsymmetricEncryption struct {
 	privateKey        *rsa.PrivateKey
@@ -24,7 +25,7 @@ type AsymmetricEncryption struct {
 }
 
 /*
-Asymmectric signed data, signature in Base64 format
+AsymmetricSignedData signature in Base64 format
 */
 type AsymmetricSignedData struct {
 	Data      []byte
@@ -51,7 +52,7 @@ func newAsymmetricEncryptionStruct(encryptStoredKeys bool) (*AsymmetricEncryptio
 }
 
 /*
-Creates new Asymmetric Encryption with new private and public key
+NewAsymmetricEncryption creates new Asymmetric Encryption with new private and public key
 */
 func NewAsymmetricEncryption(encryptStoredKeys bool) (*AsymmetricEncryption, error) {
 	// Get struct
@@ -69,7 +70,7 @@ func NewAsymmetricEncryption(encryptStoredKeys bool) (*AsymmetricEncryption, err
 }
 
 /*
-Loads private and public key for Asymmetric Encryption
+LoadAsymmetricEncryption loads private and public key for Asymmetric Encryption
 */
 func LoadAsymmetricEncryption(encryptStoredKeys bool, privateKeyPath string, publicKeyPath string) (*AsymmetricEncryption, error) {
 	// Get struct
@@ -133,7 +134,7 @@ func LoadAsymmetricEncryption(encryptStoredKeys bool, privateKeyPath string, pub
 }
 
 /*
-Encrypts data using destination Public Key
+EncryptWithLabel encrypts data using destination Public Key
 Label is used for providing context for data, must be same in decryption
 */
 func (enc *AsymmetricEncryption) EncryptWithLabel(data []byte, label []byte, destinationPublicKey *rsa.PublicKey) ([]byte, error) {
@@ -143,14 +144,14 @@ func (enc *AsymmetricEncryption) EncryptWithLabel(data []byte, label []byte, des
 }
 
 /*
-Encrypts data using destination Public Key
+Encrypt encrypts data using destination Public Key
 */
 func (enc *AsymmetricEncryption) Encrypt(data []byte, destinationPublicKey *rsa.PublicKey) ([]byte, error) {
 	return enc.EncryptWithLabel(data, []byte(""), destinationPublicKey)
 }
 
 /*
-Decrypts data using local Private Key
+DecryptWithLabel decrypts data using local Private Key
 Label is used for providing context for data, must be same in encryption
 */
 func (enc *AsymmetricEncryption) DecryptWithLabel(data []byte, label []byte) ([]byte, error) {
@@ -160,14 +161,14 @@ func (enc *AsymmetricEncryption) DecryptWithLabel(data []byte, label []byte) ([]
 }
 
 /*
-Decrypts data using local Private Key
+Decrypt decrypts data using local Private Key
 */
 func (enc *AsymmetricEncryption) Decrypt(data []byte) ([]byte, error) {
 	return enc.DecryptWithLabel(data, []byte(""))
 }
 
 /*
-Signs data using local Private Key
+Sign signs data using local Private Key
 */
 func (enc *AsymmetricEncryption) Sign(data []byte) (*AsymmetricSignedData, error) {
 	// Create hash
@@ -184,7 +185,7 @@ func (enc *AsymmetricEncryption) Sign(data []byte) (*AsymmetricSignedData, error
 }
 
 /*
-Verifies data using source Public Key
+Verify verifies data using source Public Key
 Returns original data if verification was successfull (nil error)
 */
 func (enc *AsymmetricEncryption) Verify(signedData *AsymmetricSignedData, sourcePublicKey *rsa.PublicKey) ([]byte, error) {
@@ -209,7 +210,7 @@ func (enc *AsymmetricEncryption) Verify(signedData *AsymmetricSignedData, source
 }
 
 /*
-Saves private and public key for Asymmetric Encryption
+SaveAsymmetricEncryption saves private and public key for Asymmetric Encryption
 */
 func (enc *AsymmetricEncryption) SaveAsymmetricEncryption(privateKeyPath string, publicKeyPath string) error {
 	// Encode public key
