@@ -1,7 +1,9 @@
 package webtools
 
 import (
+	"bufio"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 )
@@ -96,4 +98,13 @@ Creates new ConsoleLogger with option to disable traffic report. Traffic reports
 */
 func NewConsoleLoggerForTraffic(prefix string, reportTraffic bool) *ConsoleLogger {
 	return NewConsoleLogger(prefix, FormatByBool[uint8](reportTraffic, 0, 1))
+}
+
+/*
+Reads line from console
+*/
+func ReadLineFromConsole(message string) ([]byte, error) {
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Print(message)
+	return reader.ReadBytes(byte('\n'))
 }

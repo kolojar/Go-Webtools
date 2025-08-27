@@ -9,21 +9,21 @@ import (
 )
 
 type PasswordObject struct {
-	Hash string //In hex format
-	Salt string //In hex format
+	Hash string // In hex format
+	Salt string // In hex format
 }
 
 /*
 Creates password hash in hexadecimal format
 */
 func MakePasswordHash(plainPassword string, plainSalt string) (PasswordObject, error) {
-	//Decode salt
+	// Decode salt
 	salt, err := hex.DecodeString(plainSalt)
 	if err != nil {
 		return PasswordObject{}, err
 	}
 
-	//Make hash
+	// Make hash
 	hmacHash := hmac.New(sha512.New, salt)
 	hmacHash.Write([]byte(plainPassword))
 	return PasswordObject{Hash: hex.EncodeToString(hmacHash.Sum(nil)), Salt: plainSalt}, nil
@@ -44,7 +44,7 @@ func (passwordObject PasswordObject) CheckPassword(plainPassword string) (bool, 
 Checks password hash
 */
 func (passwordObject PasswordObject) CheckPasswordHash(passwordHash string) (bool, error) {
-	//Decode hex format
+	// Decode hex format
 	hash1, err := hex.DecodeString(passwordHash)
 	if err != nil {
 		return false, err
