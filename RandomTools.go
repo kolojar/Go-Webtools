@@ -24,3 +24,16 @@ func GenerateRandomString(lenght int) string {
 	}
 	return result
 }
+
+/*
+Removes element from slice
+*/
+func RemoveElement[T comparable](array []T, item T) []T {
+	result := make([]T, 0)
+	for i := 0; i < len(array); i++ {
+		if array[i] != item {
+			result = append(result, array[i])
+		}
+	}
+	return result
+}

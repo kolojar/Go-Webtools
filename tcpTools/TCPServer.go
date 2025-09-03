@@ -4,6 +4,7 @@ import (
 	"net"
 	"strconv"
 	"time"
+
 	"webtools"
 )
 
@@ -71,7 +72,7 @@ type TCPServer struct {
 	conns              webtools.SafeMap[*TCPClientSimple, *TCPServerConn]
 	framed             bool
 	useEncryption      bool
-	encryptionPassword string
+	encryptionPassword []byte
 }
 
 func (sv *TCPServer) IsAlive() bool {
@@ -86,7 +87,7 @@ func (sv *TCPServer) GetAddress() string {
 Creates new TCP Server but does not starts it
 */
 func NewTCPServer(address string, readFunc TCPServerReadFunc, reportTraffic bool, framed bool) (*TCPServer, error) {
-	//Make address
+	// Make address
 	addressObj, err := net.ResolveTCPAddr("tcp", address)
 	if err != nil {
 		return nil, err
@@ -97,24 +98,28 @@ func NewTCPServer(address string, readFunc TCPServerReadFunc, reportTraffic bool
 /*
 Setups encryption, it is strongly recommended to use encryption with framed connection
 */
-func (sv *TCPServer) SetupEncryption(useEncryption bool, password string) {
+func (sv *TCPServer) SetupEncryption(useEncryption bool, password []byte) {
 	sv.useEncryption = useEncryption
-	sv.encryptionPassword = password
+	if useEncryption {
+		sv.encryptionPassword = password
+	} else {
+		sv.encryptionPassword = nil
+	}
 }
 
 /*
 Starts TCP Server. Locks execution thread
 */
 func (tcp *TCPServer) Start() {
-	//Check if already running
+	// Check if already running
 	if tcp.isAlive {
 		return
 	}
 
-	//Reset stop request
+	// Reset stop request
 	tcp.requestedStop = false
 
-	//Open listener
+	// Open listener
 	var err error
 	tcp.listener, err = net.ListenTCP("tcp", tcp.address)
 	if err != nil {
@@ -124,19 +129,19 @@ func (tcp *TCPServer) Start() {
 	tcp.isAlive = true
 	tcp.Logger.Log(2, "Started listening on "+tcp.address.String())
 
-	//Listener loop
+	// Listener loop
 	for !tcp.requestedStop {
 		conn, err2 := tcp.listener.AcceptTCP()
 		if err2 != nil {
 			if tcp.requestedStop {
-				//Ignore all errors
+				// Ignore all errors
 				break
 			} else {
 				tcp.Logger.Log(3, "Error accepting connection: "+err2.Error())
 			}
 		}
 
-		//Handle connection
+		// Handle connection
 		cl := NewTCPClientSimpleFromConnection(conn, webtools.FormatByBool(tcp.framed, 0, -1), false, tcp.readFuncLocal, false)
 		cl.SetLogger(tcp.Logger)
 		cl.SetupEncryption(tcp.useEncryption, tcp.encryptionPassword)
@@ -146,7 +151,7 @@ func (tcp *TCPServer) Start() {
 }
 
 func (tcp *TCPServer) readFuncLocal(client *TCPClientSimple, data []byte, status uint8) {
-	//Sort connection
+	// Sort connection
 	var tcpConn *TCPServerConn = tcp.conns.Get(client)
 	if tcpConn == nil {
 		tcpConn = &TCPServerConn{origin: tcp, Client: client}
@@ -157,7 +162,7 @@ func (tcp *TCPServer) readFuncLocal(client *TCPClientSimple, data []byte, status
 	}
 	tcp.Logger.Log(0, "Count of connections: "+strconv.Itoa(tcp.conns.Len()))
 
-	//Process read
+	// Process read
 	if tcp.readFunc != nil {
 		tcp.readFunc(tcpConn, data, status)
 	}
@@ -171,7 +176,7 @@ func (tcp *TCPServer) Stop() {
 		return
 	}
 
-	//Request stop
+	// Request stop
 	tcp.requestedStop = true
 	err := tcp.listener.Close()
 	time.Sleep(1 * time.Second)
