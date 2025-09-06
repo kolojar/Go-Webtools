@@ -2,6 +2,8 @@ package p2ptools
 
 import (
 	"crypto/rsa"
+	"strconv"
+	"time"
 	"webtools"
 	"webtools/encryption"
 	httptools "webtools/httpTools"
@@ -18,10 +20,39 @@ const (
 
 	/*
 		Structure to client: cmd
-		Structure to server: cmd;
+		Structure to server: cmd;hasServer;allowHolePunchingServer
 		Used for initial verification of connection and for sharing public signatures
 	*/
 	P2P_CMD_GET_PEER_INFO = "getPeerInfo"
+	/*
+		Structure to client: cmd;hasServer;allowHolePunchingServer;port;allowP2P
+		Used after all inforamtion from P2P_CMD_GET_PEER_INFO is supplied corectly
+	*/
+	P2P_CMD_AWAIT_CONNECTION = "awaitConnection"
+	/*
+		Sturcure to client: cmd;peerID
+	*/
+	P2P_CMD_SET_PEER_ID = "setPeerId"
+	/*
+		Structure to server: cmd;targetPeerId
+		Used for requesting connection to other peer
+	*/
+	P2P_CMD_CONNECT_TO_PEER = "connectToPeer"
+	/*
+		Structure to client:cmd;time;address;port
+		Used to start punch holing
+	*/
+	P2P_CMD_START_PUNCH_HOLE = "startPunchHole"
+	/*
+		Structure to client: cmd
+		Used for requesting connection to RELAY and for client to request connection to RELAY network
+	*/
+	P2P_CMD_CONNECT_TO_RELAY = "connectToRelay"
+	/*
+		Structure to client: cmd
+		Structure to server: cmd;peerId
+	*/
+	RELAY_CMD_GET_RELAY_INFO = "getRelayInfo"
 )
 
 /*
@@ -71,14 +102,26 @@ func UnpackP2PMessage(enc *encryption.AsymmetricEncryption, logger *webtools.Con
 	return command, params, false
 }
 
+/*
+Packs Relay message
+*/
+func PackRelayMessage(isCommand bool, data []byte) []byte {
+	result := []byte{byte(webtools.FormatByBool(isCommand,"1","0"))}
+	result = append(result, data...)
+	return result
+}
+
 type P2PServerConnection struct {
-	address   string
-	port      string
-	id        string
-	conn      *httptools.WebSocketServerConn
-	hasServer bool
-	publicKey *rsa.PublicKey
-	origin    *P2PHTTPCoordinatorServer
+	address                 string
+	port                    string
+	id                      string
+	conn                    *httptools.WebSocketServerConn
+	hasServer               bool
+	allowHolePunchingServer bool
+	publicKey               *rsa.PublicKey
+	origin                  *P2PHTTPCoordinatorServer
+	allowP2P                bool
+	relayConn               *httptools.WebSocketServerConn
 }
 
 /*
@@ -94,6 +137,11 @@ Encrypts, signs and sends message to client
 */
 func (p2p *P2PServerConnection) SendMessage(command string, params map[string]string) {
 	p2p.conn.Send(PackP2PMessage(p2p.origin.asymmetricEncryption, p2p.origin.httpServer.Logger, p2p.publicKey, command, params))
+}
+
+type RelayServerConnection struct {
+	peer *P2PServerConnection
+	conn *httptools.WebSocketServerConn
 }
 
 type P2PServerPeersConnection struct {
@@ -121,10 +169,19 @@ func (sv *P2PHTTPCoordinatorServer) CloseConnection(conn *P2PServerPeersConnecti
 /*
 Creates new P2p HTTP Coordinator Server that is running on top of websocketServer. Leave p2pUrl for default /p2p url.
 */
-func NewP2PHTTPCoordinatorServer(websocketServer *httptools.WebSocketServer, p2pUrl string) *P2PHTTPCoordinatorServer {
+func NewP2PHTTPCoordinatorServer(websocketServer *httptools.WebSocketServer, p2pUrl string, relayUrl string) *P2PHTTPCoordinatorServer {
 	// Default URL when empty
 	if p2pUrl == "" {
 		p2pUrl = "/p2p"
+	}
+	if relayUrl == "" {
+		relayUrl = "/relay"
+	}
+
+	//Check if addresses match
+	if p2pUrl == relayUrl {
+		websocketServer.Logger.Log(3, "Can not have same P2P and relay address")
+		return nil
 	}
 
 	// Create P2P server
@@ -132,6 +189,7 @@ func NewP2PHTTPCoordinatorServer(websocketServer *httptools.WebSocketServer, p2p
 
 	// Add P2P to HTTP websocketServer
 	websocketServer.AddWebSocketURL(p2pUrl, p2p.readFunc)
+	websocketServer.AddWebSocketURL(relayUrl, p2p.readFuncRelay)
 	return p2p
 }
 
@@ -140,6 +198,7 @@ func (sv *P2PHTTPCoordinatorServer) readFunc(conn *httptools.WebSocketServerConn
 		//No connection found, create new
 		sv.peersByClient.Set(conn, &P2PServerConnection{conn: conn})
 	}
+	sv.readFuncLocal(sv.peersByClient.Get(conn), data, status, isBinary)
 }
 
 func (sv *P2PHTTPCoordinatorServer) readFuncLocal(conn *P2PServerConnection, data []byte, status uint8, isBinary bool) {
@@ -201,16 +260,182 @@ func (sv *P2PHTTPCoordinatorServer) readFuncLocal(conn *P2PServerConnection, dat
 
 				//Validate
 				if sv.asymmetricEncryption.GetPublicKey().Equal(verifyPubKey) {
+					//Store public key of client
+					conn.publicKey, err = encryption.ParsePublicKey([]byte(params["publicKeyClient"]))
+					if err != nil {
+						sv.httpServer.Logger.Log(3, "Could not get public key of client: "+err.Error())
+						conn.Close()
+						return
+					}
+
 					//Request peer info
-					conn.SendMessage()
+					conn.SendMessage(P2P_CMD_GET_PEER_INFO, nil)
+					return
 				} else {
 					sv.httpServer.Logger.Log(3, "Invalid returned public key: "+err.Error())
 					conn.Close()
 					return
 				}
 			}
+		case P2P_CMD_GET_PEER_INFO:
+			{
+				//Got peer info
+				if params["port"] == "" {
+					//No port specified
+					sv.httpServer.Logger.Log(3, "No port specified in peer info.")
+					conn.Close()
+					return
+				}
+				conn.port = params["port"]
+
+				//Get hasServer property
+				if params["hasServer"] == "" {
+					sv.httpServer.Logger.Log(3, "No hasServer property specified in peer info.")
+					conn.Close()
+					return
+				}
+
+				//Convert to bool
+				var err error
+				conn.hasServer, err = strconv.ParseBool(params["hasServer"])
+				if err != nil {
+					sv.httpServer.Logger.Log(3, "Error parsing hasServer property: "+err.Error())
+					conn.Close()
+					return
+				}
+
+				//Get allowHolePunchingServer property
+				if params["allowHolePunchingServer"] == "" {
+					sv.httpServer.Logger.Log(3, "No allowHolePunchingServer property specified in peer info.")
+					conn.Close()
+					return
+				}
+
+				//Convert to bool
+				conn.allowHolePunchingServer, err = strconv.ParseBool(params["allowHolePunchingServer"])
+				if err != nil {
+					sv.httpServer.Logger.Log(3, "Error parsing allowHolePunchingServer property: "+err.Error())
+					conn.Close()
+					return
+				}
+
+				//Get allowP2P property
+				if params["allowP2P"] == "" {
+					sv.httpServer.Logger.Log(3, "No allowP2P property specified in peer info.")
+					conn.Close()
+					return
+				}
+
+				//Convert to bool
+				conn.allowP2P, err = strconv.ParseBool(params["allowP2P"])
+				if err != nil {
+					sv.httpServer.Logger.Log(3, "Error parsing allowP2P property: "+err.Error())
+					conn.Close()
+					return
+				}
+
+				//Generate peer ID
+				id := webtools.GenerateRandomId()
+				id = "p2p-" + id
+				conn.id = id
+
+				//All ok, await for more requests
+				conn.SendMessage(P2P_CMD_SET_PEER_ID, map[string]string{"id": id})
+				time.Sleep(1 * time.Second)
+				conn.SendMessage(P2P_CMD_AWAIT_CONNECTION, nil)
+				return
+			}
+		case P2P_CMD_CONNECT_TO_PEER:
+			{
+				//Find peer
+				targetConn := sv.peersById.Get(params["targetPeerId"])
+				if targetConn == nil {
+					//No peer found
+					sv.httpServer.Logger.Log(3, "Target peer with id: "+params["targetPeerId"]+" not found.")
+					conn.SendMessage(P2P_CMD_CONNECT_TO_PEER, map[string]string{"error": "peer not found"})
+					return
+				}
+
+				//Check if peer has server
+				if !targetConn.hasServer {
+					//No server at target
+					sv.httpServer.Logger.Log(3, "Target peer with id: "+targetConn.id+" does not provide any server.")
+					conn.SendMessage(P2P_CMD_CONNECT_TO_PEER, map[string]string{"error": "no target server"})
+				}
+
+				//Chech if both peers allow P2P connection
+				if !conn.allowP2P || !targetConn.allowP2P {
+					//No P2P allowed, use RELAY if possible
+					sv.httpServer.Logger.Log(2, "One of peers does not allow P2P connection, switching to RELAY...")
+					//conn.SendMessage(P2P_CMD_CONNECT_TO_PEER, map[string]string{"warning": "switching to RELAY"})
+					conn.SendMessage(P2P_CMD_CONNECT_TO_RELAY, nil)
+				}
+
+				//Check if one of peer have punch hole server
+				if !targetConn.allowHolePunchingServer && !conn.allowHolePunchingServer {
+					//No punch hole server
+					sv.httpServer.Logger.Log(3, "Source peer: "+conn.id+" and target peer: "+targetConn.id+" do not have punch hole server.")
+					conn.SendMessage(P2P_CMD_CONNECT_TO_PEER, map[string]string{"error": "no punch hole server"})
+					return
+				}
+
+				//All ok, start punch holing
+				t := time.Now().Add(5 * time.Second)
+				if conn.allowHolePunchingServer {
+					targetConn.SendMessage(P2P_CMD_START_PUNCH_HOLE, map[string]string{"time": t.GoString(), "address": conn.address, "port": conn.port})
+				}
+				if targetConn.allowHolePunchingServer {
+					conn.SendMessage(P2P_CMD_START_PUNCH_HOLE, map[string]string{"time": t.GoString(), "address": targetConn.address, "port": targetConn.port})
+				}
+			}
 		}
 	} else {
-		// Data mostly for RELAY
+		sv.httpServer.Logger.Log(2, "P2P sent data as binary, ignoring.")
+	}
+}
+
+/*
+Function for handling relay requests
+*/
+func (sv *P2PHTTPCoordinatorServer) readFuncRelay(conn *httptools.WebSocketServerConn, data []byte, status uint8, isBinary bool) {
+	//No relay allowed
+	if !sv.allowRelay {
+		sv.httpServer.Logger.Log(3, "No relay allowed.")
+		conn.Close()
+		return
+	}
+
+	//Sort status
+	if status == webtools.TCP_CONNECT_STATUS {
+		//On connect
+		conn.IsBinary = true
+		conn.Send(webtools.PackWebtoolsFrame(webtools.))
+	}
+
+	if !isBinary {
+		//Command
+		command, params, hadError := UnpackP2PMessage(sv.asymmetricEncryption, sv.httpServer.Logger, conn.publicKey, data)
+		if hadError {
+			return
+		}
+
+		//Sort error command
+		if params["error"] != "" {
+			//Got error from client
+			sv.httpServer.Logger.Log(3, "Client returned error: "+params["error"])
+			conn.Close()
+			return
+		}
+
+		//Sort commands
+		switch command {
+		case RELAY_CMD_GET_RELAY_INFO :{
+			
+		}
+			
+		}
+
+	} else {
+		//Data
 	}
 }
