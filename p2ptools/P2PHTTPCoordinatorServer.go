@@ -102,15 +102,6 @@ func UnpackP2PMessage(enc *encryption.AsymmetricEncryption, logger *webtools.Con
 	return command, params, false
 }
 
-/*
-Packs Relay message
-*/
-func PackRelayMessage(isCommand bool, data []byte) []byte {
-	result := []byte{byte(webtools.FormatByBool(isCommand,"1","0"))}
-	result = append(result, data...)
-	return result
-}
-
 type P2PServerConnection struct {
 	address                 string
 	port                    string
@@ -139,11 +130,6 @@ func (p2p *P2PServerConnection) SendMessage(command string, params map[string]st
 	p2p.conn.Send(PackP2PMessage(p2p.origin.asymmetricEncryption, p2p.origin.httpServer.Logger, p2p.publicKey, command, params))
 }
 
-type RelayServerConnection struct {
-	peer *P2PServerConnection
-	conn *httptools.WebSocketServerConn
-}
-
 type P2PServerPeersConnection struct {
 	id     string
 	source *P2PServerConnection
@@ -156,9 +142,13 @@ type P2PHTTPCoordinatorServer struct {
 	httpServer           *httptools.WebSocketServer
 	peersByClient        webtools.SafeMap[*httptools.WebSocketServerConn, *P2PServerConnection]
 	peersById            webtools.SafeMap[string, *P2PServerConnection]
+	relaysById           webtools.SafeMap[string, *RelayServerConnection]
+	relaysByClient       webtools.SafeMap[*httptools.WebSocketServerConn, *RelayServerConnection]
 	serverId             string
 	peersConnections     webtools.SafeMap[string, *P2PServerPeersConnection]
 	asymmetricEncryption *encryption.AsymmetricEncryption
+	allowRelay           bool
+	allowP2P             bool
 }
 
 func (sv *P2PHTTPCoordinatorServer) CloseConnection(conn *P2PServerPeersConnection) {
@@ -169,7 +159,7 @@ func (sv *P2PHTTPCoordinatorServer) CloseConnection(conn *P2PServerPeersConnecti
 /*
 Creates new P2p HTTP Coordinator Server that is running on top of websocketServer. Leave p2pUrl for default /p2p url.
 */
-func NewP2PHTTPCoordinatorServer(websocketServer *httptools.WebSocketServer, p2pUrl string, relayUrl string) *P2PHTTPCoordinatorServer {
+func NewP2PHTTPCoordinatorServer(websocketServer *httptools.WebSocketServer, allowP2P bool, p2pUrl string, allowRelay bool, relayUrl string) *P2PHTTPCoordinatorServer {
 	// Default URL when empty
 	if p2pUrl == "" {
 		p2pUrl = "/p2p"
@@ -185,7 +175,7 @@ func NewP2PHTTPCoordinatorServer(websocketServer *httptools.WebSocketServer, p2p
 	}
 
 	// Create P2P server
-	p2p := &P2PHTTPCoordinatorServer{httpServer: websocketServer, peersByClient: webtools.MakeSafeMap[*httptools.WebSocketServerConn, *P2PServerConnection](), serverId: webtools.GenerateRandomId()}
+	p2p := &P2PHTTPCoordinatorServer{httpServer: websocketServer, peersByClient: webtools.MakeSafeMap[*httptools.WebSocketServerConn, *P2PServerConnection](), serverId: webtools.GenerateRandomId(), allowRelay: allowRelay, allowP2P: allowP2P, peersById: webtools.MakeSafeMap[string, *P2PServerConnection](), relaysById: webtools.MakeSafeMap[string, *RelayServerConnection](), relaysByClient: webtools.MakeSafeMap[*httptools.WebSocketServerConn, *RelayServerConnection]()}
 
 	// Add P2P to HTTP websocketServer
 	websocketServer.AddWebSocketURL(p2pUrl, p2p.readFunc)
@@ -361,14 +351,16 @@ func (sv *P2PHTTPCoordinatorServer) readFuncLocal(conn *P2PServerConnection, dat
 					//No server at target
 					sv.httpServer.Logger.Log(3, "Target peer with id: "+targetConn.id+" does not provide any server.")
 					conn.SendMessage(P2P_CMD_CONNECT_TO_PEER, map[string]string{"error": "no target server"})
+					return
 				}
 
 				//Chech if both peers allow P2P connection
-				if !conn.allowP2P || !targetConn.allowP2P {
+				if !conn.allowP2P || !targetConn.allowP2P || !sv.allowP2P {
 					//No P2P allowed, use RELAY if possible
 					sv.httpServer.Logger.Log(2, "One of peers does not allow P2P connection, switching to RELAY...")
 					//conn.SendMessage(P2P_CMD_CONNECT_TO_PEER, map[string]string{"warning": "switching to RELAY"})
 					conn.SendMessage(P2P_CMD_CONNECT_TO_RELAY, nil)
+					return
 				}
 
 				//Check if one of peer have punch hole server
@@ -394,10 +386,18 @@ func (sv *P2PHTTPCoordinatorServer) readFuncLocal(conn *P2PServerConnection, dat
 	}
 }
 
+func (sv *P2PHTTPCoordinatorServer) readFuncRelay(conn *httptools.WebSocketServerConn, data []byte, status uint8, isBinary bool) {
+	if sv.relaysByClient.Get(conn) == nil {
+		//No connection found, create new
+		sv.relaysByClient.Set(conn, &RelayServerConnection{conn: conn})
+	}
+	sv.readFuncRelayLocal(sv.relaysByClient.Get(conn), data, status, isBinary)
+}
+
 /*
 Function for handling relay requests
 */
-func (sv *P2PHTTPCoordinatorServer) readFuncRelay(conn *httptools.WebSocketServerConn, data []byte, status uint8, isBinary bool) {
+func (sv *P2PHTTPCoordinatorServer) readFuncRelayLocal(conn *RelayServerConnection, data []byte, status uint8, isBinary bool) {
 	//No relay allowed
 	if !sv.allowRelay {
 		sv.httpServer.Logger.Log(3, "No relay allowed.")
@@ -408,8 +408,8 @@ func (sv *P2PHTTPCoordinatorServer) readFuncRelay(conn *httptools.WebSocketServe
 	//Sort status
 	if status == webtools.TCP_CONNECT_STATUS {
 		//On connect
-		conn.IsBinary = true
-		conn.Send(webtools.PackWebtoolsFrame(webtools.))
+		conn.conn.IsBinary = true
+		conn.SendCommand(RELAY_CMD_GET_RELAY_INFO, nil)
 	}
 
 	if !isBinary {
@@ -429,10 +429,28 @@ func (sv *P2PHTTPCoordinatorServer) readFuncRelay(conn *httptools.WebSocketServe
 
 		//Sort commands
 		switch command {
-		case RELAY_CMD_GET_RELAY_INFO :{
-			
-		}
-			
+		case RELAY_CMD_GET_RELAY_INFO:
+			{
+				if params["peerId"] == "" {
+					//No peer id
+					sv.httpServer.Logger.Log(3, "No peerId property specified.")
+					conn.Close()
+					return
+				}
+
+				//Get peer connection
+				peerConn := sv.peersById.Get(params["peerId"])
+				if peerConn == nil {
+					//No peer found
+					sv.httpServer.Logger.Log(3, "Invalid peerId specified.")
+					conn.Close()
+					return
+				}
+
+				//Associate peer to relay connections
+				peerConn.relayConn = conn
+			}
+
 		}
 
 	} else {
