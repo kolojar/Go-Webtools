@@ -1,9 +1,10 @@
-package webtools
+package udptools
 
 import (
 	"encoding/hex"
 	"net"
 	"strconv"
+	"webtools"
 )
 
 /*
@@ -18,11 +19,11 @@ type UDPClientReadFunc func(*UDPClient, []byte, bool)
 Basic TCP Client
 */
 type UDPClient struct {
-	readFunc   UDPClientReadFunc
-	Logger     *ConsoleLogger
-	Conn *net.UDPConn
-	address    *net.UDPAddr
-	isAlive    bool
+	readFunc UDPClientReadFunc
+	Logger   *webtools.ConsoleLogger
+	Conn     *net.UDPConn
+	address  *net.UDPAddr
+	isAlive  bool
 }
 
 func (udp *UDPClient) IsAlive() bool {
@@ -40,11 +41,7 @@ func NewUDPClient(address string, readFunc UDPClientReadFunc, reportTraffic bool
 	}
 
 	//Make client
-	level := uint8(0)
-	if !reportTraffic {
-		level = 1
-	}
-	return &UDPClient{address: addressObj, Logger: NewConsoleLogger("UDPClient", level), readFunc: readFunc}, nil
+	return &UDPClient{address: addressObj, Logger: webtools.NewConsoleLoggerForTraffic("UDPClient", reportTraffic), readFunc: readFunc}, nil
 }
 
 /*
@@ -64,7 +61,7 @@ func (udp *UDPClient) Connect() {
 	go func() {
 		var ok bool = true
 		for ok {
-			ok = handleUDPRead(udp.Conn,udp.Logger, udp.readFuncLocal)
+			ok = handleUDPRead(udp.Conn, udp.Logger, udp.readFuncLocal)
 		}
 		udp.isAlive = false
 	}()

@@ -1,16 +1,13 @@
-package webtools
+package tcptools
 
 import (
 	"encoding/hex"
 	"net"
 	"strconv"
 	"time"
+	"webtools"
+	"webtools/encryption"
 )
-
-const TCP_READ_DATA_STATUS = uint8(3)
-const TCP_CONNECT_STATUS = uint8(0)
-const TCP_DISCONNECT_STATUS = uint8(1)
-const TCP_FINISHED_READ_FUNC_STATUS = uint8(2)
 
 /*
 Please use limit as count of read connections, when limit is equal to count of read connections, finish read and exit read func, do not end connection! If some read error occures, return true, TCP Client will handle closing of connection
@@ -18,7 +15,7 @@ Do not forget to use logging. 0 = Traffic, 1 = Generic info, 2 = Warnings = Conn
 Read handler must run in loop, negative limit means infinite loop, 0 means no read
 Return true on connection close and error
 */
-type TCPClientUniversalReadHandlerFunc func(cl *TCPClientUniversal, limit int, logger *ConsoleLogger, readFunc TCPClientUniversalOnReadFuncIntenal) (bool, error)
+type TCPClientUniversalReadHandlerFunc func(cl *TCPClientUniversal, limit int, logger *webtools.ConsoleLogger, readFunc TCPClientUniversalOnReadFuncIntenal) (bool, error)
 type TCPClientUniversalOnReadFunc func(cl *TCPClientUniversal, data []byte, status uint8, otherData map[string]any)
 
 /*
@@ -27,17 +24,25 @@ Do not forget to use logging. 0 = Traffic, 1 = Generic info, 2 = Warnings = Conn
 type TCPClientUniversalOnWriteHandlerFunc func(cl *TCPClientUniversal, data []byte, otherData map[string]any) error
 type TCPClientUniversalOnReadFuncIntenal func(data []byte, otherData map[string]any)
 
+type TCPClientUniversalHanderFuncs struct {
+	UseCount               int
+	ReadHandler            TCPClientUniversalReadHandlerFunc
+	ReadFunc               TCPClientUniversalOnReadFunc
+	WriteHandler           TCPClientUniversalOnWriteHandlerFunc
+	CanOneWriteAfterSwitch bool
+}
+
 /*
 Completly universal TCP client, for usage example see TCPClientSimple
 */
 type TCPClientUniversal struct {
-	Logger  *ConsoleLogger
+	Logger  *webtools.ConsoleLogger
 	conn    *net.TCPConn
 	address *net.TCPAddr
 	isAlive bool
 	//First item is limit and last item is if old writer should be used for one more request after switching protocols
-	HandlerFuncs                    []FiveValuePair[int, TCPClientUniversalReadHandlerFunc, TCPClientUniversalOnReadFunc, TCPClientUniversalOnWriteHandlerFunc, bool]
-	currentHandlers                 FiveValuePair[int, TCPClientUniversalReadHandlerFunc, TCPClientUniversalOnReadFunc, TCPClientUniversalOnWriteHandlerFunc, bool]
+	HandlerFuncs                    []TCPClientUniversalHanderFuncs
+	currentHandlers                 TCPClientUniversalHanderFuncs
 	currentWriteHandler             TCPClientUniversalOnWriteHandlerFunc
 	currentWriteHandlerWaitOneWrite bool
 	switchWriteHandler              bool
@@ -54,6 +59,10 @@ func (tcp *TCPClientUniversal) GetConn() *net.TCPConn {
 	return tcp.conn
 }
 
+func (tcp *TCPClientUniversal) GetAddress() *net.TCPAddr {
+	return tcp.address
+}
+
 /*
 Creates new TCP Client but does not starts it
 To set up read and write mechanisms, append items to HandlerFuncs
@@ -66,7 +75,7 @@ func NewTCPClientUniversal(address string, reportTraffic bool) (*TCPClientUniver
 	}
 
 	//Make client
-	return &TCPClientUniversal{address: addressObj, Logger: NewConsoleLoggerForTraffic("TCPClientUniversal", reportTraffic), HandlerFuncs: make([]FiveValuePair[int, TCPClientUniversalReadHandlerFunc, TCPClientUniversalOnReadFunc, TCPClientUniversalOnWriteHandlerFunc, bool], 0), isPreparedWithConnection: false}, nil
+	return &TCPClientUniversal{address: addressObj, Logger: webtools.NewConsoleLoggerForTraffic("TCPClientUniversal", reportTraffic), HandlerFuncs: make([]TCPClientUniversalHanderFuncs, 0), isPreparedWithConnection: false}, nil
 }
 
 /*
@@ -75,7 +84,7 @@ To set up read and write mechanisms, append items to HandlerFuncs
 */
 func NewTCPClientUniversalFromConnection(conn *net.TCPConn, reportTraffic bool) *TCPClientUniversal {
 	//Make client
-	return &TCPClientUniversal{conn: conn, address: conn.RemoteAddr().(*net.TCPAddr), Logger: NewConsoleLoggerForTraffic("TCPClientUniversal", reportTraffic), HandlerFuncs: make([]FiveValuePair[int, TCPClientUniversalReadHandlerFunc, TCPClientUniversalOnReadFunc, TCPClientUniversalOnWriteHandlerFunc, bool], 0), isPreparedWithConnection: true}
+	return &TCPClientUniversal{conn: conn, address: conn.RemoteAddr().(*net.TCPAddr), Logger: webtools.NewConsoleLoggerForTraffic("TCPClientUniversal", reportTraffic), HandlerFuncs: make([]TCPClientUniversalHanderFuncs, 0), isPreparedWithConnection: true}
 }
 
 /*
@@ -122,10 +131,10 @@ func (tcp *TCPClientUniversal) readNextFunc() {
 		tcp.HandlerFuncs = tcp.HandlerFuncs[1:]
 
 		//Skip invalid readers
-		if newHandler.A == 0 {
+		if newHandler.UseCount == 0 {
 			continue
 		}
-		if newHandler.B == nil {
+		if newHandler.ReadHandler == nil {
 			continue
 		}
 
@@ -134,11 +143,11 @@ func (tcp *TCPClientUniversal) readNextFunc() {
 		tcp.currentHandlers = newHandler
 		if firstValid {
 			firstValid = false
-			tcp.currentHandlers.C(tcp, nil, TCP_CONNECT_STATUS, nil)
+			tcp.currentHandlers.ReadFunc(tcp, nil, webtools.TCP_CONNECT_STATUS, nil)
 		}
 
 		//Handle reading
-		close, err := tcp.currentHandlers.B(tcp, tcp.currentHandlers.A, tcp.Logger, tcp.localReadFunc)
+		close, err := tcp.currentHandlers.ReadHandler(tcp, tcp.currentHandlers.UseCount, tcp.Logger, tcp.localReadFunc)
 		if err != nil {
 			//Error occured while reading
 			tcp.Logger.Log(3, "Error reading from: "+tcp.conn.RemoteAddr().String()+" connected locally to: "+tcp.conn.LocalAddr().String()+" | Error: "+err.Error())
@@ -150,14 +159,14 @@ func (tcp *TCPClientUniversal) readNextFunc() {
 		}
 
 		//Inform about reached limit
-		tcp.currentHandlers.C(tcp, nil, TCP_FINISHED_READ_FUNC_STATUS, nil)
+		tcp.currentHandlers.ReadFunc(tcp, nil, webtools.TCP_FINISHED_READ_FUNC_STATUS, nil)
 		tcp.Logger.Log(1, "Switching read function")
 	}
 
 	//Finished all readers
 	tcp.Logger.Log(2, "Disconneted from: "+tcp.conn.RemoteAddr().String()+" connected locally to: "+tcp.conn.LocalAddr().String())
-	if tcp.currentHandlers.C != nil {
-		tcp.currentHandlers.C(tcp, nil, TCP_DISCONNECT_STATUS, nil)
+	if tcp.currentHandlers.ReadFunc != nil {
+		tcp.currentHandlers.ReadFunc(tcp, nil, webtools.TCP_DISCONNECT_STATUS, nil)
 	}
 	defer tcp.conn.Close()
 	tcp.isAlive = false
@@ -167,9 +176,9 @@ func (tcp *TCPClientUniversal) readNextFunc() {
 func (tcp *TCPClientUniversal) localReadFunc(data []byte, otherData map[string]any) {
 	if tcp.useEncryption {
 		//Decrypt
-		tcp.Logger.Log(0, "Reading enrypted from: "+tcp.conn.RemoteAddr().String()+" connected locally to: "+tcp.conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data)+" | Other data: "+MapToString(otherData))
+		tcp.Logger.Log(0, "Reading enrypted from: "+tcp.conn.RemoteAddr().String()+" connected locally to: "+tcp.conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data)+" | Other data: "+webtools.MapToString(otherData))
 		var err error
-		data, err = Decrypt(tcp.encryptionPassword, data)
+		data, err = encryption.DecryptSymmetric(tcp.encryptionPassword, data)
 		if err != nil {
 			tcp.Logger.Log(3, "Error decrypting: "+err.Error())
 			return
@@ -177,9 +186,9 @@ func (tcp *TCPClientUniversal) localReadFunc(data []byte, otherData map[string]a
 	}
 
 	//Read
-	tcp.Logger.Log(0, "Reading from: "+tcp.conn.RemoteAddr().String()+" connected locally to: "+tcp.conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data)+" | Other data: "+MapToString(otherData))
-	if tcp.currentHandlers.C != nil {
-		tcp.currentHandlers.C(tcp, data, TCP_READ_DATA_STATUS, otherData)
+	tcp.Logger.Log(0, "Reading from: "+tcp.conn.RemoteAddr().String()+" connected locally to: "+tcp.conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data)+" | Other data: "+webtools.MapToString(otherData))
+	if tcp.currentHandlers.ReadFunc != nil {
+		tcp.currentHandlers.ReadFunc(tcp, data, webtools.TCP_READ_DATA_STATUS, otherData)
 	}
 }
 
@@ -192,8 +201,8 @@ func (tcp *TCPClientUniversal) Send(data []byte, otherData map[string]any) {
 		if !tcp.currentWriteHandlerWaitOneWrite {
 			//Switch when there is no pending one write
 			tcp.switchWriteHandler = false
-			tcp.currentWriteHandler = tcp.currentHandlers.D
-			tcp.currentWriteHandlerWaitOneWrite = tcp.currentHandlers.E
+			tcp.currentWriteHandler = tcp.currentHandlers.WriteHandler
+			tcp.currentWriteHandlerWaitOneWrite = tcp.currentHandlers.CanOneWriteAfterSwitch
 		}
 	}
 
@@ -204,21 +213,21 @@ func (tcp *TCPClientUniversal) Send(data []byte, otherData map[string]any) {
 	}
 
 	//Write
-	if tcp.currentHandlers.D != nil {
-		tcp.Logger.Log(0, "Writing to: "+tcp.conn.RemoteAddr().String()+" connected locally to: "+tcp.conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data)+" | Other data: "+MapToString(otherData))
+	if tcp.currentHandlers.WriteHandler != nil {
+		tcp.Logger.Log(0, "Writing to: "+tcp.conn.RemoteAddr().String()+" connected locally to: "+tcp.conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data)+" | Other data: "+webtools.MapToString(otherData))
 		if tcp.useEncryption {
 			//Encrypt
 			var err error
-			data, err = Encrypt(tcp.encryptionPassword, data)
+			data, err = encryption.EncryptSymmetric(tcp.encryptionPassword, data)
 			if err != nil {
 				tcp.Logger.Log(3, "Error encrypting: "+err.Error())
 				return
 			}
-			tcp.Logger.Log(0, "Writing enrypted from: "+tcp.conn.RemoteAddr().String()+" connected locally to: "+tcp.conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data)+" | Other data: "+MapToString(otherData))
+			tcp.Logger.Log(0, "Writing enrypted from: "+tcp.conn.RemoteAddr().String()+" connected locally to: "+tcp.conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data)+" | Other data: "+webtools.MapToString(otherData))
 		}
 
 		//Write
-		err := tcp.currentHandlers.D(tcp, data, otherData)
+		err := tcp.currentHandlers.WriteHandler(tcp, data, otherData)
 		if err != nil {
 			tcp.Logger.Log(3, "Error writing to: "+tcp.conn.RemoteAddr().String()+" connected locally to: "+tcp.conn.LocalAddr().String()+" | Error: "+err.Error())
 		}
@@ -229,8 +238,8 @@ func (tcp *TCPClientUniversal) Send(data []byte, otherData map[string]any) {
 		if tcp.currentWriteHandlerWaitOneWrite {
 			//Switch when there was pending one write
 			tcp.switchWriteHandler = false
-			tcp.currentWriteHandler = tcp.currentHandlers.D
-			tcp.currentWriteHandlerWaitOneWrite = tcp.currentHandlers.E
+			tcp.currentWriteHandler = tcp.currentHandlers.WriteHandler
+			tcp.currentWriteHandlerWaitOneWrite = tcp.currentHandlers.CanOneWriteAfterSwitch
 		}
 	}
 }

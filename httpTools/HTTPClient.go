@@ -1,4 +1,4 @@
-package webtools
+package httptools
 
 import (
 	"bytes"
@@ -9,13 +9,14 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"webtools"
 )
 
 // Primitive HTTPClient
 type HTTPClient struct {
 	client        *http.Client
 	address       string
-	Logger        *ConsoleLogger
+	Logger        *webtools.ConsoleLogger
 	reportTraffic bool
 }
 
@@ -34,7 +35,7 @@ func NewHTTPClient(address string, timeout int64, reportTraffic bool) (*HTTPClie
 	if !strings.HasPrefix(address, "http://") && !strings.HasPrefix(address, "https://") {
 		return nil, errors.New("invalid url format, must start with http:// or https://")
 	}
-	return &HTTPClient{client: &http.Client{Timeout: time.Duration(timeout) * time.Second}, address: address, Logger: NewConsoleLogger("HTTPClient", level), reportTraffic: reportTraffic}, nil
+	return &HTTPClient{client: &http.Client{Timeout: time.Duration(timeout) * time.Second}, address: address, Logger: webtools.NewConsoleLogger("HTTPClient", level), reportTraffic: reportTraffic}, nil
 }
 
 /*

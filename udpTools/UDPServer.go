@@ -1,4 +1,4 @@
-package webtools
+package udptools
 
 import (
 	"encoding/hex"
@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"webtools"
 )
 
 // Cleanup timeout in seconds
@@ -53,10 +54,10 @@ type UDPServer struct {
 	listener      *net.UDPConn
 	readFunc      UDPServerReadFunc
 	address       *net.UDPAddr
-	Logger        *ConsoleLogger
+	Logger        *webtools.ConsoleLogger
 	requestedStop bool
 	isRunning     bool
-	conns         SafeMap[string, *UDPServerConn]
+	conns         webtools.SafeMap[string, *UDPServerConn]
 }
 
 /*
@@ -68,11 +69,7 @@ func NewUDPServer(address string, readFunc UDPServerReadFunc, reportTraffic bool
 	if err != nil {
 		return nil, err
 	}
-	level := uint8(0)
-	if !reportTraffic {
-		level = 1
-	}
-	return &UDPServer{address: addressObj, readFunc: readFunc, Logger: NewConsoleLogger("UDPServer", level), conns: MakeSafeMap[string, *UDPServerConn]()}, nil
+	return &UDPServer{address: addressObj, readFunc: readFunc, Logger: webtools.NewConsoleLoggerForTraffic("UDPServer", reportTraffic), conns: webtools.MakeSafeMap[string, *UDPServerConn]()}, nil
 }
 
 /*
@@ -108,8 +105,8 @@ func (udp *UDPServer) Start() {
 /*
 Handles UDP Read
 */
-func handleUDPRead(listener *net.UDPConn, logger *ConsoleLogger, readFunc func(*net.UDPAddr, []byte, bool)) bool {
-	buffer := make([]byte, BUFFER_SIZE)
+func handleUDPRead(listener *net.UDPConn, logger *webtools.ConsoleLogger, readFunc func(*net.UDPAddr, []byte, bool)) bool {
+	buffer := make([]byte, webtools.BUFFER_SIZE)
 	//Get connection and data
 	n, addr, err := listener.ReadFromUDP(buffer)
 	if err != nil {
@@ -157,7 +154,7 @@ func (udp *UDPServer) readFuncLocal(addr *net.UDPAddr, data []byte, ended bool) 
 /*
 Handles TCP Write
 */
-func writeToUDP(isServer bool, listener *net.UDPConn, addr *net.UDPAddr, data []byte, logger *ConsoleLogger) {
+func writeToUDP(isServer bool, listener *net.UDPConn, addr *net.UDPAddr, data []byte, logger *webtools.ConsoleLogger) {
 	if addr == nil {
 		logger.Log(1, "Invalid connecting, cancelling write.")
 		return

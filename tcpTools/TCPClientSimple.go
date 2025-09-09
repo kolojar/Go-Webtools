@@ -1,4 +1,4 @@
-package webtools
+package tcptools
 
 import (
 	"bytes"
@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"webtools"
 )
 
 type TCPClientSimpleReadFunc func(client *TCPClientSimple, data []byte, status uint8)
@@ -39,7 +40,7 @@ func NewTCPClientSimple(address string, countOfNotFramedReads int, writeOneLastN
 	if err != nil {
 		return nil, err
 	}
-	cl.universalClient.Logger = NewConsoleLoggerForTraffic("TCPClientSimple", reportTraffic)
+	cl.universalClient.Logger = webtools.NewConsoleLoggerForTraffic("TCPClientSimple", reportTraffic)
 	cl.generateReadFuncStructure(countOfNotFramedReads, writeOneLastNoFrame)
 	return cl, nil
 }
@@ -57,11 +58,11 @@ func NewTCPClientSimpleFromConnection(conn *net.TCPConn, countOfNotFramedReads i
 	return cl
 }
 
-func (cl *TCPClientSimple) SetLogger(logger *ConsoleLogger) {
+func (cl *TCPClientSimple) SetLogger(logger *webtools.ConsoleLogger) {
 	cl.universalClient.Logger = logger
 }
 
-func (cl *TCPClientSimple) GetLogger() *ConsoleLogger {
+func (cl *TCPClientSimple) GetLogger() *webtools.ConsoleLogger {
 	return cl.universalClient.Logger
 }
 
@@ -76,22 +77,22 @@ func (cl *TCPClientSimple) SetupEncryption(useEncryption bool, password string) 
 func (cl *TCPClientSimple) generateReadFuncStructure(noFrameCount int, writeOneLastNoFrame bool) {
 	//Generate not framed handler
 	cl.universalClient.HandlerFuncs = append(cl.universalClient.HandlerFuncs,
-		FiveValuePair[int, TCPClientUniversalReadHandlerFunc, TCPClientUniversalOnReadFunc, TCPClientUniversalOnWriteHandlerFunc, bool]{
-			A: noFrameCount,        //Limit of not framed connections
-			B: handleTCPRead,       //Function resposible for handleling reading from connection, has loop for connection limit
-			C: cl.readFuncLocal,    //Function that handles read events from prevous function
-			D: writeToTCPHandler,   //Founctionm responsible for writing to connection
-			E: writeOneLastNoFrame, //Writes one last write after switching to other functions
+		TCPClientUniversalHanderFuncs{
+			UseCount:               noFrameCount,        //Limit of not framed connections
+			ReadHandler:            HandleTCPRead,       //Function resposible for handleling reading from connection, has loop for connection limit
+			ReadFunc:               cl.readFuncLocal,    //Function that handles read events from prevous function
+			WriteHandler:           WriteToTCPHandler,   //Founctionm responsible for writing to connection
+			CanOneWriteAfterSwitch: writeOneLastNoFrame, //Writes one last write after switching to other functions
 		})
 
 	//Generate framed handler
 	cl.universalClient.HandlerFuncs = append(cl.universalClient.HandlerFuncs,
-		FiveValuePair[int, TCPClientUniversalReadHandlerFunc, TCPClientUniversalOnReadFunc, TCPClientUniversalOnWriteHandlerFunc, bool]{
-			A: -1,                      //Limit of framed connections
-			B: handleTCPReadFramed,     //Function resposible for handleling reading from connection, has loop for connection limit
-			C: cl.readFuncLocal,        //Function that handles read events from prevous function
-			D: writeToTCPFramedHandler, //Founctionm responsible for writing to connection
-			E: false,                   //Writes one last write after switching to other functions
+		TCPClientUniversalHanderFuncs{
+			UseCount:               -1,                      //Limit of framed connections
+			ReadHandler:            HandleTCPReadFramed,     //Function resposible for handleling reading from connection, has loop for connection limit
+			ReadFunc:               cl.readFuncLocal,        //Function that handles read events from prevous function
+			WriteHandler:           WriteToTCPFramedHandler, //Founctionm responsible for writing to connection
+			CanOneWriteAfterSwitch: false,                   //Writes one last write after switching to other functions
 		})
 }
 
@@ -106,9 +107,9 @@ func (tcp *TCPClientSimple) Connect() bool {
 Handles TCP Read
 Implements this function: type TCPClientUniversalReadHandlerFunc func(conn *net.TCPConn, limit int, logger *ConsoleLogger, readFunc TCPClientUniversalOnReadFuncIntenal) (bool, error)
 */
-func handleTCPRead(cl *TCPClientUniversal, limit int, logger *ConsoleLogger, readFunc TCPClientUniversalOnReadFuncIntenal) (bool, error) {
+func HandleTCPRead(cl *TCPClientUniversal, limit int, logger *webtools.ConsoleLogger, readFunc TCPClientUniversalOnReadFuncIntenal) (bool, error) {
 	for i := 0; i < limit || limit < 0; i++ {
-		buffer := make([]byte, BUFFER_SIZE)
+		buffer := make([]byte, webtools.BUFFER_SIZE)
 		n, err := cl.GetConn().Read(buffer)
 		if err != nil {
 			//Exit on errors
@@ -126,7 +127,7 @@ func handleTCPRead(cl *TCPClientUniversal, limit int, logger *ConsoleLogger, rea
 Handles TCP Read with frame support
 Implements this function: type TCPClientUniversalReadHandlerFunc func(conn *net.TCPConn, limit int, logger *ConsoleLogger, readFunc TCPClientUniversalOnReadFuncIntenal) (bool, error)
 */
-func handleTCPReadFramed(cl *TCPClientUniversal, limit int, logger *ConsoleLogger, readFunc TCPClientUniversalOnReadFuncIntenal) (bool, error) {
+func HandleTCPReadFramed(cl *TCPClientUniversal, limit int, logger *webtools.ConsoleLogger, readFunc TCPClientUniversalOnReadFuncIntenal) (bool, error) {
 	var data []byte
 	var n int
 	for i := 0; i < limit || limit < 0; i++ {
@@ -157,7 +158,7 @@ func handleTCPReadFramed(cl *TCPClientUniversal, limit int, logger *ConsoleLogge
 Handles TCP Write
 Implements: type TCPClientUniversalOnWriteHandlerFunc func(cl *TCPClientUniversal, data []byte, otherData map[string]any) error
 */
-func writeToTCPHandler(cl *TCPClientUniversal, data []byte, otherData map[string]any) error {
+func WriteToTCPHandler(cl *TCPClientUniversal, data []byte, otherData map[string]any) error {
 	//Write
 	_, err := cl.GetConn().Write(data)
 	return err
@@ -167,14 +168,14 @@ func writeToTCPHandler(cl *TCPClientUniversal, data []byte, otherData map[string
 Handles TCP Write with frames
 Implements: type TCPClientUniversalOnWriteHandlerFunc func(cl *TCPClientUniversal, data []byte, otherData map[string]any) error
 */
-func writeToTCPFramedHandler(cl *TCPClientUniversal, data []byte, otherData map[string]any) error {
+func WriteToTCPFramedHandler(cl *TCPClientUniversal, data []byte, otherData map[string]any) error {
 	var frame bytes.Buffer
 	err := binary.Write(&frame, binary.BigEndian, uint32(len(data)))
 	if err != nil {
 		return err
 	}
 	frame.Write(data)
-	return writeToTCPHandler(cl, frame.Bytes(), otherData)
+	return WriteToTCPHandler(cl, frame.Bytes(), otherData)
 }
 
 /*
