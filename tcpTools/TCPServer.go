@@ -10,7 +10,7 @@ import (
 /*
 Server connection interface
 */
-type ServerConn interface {
+type IServerConn interface {
 	Send([]byte)
 	Close()
 }
