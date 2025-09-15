@@ -1,4 +1,4 @@
-package universalhttptcptools
+package universalHttpTcpTools
 
 import (
 	"net"

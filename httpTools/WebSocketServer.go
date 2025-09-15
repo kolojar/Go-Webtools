@@ -1,4 +1,4 @@
-package httptools
+package httpTools
 
 import (
 	"crypto/sha1"

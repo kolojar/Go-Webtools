@@ -1,4 +1,4 @@
-package proxytools
+package proxyTools
 
 import (
 	"webtools"
