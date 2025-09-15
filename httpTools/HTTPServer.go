@@ -118,6 +118,9 @@ func ReadFile(filePath string) ([]byte, bool, error) {
 	if errors.Is(err2, os.ErrNotExist) {
 		return nil, false, err2
 	}
+	if stat == nil {
+		return nil, false, os.ErrNotExist
+	}
 
 	//Check for dir
 	if stat.IsDir() {
