@@ -178,6 +178,7 @@ func TryHandleHTTPFile(w http.ResponseWriter, filePath string, contentType strin
 	}
 
 	//Send data
+	w.Header().Add("Content-Type", contentType)
 	fmt.Fprint(w, data)
 	return nil
 }
