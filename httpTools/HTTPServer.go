@@ -106,7 +106,7 @@ func (sv *HTTPServer) httpHandler(w http.ResponseWriter, r *http.Request) {
 		for k, v := range sv.HostPaths {
 			//Sort out hostPaths
 			if strings.HasPrefix(r.URL.Path, k) {
-				err := HandleHTTPGet(w, r, v, "/"+strings.TrimPrefix(r.URL.Path, k))
+				err := HandleHTTPGet(w, r, v, "/"+strings.TrimPrefix(r.URL.Path, k), sv)
 				if err != nil && !errors.Is(err, os.ErrNotExist) {
 					//Invalid error
 					sv.Logger.Log(3, "Error in GET request for: "+r.URL.Path+" | Error: "+err.Error())
@@ -240,13 +240,13 @@ func (sv *HTTPServer) TryHandleHTTPFileRelative(w http.ResponseWriter, r *http.R
 /*
 Handles directory access get request
 */
-func HandleHTTPGet(w http.ResponseWriter, r *http.Request, rootPath string, getPath string) error {
+func HandleHTTPGet(w http.ResponseWriter, r *http.Request, rootPath string, getPath string, sv *HTTPServer) error {
 	//Check invalid names
 	err := CheckInvalidNames(getPath)
 	if err != nil {
 		return err
 	}
-	return TryHandleHTTPFile(w, JoinPaths(rootPath, getPath), SortHTTPContentType(getPath), nil)
+	return TryHandleHTTPFile(w, JoinPaths(rootPath, getPath), SortHTTPContentType(getPath), sv)
 }
 
 /*
@@ -258,7 +258,7 @@ func (sv *HTTPServer) HandleHTTPGetRelative(w http.ResponseWriter, r *http.Reque
 	if err != nil {
 		return err
 	}
-	return HandleHTTPGet(w, r, JoinPaths(sv.rootPath, r.URL.Path), r.URL.Path)
+	return HandleHTTPGet(w, r, JoinPaths(sv.rootPath, r.URL.Path), r.URL.Path, nil)
 }
 
 /*
