@@ -56,7 +56,6 @@ type HTTPServer struct {
 	startWebBrowser bool
 	isAlive         bool
 	useDirListing   bool
-	dirListingPath  string
 }
 
 func (sv *HTTPServer) GetRootPath() string {

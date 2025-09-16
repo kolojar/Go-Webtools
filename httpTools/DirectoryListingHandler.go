@@ -39,7 +39,7 @@ func HandleDirectoryListingHTTP(w http.ResponseWriter, path string, httpServer *
 	}
 
 	//List folder
-	httpList, err3 := getItemsInFolder(path)
+	httpList, err3 := getItemsInFolderRelative(path, httpServer)
 	if err3 != nil {
 		http.Error(w, "Could not get information about folder! Internal error: "+err3.Error(), http.StatusInternalServerError)
 		return true
@@ -64,11 +64,21 @@ type directoryListingEntry struct {
 /*
 Gets items in folder for directory listing
 Returns string as JSON
-Path must be path in OS, not on HTTP server
+Path must be path in HTTP server
 */
-func getItemsInFolder(path string) (string, error) {
+func getItemsInFolderRelative(path string, sv *HTTPServer) (string, error) {
+	//Convert to real path
+	var realPath string = path
+	for k, v := range sv.HostPaths {
+		//Sort out hostPaths
+		if strings.HasPrefix(path, k) {
+			realPath = strings.Replace(path, k, v, 1)
+			break
+		}
+	}
+
 	//Read folder
-	entries, err := os.ReadDir(path)
+	entries, err := os.ReadDir(realPath)
 	if err != nil {
 		return "", err
 	}
