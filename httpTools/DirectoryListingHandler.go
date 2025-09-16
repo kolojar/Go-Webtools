@@ -32,7 +32,7 @@ func HandleDirectoryListingHTTP(w http.ResponseWriter, path string, httpServer *
 	path = strings.ReplaceAll(path, "//", "/")
 
 	//Read data
-	dataBinary, _, err := httpServer.ReadFileRelative("/dirlist/directoryListingViewer.html")
+	dataBinary, _, err := httpServer.ReadFileRelative(JoinPaths(httpServer.HostPaths["/dirlist"], "/directoryListingViewer.html"))
 	if err != nil {
 		http.Error(w, "File template not found! Internal error: "+err.Error(), http.StatusInternalServerError)
 		return true
