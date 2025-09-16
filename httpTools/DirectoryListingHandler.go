@@ -13,6 +13,9 @@ Renders directory listing to this request
 Returns if it was handeled
 */
 func HandleDirectoryListingHTTP(w http.ResponseWriter, path string, httpServer *HTTPServer) bool {
+	http.Error(w, "Directory listing not working", 404)
+	return false
+
 	//Check for directory
 	path = strings.ReplaceAll(path, "//", "/")
 	path = strings.ReplaceAll(httpServer.GetRootPath()+path, "//", "/")
