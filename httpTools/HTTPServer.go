@@ -106,7 +106,7 @@ func (sv *HTTPServer) httpHandler(w http.ResponseWriter, r *http.Request) {
 		for k, v := range sv.HostPaths {
 			//Sort out hostPaths
 			if strings.HasPrefix(r.URL.Path, k) {
-				err := HandleHTTPGet(w, r, v, strings.TrimPrefix(r.URL.Path, k))
+				err := HandleHTTPGet(w, r, v, "/"+strings.TrimPrefix(r.URL.Path, k))
 				if err != nil && !errors.Is(err, os.ErrNotExist) {
 					//Invalid error
 					sv.Logger.Log(3, "Error in GET request for: "+r.URL.Path+" | Error: "+err.Error())
