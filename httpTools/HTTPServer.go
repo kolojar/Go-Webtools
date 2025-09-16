@@ -187,12 +187,6 @@ func JoinPaths(path1 string, path2 string) string {
 Reads file contents
 */
 func TryHandleHTTPFile(w http.ResponseWriter, filePath string, contentType string, sv *HTTPServer) error {
-	//Check path
-	err := CheckInvalidNames(filePath)
-	if err != nil {
-		return err
-	}
-
 	//Read data
 	data, isDir, err := ReadFileString(filePath)
 	if err != nil {
@@ -234,6 +228,11 @@ func SortHTTPContentType(path string) string {
 Handles directory access get request relative to HTTP server root
 */
 func (sv *HTTPServer) TryHandleHTTPFileRelative(w http.ResponseWriter, r *http.Request, getPath string) error {
+	//Check invalid names
+	err := CheckInvalidNames(getPath)
+	if err != nil {
+		return err
+	}
 	return TryHandleHTTPFile(w, JoinPaths(sv.rootPath, getPath), SortHTTPContentType(getPath), sv)
 }
 
@@ -241,6 +240,11 @@ func (sv *HTTPServer) TryHandleHTTPFileRelative(w http.ResponseWriter, r *http.R
 Handles directory access get request
 */
 func HandleHTTPGet(w http.ResponseWriter, r *http.Request, rootPath string, getPath string) error {
+	//Check invalid names
+	err := CheckInvalidNames(getPath)
+	if err != nil {
+		return err
+	}
 	return TryHandleHTTPFile(w, JoinPaths(rootPath, getPath), SortHTTPContentType(getPath), nil)
 }
 
@@ -248,6 +252,11 @@ func HandleHTTPGet(w http.ResponseWriter, r *http.Request, rootPath string, getP
 Handles directory access get request relative to HTTP server root
 */
 func (sv *HTTPServer) HandleHTTPGetRelative(w http.ResponseWriter, r *http.Request) error {
+	//Check invalid names
+	err := CheckInvalidNames(r.URL.Path)
+	if err != nil {
+		return err
+	}
 	return HandleHTTPGet(w, r, JoinPaths(sv.rootPath, r.URL.Path), r.URL.Path)
 }
 
