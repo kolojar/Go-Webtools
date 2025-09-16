@@ -186,7 +186,7 @@ func JoinPaths(path1 string, path2 string) string {
 /*
 Reads file contents
 */
-func (sv *HTTPServer) TryHandleHTTPFile(w http.ResponseWriter, filePath string, contentType string) error {
+func TryHandleHTTPFile(w http.ResponseWriter, filePath string, contentType string, sv *HTTPServer) error {
 	//Check path
 	err := CheckInvalidNames(filePath)
 	if err != nil {
@@ -201,7 +201,7 @@ func (sv *HTTPServer) TryHandleHTTPFile(w http.ResponseWriter, filePath string, 
 
 	//Check dir
 	if isDir {
-		if sv.useDirListing {
+		if sv != nil && sv.useDirListing {
 			HandleDirectoryListingHTTP(w, filePath, sv)
 		}
 		http.Error(w, "Directory listing not supported yet.", http.StatusForbidden)
@@ -234,14 +234,14 @@ func SortHTTPContentType(path string) string {
 Handles directory access get request relative to HTTP server root
 */
 func (sv *HTTPServer) TryHandleHTTPFileRelative(w http.ResponseWriter, r *http.Request, getPath string) error {
-	return TryHandleHTTPFile(w, JoinPaths(sv.rootPath, getPath), SortHTTPContentType(getPath))
+	return TryHandleHTTPFile(w, JoinPaths(sv.rootPath, getPath), SortHTTPContentType(getPath), sv)
 }
 
 /*
 Handles directory access get request
 */
 func HandleHTTPGet(w http.ResponseWriter, r *http.Request, rootPath string, getPath string) error {
-	return TryHandleHTTPFile(w, JoinPaths(rootPath, getPath), SortHTTPContentType(getPath))
+	return TryHandleHTTPFile(w, JoinPaths(rootPath, getPath), SortHTTPContentType(getPath), nil)
 }
 
 /*
