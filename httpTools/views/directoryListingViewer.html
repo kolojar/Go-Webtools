@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Directory listing</title>
+</head>
+
+<body>
+    <dirlist id="directoryListing"></dirlist>
+</body>
+<script type="module">
+    import { SetupDirectoryListings,ListDirectoryJSON } from "/directoryListing.js";
+    SetupDirectoryListings()
+
+    const params = new URLSearchParams(document.location.search)
+    let path = "[HTTP_PATH]"
+    let httpItems = [HTTP_ITEMS]
+    if (params.get("path")) {
+       path = params.get("path")
+    } 
+    if (params.get("httpItems")) {
+       httpItems = JSON.parse(decodeURI(params.get("httpItems")))
+    }
+    ListDirectoryJSON(document.getElementsByTagName("dirlist")[0],path,httpItems )
+</script>
+
+</html>

@@ -20,6 +20,27 @@ Returns bool = got handled
 */
 type HTTPAccessFunc func(server *HTTPServer, w http.ResponseWriter, r *http.Request, params map[string]string) bool
 
+var iNVALID_NAMES = [...]string{"..", "."}
+
+/*
+Checks if path constains some invalid names (server protection) -> Returns TRUE if value is INVALID
+! Must be present in every operation with files on server !
+*/
+func CheckInvalidNames(path string) error {
+	if !strings.HasPrefix(path, "/") {
+		return errors.New("path does not have prefix")
+	}
+	split := strings.Split(path, "/")
+	for i := 0; i < len(iNVALID_NAMES); i++ {
+		for k := 0; k < len(split); k++ {
+			if strings.EqualFold(split[k], iNVALID_NAMES[i]) {
+				return errors.New("Found invalid name: " + iNVALID_NAMES[i] + " in: " + path)
+			}
+		}
+	}
+	return nil
+}
+
 /*
 Struct of HTTP server
 */
@@ -34,6 +55,7 @@ type HTTPServer struct {
 	onAccessFunc    HTTPAccessFunc
 	startWebBrowser bool
 	isAlive         bool
+	useDirListing   bool
 }
 
 func (sv *HTTPServer) GetRootPath() string {
@@ -164,7 +186,13 @@ func JoinPaths(path1 string, path2 string) string {
 /*
 Reads file contents
 */
-func TryHandleHTTPFile(w http.ResponseWriter, filePath string, contentType string) error {
+func (sv *HTTPServer) TryHandleHTTPFile(w http.ResponseWriter, filePath string, contentType string) error {
+	//Check path
+	err := CheckInvalidNames(filePath)
+	if err != nil {
+		return err
+	}
+
 	//Read data
 	data, isDir, err := ReadFileString(filePath)
 	if err != nil {
@@ -173,6 +201,9 @@ func TryHandleHTTPFile(w http.ResponseWriter, filePath string, contentType strin
 
 	//Check dir
 	if isDir {
+		if sv.useDirListing {
+			HandleDirectoryListingHTTP(w, filePath, sv)
+		}
 		http.Error(w, "Directory listing not supported yet.", http.StatusForbidden)
 		return nil
 	}
