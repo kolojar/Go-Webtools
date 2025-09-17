@@ -98,24 +98,48 @@ func (sv *HTTPServer) Start() {
 }
 
 /*
+Resolves relative urls for HTTP server to real OS FileSystem path
+Returns list of real urls
+*/
+func (sv *HTTPServer) ResolvePath(url string) []string {
+	result := make([]string, 0)
+	for k, v := range sv.HostPaths {
+		//Sort out hostPaths
+		if strings.HasPrefix(url, k) {
+			result = append(result, strings.Replace(url, k, v, 1))
+		}
+	}
+	return result
+}
+
+/*
 Handles and sorts HTTP requests
 */
 func (sv *HTTPServer) httpHandler(w http.ResponseWriter, r *http.Request) {
 	sv.Logger.Log(1, r.RemoteAddr+" - "+r.Method+" - "+r.URL.String())
+	//Check name
+	err2 := CheckInvalidNames(r.URL.Path)
+	if err2 != nil {
+		sv.Logger.Log(3, "Error in request: "+r.URL.Path+" | Error: "+err2.Error())
+		http.Error(w, "Invalid request", http.StatusInternalServerError)
+		return
+	}
+
 	if r.Method == http.MethodGet {
-		for k, v := range sv.HostPaths {
-			//Sort out hostPaths
-			if strings.HasPrefix(r.URL.Path, k) {
-				err := HandleHTTPGet(w, r, v, "/"+strings.TrimPrefix(r.URL.Path, k), sv)
-				if err != nil && !errors.Is(err, os.ErrNotExist) {
-					//Invalid error
-					sv.Logger.Log(3, "Error in GET request for: "+r.URL.Path+" | Error: "+err.Error())
-					return
-				}
-				if err == nil {
-					//Get OK
-					return
-				}
+		urls := sv.ResolvePath(r.URL.Path)
+		for i := 0; i < len(urls); i++ {
+			//Sort out urls
+			url := urls[i]
+			err := HandleHTTPGet(w, r, v, "/"+strings.TrimPrefix(r.URL.Path, k), sv)
+			if err != nil && !errors.Is(err, os.ErrNotExist) {
+				//Invalid error
+				sv.Logger.Log(3, "Error in GET request for: "+r.URL.Path+" | Error: "+err.Error())
+				http.Error(w, "Invalid request", http.StatusInternalServerError)
+				return
+			}
+			if err == nil {
+				//Get OK
+				return
 			}
 		}
 	}
@@ -184,7 +208,7 @@ func JoinPaths(path1 string, path2 string) string {
 }
 
 /*
-Reads file contents
+Tries to handle file or folder request
 */
 func TryHandleHTTPFile(w http.ResponseWriter, filePath string, contentType string, urlPath string, sv *HTTPServer) error {
 	//Read data
@@ -196,9 +220,9 @@ func TryHandleHTTPFile(w http.ResponseWriter, filePath string, contentType strin
 	//Check dir
 	if isDir {
 		if sv != nil && sv.useDirListing {
-			HandleDirectoryListingHTTP(w, urlPath, sv)
+			HandleDirectoryListingHTTP(w, filePath, urlPath, sv)
 		} else {
-			http.Error(w, "Directory listing not supported yet.", http.StatusForbidden)
+			http.Error(w, "Directory listing not supported.", http.StatusForbidden)
 		}
 		return nil
 	}
@@ -240,25 +264,32 @@ func (sv *HTTPServer) TryHandleHTTPFileRelative(w http.ResponseWriter, r *http.R
 /*
 Handles directory access get request
 */
-func HandleHTTPGet(w http.ResponseWriter, r *http.Request, rootPath string, getPath string, sv *HTTPServer) error {
-	//Check invalid names
-	err := CheckInvalidNames(getPath)
-	if err != nil {
-		return err
-	}
+func HandleHTTPGet(w http.ResponseWriter, r *http.Request, realPath string, sv *HTTPServer) error {
 	return TryHandleHTTPFile(w, JoinPaths(rootPath, getPath), SortHTTPContentType(getPath), getPath, sv)
 }
 
 /*
-Handles directory access get request relative to HTTP server root
+Handles directory access GET request relative to HTTP server
 */
-func (sv *HTTPServer) HandleHTTPGetRelative(w http.ResponseWriter, r *http.Request) error {
-	//Check invalid names
-	err := CheckInvalidNames(r.URL.Path)
-	if err != nil {
-		return err
+func (sv *HTTPServer) HandleHTTPGetRelative(w http.ResponseWriter, r *http.Request) bool {
+	urls := sv.ResolvePath(r.URL.Path)
+	for i := 0; i < len(urls); i++ {
+		//Handle each url
+		url := urls[i]
+		err := HandleHTTPGet(w, r, url)
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			//Invalid error
+			sv.Logger.Log(3, "Error in GET request for: "+r.URL.Path+" | Error: "+err.Error())
+			http.Error(w, "Invalid request", http.StatusInternalServerError)
+			return false
+		}
+		if err == nil {
+			//Get OK
+			return true
+		}
+
 	}
-	return HandleHTTPGet(w, r, JoinPaths(sv.rootPath, r.URL.Path), r.URL.Path, nil)
+	return false
 }
 
 /*
