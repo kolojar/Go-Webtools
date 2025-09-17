@@ -130,7 +130,7 @@ func (sv *HTTPServer) httpHandler(w http.ResponseWriter, r *http.Request) {
 		for i := 0; i < len(urls); i++ {
 			//Sort out urls
 			url := urls[i]
-			err := HandleHTTPGet(w, r, v, "/"+strings.TrimPrefix(r.URL.Path, k), sv)
+			err := HandleHTTPGet(w, r, url, sv)
 			if err != nil && !errors.Is(err, os.ErrNotExist) {
 				//Invalid error
 				sv.Logger.Log(3, "Error in GET request for: "+r.URL.Path+" | Error: "+err.Error())
@@ -265,7 +265,7 @@ func (sv *HTTPServer) TryHandleHTTPFileRelative(w http.ResponseWriter, r *http.R
 Handles directory access get request
 */
 func HandleHTTPGet(w http.ResponseWriter, r *http.Request, realPath string, sv *HTTPServer) error {
-	return TryHandleHTTPFile(w, JoinPaths(rootPath, getPath), SortHTTPContentType(getPath), getPath, sv)
+	return TryHandleHTTPFile(w, realPath, SortHTTPContentType(r.URL.Path), r.URL.Path, sv)
 }
 
 /*
@@ -276,7 +276,7 @@ func (sv *HTTPServer) HandleHTTPGetRelative(w http.ResponseWriter, r *http.Reque
 	for i := 0; i < len(urls); i++ {
 		//Handle each url
 		url := urls[i]
-		err := HandleHTTPGet(w, r, url)
+		err := HandleHTTPGet(w, r, url, sv)
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			//Invalid error
 			sv.Logger.Log(3, "Error in GET request for: "+r.URL.Path+" | Error: "+err.Error())
@@ -348,4 +348,13 @@ func (sv *HTTPServer) Stop() {
 	if err != nil {
 		sv.Logger.Log(3, "Error stopping: "+err.Error())
 	}
+}
+
+/*
+Setups directory listing. Path is located in HTTP Tools as views directory
+Resources are registered in /dirlist subfolder
+*/
+func (sv *HTTPServer) SetupDirectoryListing(pathToViewsOfDirectoryListing string) {
+	sv.HostPaths["/dirlist"] = pathToViewsOfDirectoryListing
+	sv.useDirListing = true
 }

@@ -60,6 +60,7 @@ func main() {
 		{
 			sv := httptools.NewHTTPServer("127.0.0.1:7777", nil, "", false)
 			sv.HostPaths["/test"] = "./test"
+			sv.SetupDirectoryListing("./httpTools/views")
 			sv.Start()
 		}
 	//case "hwts":
