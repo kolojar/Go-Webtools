@@ -1,7 +1,6 @@
 package httpTools
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -12,49 +11,59 @@ import (
 Renders directory listing to this request
 Returns if it was handeled
 */
-func HandleDirectoryListingHTTP(w http.ResponseWriter, path string, httpServer *HTTPServer) bool {
-	http.Error(w, "Directory listing not working", 404)
-	return false
-
+func HandleDirectoryListingHTTP(w http.ResponseWriter, realPath string, urlPath string, httpServer *HTTPServer) bool {
 	//Check for directory
-	path = strings.ReplaceAll(path, "//", "/")
-	path = strings.ReplaceAll(httpServer.GetRootPath()+path, "//", "/")
-	info, err4 := os.Stat(path)
-	if err4 != nil {
-		http.Error(w, "Invalid file path. Internal error: "+err4.Error(), http.StatusInternalServerError)
+	_, isDir, err := ReadFile(realPath)
+	if err != nil {
+		http.Error(w, "Invalid file path. Internal error: "+err.Error(), http.StatusInternalServerError)
 		return true
 	}
-	if !info.IsDir() {
+	if !isDir {
 		return false
 	}
 
-	//Fix suffix
-	if !strings.HasSuffix(path, "/") {
-		path += "/"
-	}
-	path = strings.ReplaceAll(path, "//", "/")
-
-	//Read data
-	dataBinary, _, err := httpServer.ReadFileRelative(JoinPaths(httpServer.HostPaths["/dirlist"], "/directoryListingViewer.html"))
-	if err != nil {
-		http.Error(w, "File template not found! Internal error: "+err.Error(), http.StatusInternalServerError)
-		return true
-	}
-
 	//List folder
-	httpList, err3 := getItemsInFolderRelative(path, httpServer)
+	httpList, err3 := getItemsInFolderRelative(realPath, urlPath, httpServer)
 	if err3 != nil {
 		http.Error(w, "Could not get information about folder! Internal error: "+err3.Error(), http.StatusInternalServerError)
 		return true
 	}
 
+	//Create HTML
+	creator := NewHTMLCreator(true, "en", "directoryListing")
+	creator.AddBodyElement(NewHTMLHxElement(1, "Current directory: "+urlPath))
+	list := NewHTMLListElement()
+
+	//Create up folder
+	split := strings.Split(urlPath, "/")
+	if len(split) > 1 && len(split[1]) > 0 {
+		upPath := ""
+		if len(split) == 2 {
+			upPath = "/"
+		} else {
+			split = split[0 : len(split)-1]
+			upPath = strings.Join(split, "/")
+		}
+		upFolder := NewHTMLAElement(upPath, "")
+		upFolder.InnerHTML = "Parent folder (..)"
+		list.AddItem(upFolder)
+	}
+
+	//Add entries
+	for i := 0; i < len(httpList); i++ {
+		a := NewHTMLAElement(httpList[i].Path, "")
+		a.InnerHTML = httpList[i].Name
+		list.AddItem(a)
+	}
+	creator.AddBodyElement(list)
+
 	//Replace data
-	data := string(dataBinary)
-	data = strings.Replace(data, "[HTTP_ITEMS]", (httpList), 1)
-	data = strings.Replace(data, "[HTTP_PATH]", strings.TrimPrefix(path, "."), 1)
+	//data := LISTING_HTML
+	//data = strings.Replace(data, "[HTTP_ITEMS]", (httpList), 1)
+	//dapta = strings.Replace(data, "[HTTP_PATH]", strings.TrimPrefix(urlPath, "."), 1)
 
 	//Process site
-	fmt.Fprint(w, data)
+	fmt.Fprint(w, creator.ExportHTML())
 	return true
 }
 
@@ -66,31 +75,20 @@ type directoryListingEntry struct {
 
 /*
 Gets items in folder for directory listing
-Returns string as JSON
 Path must be path in HTTP server
 */
-func getItemsInFolderRelative(path string, sv *HTTPServer) (string, error) {
-	//Convert to real path
-	var realPath string = path
-	for k, v := range sv.HostPaths {
-		//Sort out hostPaths
-		if strings.HasPrefix(path, k) {
-			realPath = strings.Replace(path, k, v, 1)
-			break
-		}
-	}
-
+func getItemsInFolderRelative(realPath string, urlPath string, sv *HTTPServer) ([]directoryListingEntry, error) {
 	//Read folder
 	entries, err := os.ReadDir(realPath)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	//Make entries
 	result := make([]directoryListingEntry, 0)
 	for i := 0; i < len(entries); i++ {
 		entry := entries[i]
-		newEntry := directoryListingEntry{Path: path + entry.Name(), Name: entry.Name()}
+		newEntry := directoryListingEntry{Path: JoinPaths(urlPath, entry.Name()), Name: entry.Name()}
 		newEntry.Path = strings.TrimPrefix(newEntry.Path, ".")
 		if entry.IsDir() {
 			newEntry.FileType = "directory"
@@ -100,17 +98,5 @@ func getItemsInFolderRelative(path string, sv *HTTPServer) (string, error) {
 		}
 		result = append(result, newEntry)
 	}
-
-	//Create JSON
-	data, err2 := json.Marshal(result)
-	return string(data), err2
-}
-
-/*
-Setups directory listing. Path is located in HTTP Tools as views directory
-Resources are registered in /dirlist subfolder
-*/
-func SetupDirectoryListing(sv *HTTPServer, pathToViewsOfDirectoryListing string) {
-	sv.HostPaths["/dirlist"] = pathToViewsOfDirectoryListing
-	sv.useDirListing = true
+	return result, nil
 }
