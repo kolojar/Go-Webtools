@@ -48,14 +48,14 @@ type HTTPServer struct {
 	//Key is url on server and value is real path in file system, they are not relative to rootPath. They are handeled automatically
 	HostPaths map[string]string
 	//This path is not handeled automatically
-	rootPath        string
-	address         string
-	Logger          *webtools.ConsoleLogger
-	server          http.Server
-	onAccessFunc    HTTPAccessFunc
-	startWebBrowser bool
-	isAlive         bool
-	useDirListing   bool
+	rootPath            string
+	address             string
+	Logger              *webtools.ConsoleLogger
+	server              http.Server
+	onAccessFunc        HTTPAccessFunc
+	startWebBrowser     bool
+	isAlive             bool
+	UseDirectoryListing bool
 }
 
 func (sv *HTTPServer) GetRootPath() string {
@@ -109,6 +109,7 @@ func (sv *HTTPServer) ResolvePath(url string) []string {
 			result = append(result, strings.Replace(url, k, v, 1))
 		}
 	}
+	result = append(result, strings.Replace(url, "/", sv.rootPath, 1))
 	return result
 }
 
@@ -219,7 +220,7 @@ func TryHandleHTTPFile(w http.ResponseWriter, filePath string, contentType strin
 
 	//Check dir
 	if isDir {
-		if sv != nil && sv.useDirListing {
+		if sv != nil && sv.UseDirectoryListing {
 			HandleDirectoryListingHTTP(w, filePath, urlPath, sv)
 		} else {
 			http.Error(w, "Directory listing not supported.", http.StatusForbidden)
@@ -348,13 +349,4 @@ func (sv *HTTPServer) Stop() {
 	if err != nil {
 		sv.Logger.Log(3, "Error stopping: "+err.Error())
 	}
-}
-
-/*
-Setups directory listing. Path is located in HTTP Tools as views directory
-Resources are registered in /dirlist subfolder
-*/
-func (sv *HTTPServer) SetupDirectoryListing(pathToViewsOfDirectoryListing string) {
-	sv.HostPaths["/dirlist"] = pathToViewsOfDirectoryListing
-	sv.useDirListing = true
 }
