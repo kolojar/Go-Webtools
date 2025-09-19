@@ -8,17 +8,15 @@
 - [X] UDP Server
 - [X] UDP Client
 - [X] HTTP Server
-- [ ] HTTP Client
-- [X] HTTP Internal WebSocket Server (no frames, encoding, ...)
-- [X] HTTP Internal WebSocket Client
+- [X] HTTP Client
 - [X] HTTP WebSocket Server
 - [X] HTTP WebSocket Client
 - [ ] TCP Bridge
 - [ ] UDP Bridge
-- [ ] TCP HTTP Proxy Server
-- [ ] TCP HTTP Proxy Client
-- [ ] UDP HTTP Proxy Server
-- [ ] UDP HTTP Proxy Client
+- [X] TCP HTTP Proxy Server
+- [X] TCP HTTP Proxy Client
+- [X] UDP HTTP Proxy Server
+- [X] UDP HTTP Proxy Client
 - [ ] Encryption
     - [X] TCP Server
     - [X] TCP Client
@@ -26,8 +24,6 @@
     - [ ] UDP Client
     - [ ] HTTP Server
     - [ ] HTTP Client
-    - [ ] HTTP Internal WebSocket Server (no frames, encoding, ...)
-    - [ ] HTTP Internal WebSocket Client
     - [ ] HTTP WebSocket Server
     - [ ] HTTP WebSocket Client
     - [ ] TCP Bridge
@@ -41,4 +37,4 @@
 
 # Fixes
 - [X] Fix map sync error
-- [ ] Add address fix to TCP server. Instead whole address object use just string of address, apply this fix to all UDP components.
+- [X] Add address fix to TCP server. Instead whole address object use just string of address, apply this fix to all UDP components.
