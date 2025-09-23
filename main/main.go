@@ -19,14 +19,14 @@ func main() {
 	case "ts":
 		{
 			server, _ := tcptools.NewTCPServer("127.0.0.1:7777", readFuncTCPSv, true, true)
-			server.SetupEncryption(true, "1234")
+			server.SetupEncryption(true, []byte("1234"))
 			server.Start()
 			break
 		}
 	case "tc":
 		{
 			client, _ := tcptools.NewTCPClientSimple("127.0.0.1:7777", 0, false, readFuncTCPCl, true)
-			client.SetupEncryption(true, "1234")
+			client.SetupEncryption(true, []byte("1234"))
 			client.Connect()
 			for i := 0; i < 100; i++ {
 				client.Send([]byte("Test" + strconv.Itoa(i) + "|"))
