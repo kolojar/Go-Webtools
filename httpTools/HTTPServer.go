@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+
 	"webtools"
 )
 
@@ -45,7 +46,7 @@ func CheckInvalidNames(path string) error {
 Struct of HTTP server
 */
 type HTTPServer struct {
-	//Key is url on server and value is real path in file system, they are not relative to rootPath. They are handeled automatically
+	// Key is url on server and value is real path in file system, they are not relative to rootPath. They are handeled automatically
 	HostPaths map[string]string
 	//This path is not handeled automatically
 	rootPath            string
@@ -65,6 +66,7 @@ func (sv *HTTPServer) GetRootPath() string {
 func (sv *HTTPServer) IsAlive() bool {
 	return sv.isAlive
 }
+
 func (sv *HTTPServer) GetAddress() string {
 	return sv.address
 }
@@ -145,12 +147,13 @@ func (sv *HTTPServer) httpHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if sv.onAccessFunc != nil {
-		if sv.onAccessFunc(sv, w, r, CreateParametersFromURL(r.URL.RawQuery)) {
+		_, params := CreateParametersFromURL(r.URL.RawQuery)
+		if sv.onAccessFunc(sv, w, r, params) {
 			return
 		}
 	}
 
-	//Not found
+	// Not found
 	sv.Logger.Log(3, "NOT FOUND - "+r.RemoteAddr+" - "+r.Method+" - "+r.URL.String())
 	http.NotFound(w, r)
 }
@@ -160,7 +163,7 @@ Reads file contents
 Returns data, isDirectory, error
 */
 func ReadFile(filePath string) ([]byte, bool, error) {
-	//Check file exists
+	// Check file exists
 	stat, err2 := os.Stat(filePath)
 	if errors.Is(err2, os.ErrNotExist) {
 		return nil, false, err2
@@ -169,12 +172,12 @@ func ReadFile(filePath string) ([]byte, bool, error) {
 		return nil, false, os.ErrNotExist
 	}
 
-	//Check for dir
+	// Check for dir
 	if stat.IsDir() {
 		return nil, true, nil
 	}
 
-	//Read data
+	// Read data
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, false, err
@@ -218,7 +221,7 @@ func TryHandleHTTPFile(w http.ResponseWriter, filePath string, contentType strin
 		return err
 	}
 
-	//Check dir
+	// Check dir
 	if isDir {
 		if sv != nil && sv.UseDirectoryListing {
 			HandleDirectoryListingHTTP(w, filePath, urlPath, sv)
@@ -241,7 +244,7 @@ func SortHTTPContentType(path string) string {
 	} else if strings.HasSuffix(path, ".js") {
 		contentType = "text/javascript"
 	} else if strings.HasSuffix(path, ".map") {
-		contentType = "text/json" //JS Map
+		contentType = "text/json" // JS Map
 	} else if strings.HasSuffix(path, ".ts") {
 		contentType = "text/x.typescript"
 	} else if strings.HasSuffix(path, ".svg") {
@@ -304,14 +307,14 @@ func (sv *HTTPServer) ReadFileRelative(path string) ([]byte, bool, error) {
 /*
 Creates map from url parameters
 */
-func CreateParametersFromURL(text string) map[string]string {
-	//Split & parts
+func CreateParametersFromURL(text string) (string, map[string]string) {
+	// Split & parts
 	dataSplit := strings.Split(text, "&")
 	postArguments := map[string]string{}
 
-	//Go trought all of them
+	// Go trought all of them
 	for i := 0; i < len(dataSplit); i++ {
-		//Split by "=" and unescape
+		// Split by "=" and unescape
 		split := strings.SplitN(dataSplit[i], "=", 2)
 		unescapeKey, _ := url.QueryUnescape(split[0])
 		if len(split) == 1 {
@@ -322,15 +325,15 @@ func CreateParametersFromURL(text string) map[string]string {
 		}
 
 	}
-	return postArguments
+	return dataSplit[0], postArguments
 }
 
 /*
 Creates url like parameters from map
 */
-func CreateURLFromParameters(params map[string]string) string {
-	result := ""
-	//Go trought all parameters in map and escape them
+func CreateURLFromParameters(preURL string, params map[string]string) string {
+	result := preURL + "&"
+	// Go trought all parameters in map and escape them
 	for k, v := range params {
 		result += url.QueryEscape(k) + "=" + url.QueryEscape(v) + "&"
 	}

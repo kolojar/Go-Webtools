@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net"
+
 	"webtools"
 )
 
@@ -69,30 +70,30 @@ func (cl *TCPClientSimple) GetLogger() *webtools.ConsoleLogger {
 /*
 Setups encryption, it is strongly recommended to use encryption with framed connection
 */
-func (cl *TCPClientSimple) SetupEncryption(useEncryption bool, password string) {
+func (cl *TCPClientSimple) SetupEncryption(useEncryption bool, password []byte) {
 	cl.universalClient.SetupEncryption(useEncryption, password)
 }
 
 // Generates HanderFuncs for universal client, this function is not needed but because I have 2 constructors, I do not want to repeat code
 func (cl *TCPClientSimple) generateReadFuncStructure(noFrameCount int, writeOneLastNoFrame bool) {
-	//Generate not framed handler
+	// Generate not framed handler
 	cl.universalClient.HandlerFuncs = append(cl.universalClient.HandlerFuncs,
 		TCPClientUniversalHanderFuncs{
-			UseCount:               noFrameCount,        //Limit of not framed connections
-			ReadHandler:            HandleTCPRead,       //Function resposible for handleling reading from connection, has loop for connection limit
-			ReadFunc:               cl.readFuncLocal,    //Function that handles read events from prevous function
-			WriteHandler:           WriteToTCPHandler,   //Founctionm responsible for writing to connection
-			CanOneWriteAfterSwitch: writeOneLastNoFrame, //Writes one last write after switching to other functions
+			UseCount:               noFrameCount,        // Limit of not framed connections
+			ReadHandler:            HandleTCPRead,       // Function resposible for handleling reading from connection, has loop for connection limit
+			ReadFunc:               cl.readFuncLocal,    // Function that handles read events from prevous function
+			WriteHandler:           WriteToTCPHandler,   // Founctionm responsible for writing to connection
+			CanOneWriteAfterSwitch: writeOneLastNoFrame, // Writes one last write after switching to other functions
 		})
 
-	//Generate framed handler
+	// Generate framed handler
 	cl.universalClient.HandlerFuncs = append(cl.universalClient.HandlerFuncs,
 		TCPClientUniversalHanderFuncs{
-			UseCount:               -1,                      //Limit of framed connections
-			ReadHandler:            HandleTCPReadFramed,     //Function resposible for handleling reading from connection, has loop for connection limit
-			ReadFunc:               cl.readFuncLocal,        //Function that handles read events from prevous function
-			WriteHandler:           WriteToTCPFramedHandler, //Founctionm responsible for writing to connection
-			CanOneWriteAfterSwitch: false,                   //Writes one last write after switching to other functions
+			UseCount:               -1,                      // Limit of framed connections
+			ReadHandler:            HandleTCPReadFramed,     // Function resposible for handleling reading from connection, has loop for connection limit
+			ReadFunc:               cl.readFuncLocal,        // Function that handles read events from prevous function
+			WriteHandler:           WriteToTCPFramedHandler, // Founctionm responsible for writing to connection
+			CanOneWriteAfterSwitch: false,                   // Writes one last write after switching to other functions
 		})
 }
 
@@ -112,11 +113,11 @@ func HandleTCPRead(cl *TCPClientUniversal, limit int, logger *webtools.ConsoleLo
 		buffer := make([]byte, webtools.BUFFER_SIZE)
 		n, err := cl.GetConn().Read(buffer)
 		if err != nil {
-			//Exit on errors
+			// Exit on errors
 			return true, err
 		}
 
-		//Process read
+		// Process read
 		data := buffer[:n]
 		readFunc(data, nil)
 	}
@@ -131,7 +132,7 @@ func HandleTCPReadFramed(cl *TCPClientUniversal, limit int, logger *webtools.Con
 	var data []byte
 	var n int
 	for i := 0; i < limit || limit < 0; i++ {
-		//Get frame size
+		// Get frame size
 		sizeOfBuffer := make([]byte, 4)
 		_, err := io.ReadFull(cl.GetConn(), sizeOfBuffer)
 		if err != nil {
@@ -139,15 +140,15 @@ func HandleTCPReadFramed(cl *TCPClientUniversal, limit int, logger *webtools.Con
 		}
 		lengthOfBuffer := binary.BigEndian.Uint32(sizeOfBuffer)
 
-		//Read data
+		// Read data
 		data = make([]byte, lengthOfBuffer)
 		_, err = io.ReadFull(cl.GetConn(), data)
 		if err != nil {
-			//Exit on errors
+			// Exit on errors
 			return true, err
 		}
 
-		//Process read
+		// Process read
 		readFunc(data, nil)
 	}
 	readFunc(data[:n], map[string]any{"restData": true})
@@ -159,7 +160,7 @@ Handles TCP Write
 Implements: type TCPClientUniversalOnWriteHandlerFunc func(cl *TCPClientUniversal, data []byte, otherData map[string]any) error
 */
 func WriteToTCPHandler(cl *TCPClientUniversal, data []byte, otherData map[string]any) error {
-	//Write
+	// Write
 	_, err := cl.GetConn().Write(data)
 	return err
 }
@@ -183,7 +184,7 @@ Helper function for read event fired by read handler (used just as redirector)
 Implements: type TCPClientUniversalOnReadFunc func(cl *TCPClientUniversal, data []byte, status uint8, otherData map[string]any)
 */
 func (tcp *TCPClientSimple) readFuncLocal(cl *TCPClientUniversal, data []byte, status uint8, otherData map[string]any) {
-	//Process read - redirect read data to main read function
+	// Process read - redirect read data to main read function
 	if tcp.readFunc != nil {
 		tcp.readFunc(tcp, data, status)
 	}
