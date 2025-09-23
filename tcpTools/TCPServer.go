@@ -1,4 +1,4 @@
-package tcptools
+package tcpTools
 
 import (
 	"net"
@@ -11,7 +11,7 @@ import (
 /*
 Server connection interface
 */
-type ServerConn interface {
+type IServerConn interface {
 	Send([]byte)
 	Close()
 }

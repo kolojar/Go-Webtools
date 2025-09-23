@@ -1,4 +1,4 @@
-package tcptools
+package tcpTools
 
 import (
 	"encoding/json"

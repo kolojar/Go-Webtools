@@ -1,4 +1,4 @@
-package httptools
+package httpTools
 
 import (
 	"errors"
@@ -21,20 +21,42 @@ Returns bool = got handled
 */
 type HTTPAccessFunc func(server *HTTPServer, w http.ResponseWriter, r *http.Request, params map[string]string) bool
 
+var iNVALID_NAMES = [...]string{"..", "."}
+
+/*
+Checks if path constains some invalid names (server protection) -> Returns TRUE if value is INVALID
+! Must be present in every operation with files on server !
+*/
+func CheckInvalidNames(path string) error {
+	if !strings.HasPrefix(path, "/") {
+		return errors.New("path does not have prefix")
+	}
+	split := strings.Split(path, "/")
+	for i := 0; i < len(iNVALID_NAMES); i++ {
+		for k := 0; k < len(split); k++ {
+			if strings.EqualFold(split[k], iNVALID_NAMES[i]) {
+				return errors.New("Found invalid name: " + iNVALID_NAMES[i] + " in: " + path)
+			}
+		}
+	}
+	return nil
+}
+
 /*
 Struct of HTTP server
 */
 type HTTPServer struct {
 	// Key is url on server and value is real path in file system, they are not relative to rootPath. They are handeled automatically
 	HostPaths map[string]string
-	// This path is not handeled automatically
-	rootPath        string
-	address         string
-	Logger          *webtools.ConsoleLogger
-	server          http.Server
-	onAccessFunc    HTTPAccessFunc
-	startWebBrowser bool
-	isAlive         bool
+	//This path is not handeled automatically
+	rootPath            string
+	address             string
+	Logger              *webtools.ConsoleLogger
+	server              http.Server
+	onAccessFunc        HTTPAccessFunc
+	startWebBrowser     bool
+	isAlive             bool
+	UseDirectoryListing bool
 }
 
 func (sv *HTTPServer) GetRootPath() string {
@@ -78,24 +100,49 @@ func (sv *HTTPServer) Start() {
 }
 
 /*
+Resolves relative urls for HTTP server to real OS FileSystem path
+Returns list of real urls
+*/
+func (sv *HTTPServer) ResolvePath(url string) []string {
+	result := make([]string, 0)
+	for k, v := range sv.HostPaths {
+		//Sort out hostPaths
+		if strings.HasPrefix(url, k) {
+			result = append(result, strings.Replace(url, k, v, 1))
+		}
+	}
+	result = append(result, strings.Replace(url, "/", sv.rootPath, 1))
+	return result
+}
+
+/*
 Handles and sorts HTTP requests
 */
 func (sv *HTTPServer) httpHandler(w http.ResponseWriter, r *http.Request) {
 	sv.Logger.Log(1, r.RemoteAddr+" - "+r.Method+" - "+r.URL.String())
+	//Check name
+	err2 := CheckInvalidNames(r.URL.Path)
+	if err2 != nil {
+		sv.Logger.Log(3, "Error in request: "+r.URL.Path+" | Error: "+err2.Error())
+		http.Error(w, "Invalid request", http.StatusInternalServerError)
+		return
+	}
+
 	if r.Method == http.MethodGet {
-		for k, v := range sv.HostPaths {
-			// Sort out hostPaths
-			if strings.HasPrefix(r.URL.Path, k) {
-				err := HandleHTTPGet(w, r, v, strings.TrimPrefix(r.URL.Path, k))
-				if err != nil && !errors.Is(err, os.ErrNotExist) {
-					// Invalid error
-					sv.Logger.Log(3, "Error in GET request for: "+r.URL.Path+" | Error: "+err.Error())
-					return
-				}
-				if err == nil {
-					// Get OK
-					return
-				}
+		urls := sv.ResolvePath(r.URL.Path)
+		for i := 0; i < len(urls); i++ {
+			//Sort out urls
+			url := urls[i]
+			err := HandleHTTPGet(w, r, url, sv)
+			if err != nil && !errors.Is(err, os.ErrNotExist) {
+				//Invalid error
+				sv.Logger.Log(3, "Error in GET request for: "+r.URL.Path+" | Error: "+err.Error())
+				http.Error(w, "Invalid request", http.StatusInternalServerError)
+				return
+			}
+			if err == nil {
+				//Get OK
+				return
 			}
 		}
 	}
@@ -120,6 +167,9 @@ func ReadFile(filePath string) ([]byte, bool, error) {
 	stat, err2 := os.Stat(filePath)
 	if errors.Is(err2, os.ErrNotExist) {
 		return nil, false, err2
+	}
+	if stat == nil {
+		return nil, false, os.ErrNotExist
 	}
 
 	// Check for dir
@@ -162,10 +212,10 @@ func JoinPaths(path1 string, path2 string) string {
 }
 
 /*
-Reads file contents
+Tries to handle file or folder request
 */
-func TryHandleHTTPFile(w http.ResponseWriter, filePath string, contentType string) error {
-	// Read data
+func TryHandleHTTPFile(w http.ResponseWriter, filePath string, contentType string, urlPath string, sv *HTTPServer) error {
+	//Read data
 	data, isDir, err := ReadFileString(filePath)
 	if err != nil {
 		return err
@@ -173,11 +223,16 @@ func TryHandleHTTPFile(w http.ResponseWriter, filePath string, contentType strin
 
 	// Check dir
 	if isDir {
-		http.Error(w, "Directory listing not supported yet.", http.StatusForbidden)
+		if sv != nil && sv.UseDirectoryListing {
+			HandleDirectoryListingHTTP(w, filePath, urlPath, sv)
+		} else {
+			http.Error(w, "Directory listing not supported.", http.StatusForbidden)
+		}
 		return nil
 	}
 
-	// Send data
+	//Send data
+	w.Header().Add("Content-Type", contentType)
 	fmt.Fprint(w, data)
 	return nil
 }
@@ -202,21 +257,43 @@ func SortHTTPContentType(path string) string {
 Handles directory access get request relative to HTTP server root
 */
 func (sv *HTTPServer) TryHandleHTTPFileRelative(w http.ResponseWriter, r *http.Request, getPath string) error {
-	return TryHandleHTTPFile(w, JoinPaths(sv.rootPath, getPath), SortHTTPContentType(getPath))
+	//Check invalid names
+	err := CheckInvalidNames(getPath)
+	if err != nil {
+		return err
+	}
+	return TryHandleHTTPFile(w, JoinPaths(sv.rootPath, getPath), SortHTTPContentType(getPath), getPath, sv)
 }
 
 /*
 Handles directory access get request
 */
-func HandleHTTPGet(w http.ResponseWriter, r *http.Request, rootPath string, getPath string) error {
-	return TryHandleHTTPFile(w, JoinPaths(rootPath, getPath), SortHTTPContentType(getPath))
+func HandleHTTPGet(w http.ResponseWriter, r *http.Request, realPath string, sv *HTTPServer) error {
+	return TryHandleHTTPFile(w, realPath, SortHTTPContentType(r.URL.Path), r.URL.Path, sv)
 }
 
 /*
-Handles directory access get request relative to HTTP server root
+Handles directory access GET request relative to HTTP server
 */
-func (sv *HTTPServer) HandleHTTPGetRelative(w http.ResponseWriter, r *http.Request) error {
-	return HandleHTTPGet(w, r, JoinPaths(sv.rootPath, r.URL.Path), r.URL.Path)
+func (sv *HTTPServer) HandleHTTPGetRelative(w http.ResponseWriter, r *http.Request) bool {
+	urls := sv.ResolvePath(r.URL.Path)
+	for i := 0; i < len(urls); i++ {
+		//Handle each url
+		url := urls[i]
+		err := HandleHTTPGet(w, r, url, sv)
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			//Invalid error
+			sv.Logger.Log(3, "Error in GET request for: "+r.URL.Path+" | Error: "+err.Error())
+			http.Error(w, "Invalid request", http.StatusInternalServerError)
+			return false
+		}
+		if err == nil {
+			//Get OK
+			return true
+		}
+
+	}
+	return false
 }
 
 /*
