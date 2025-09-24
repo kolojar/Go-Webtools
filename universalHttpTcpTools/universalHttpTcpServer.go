@@ -2,6 +2,7 @@ package universalHttpTcpTools
 
 import (
 	"net"
+	"webtools"
 	httptools "webtools/httpTools"
 	tcptools "webtools/tcpTools"
 )
@@ -109,4 +110,15 @@ func (sv *UniversalHttpTcpServer) Stop() {
 	if sv.httpServer != nil {
 		sv.httpServer.Stop()
 	}
+}
+
+// Gets logger
+func (sv *UniversalHttpTcpServer) GetLogger() *webtools.ConsoleLogger {
+	if sv.tcpServer != nil {
+		return sv.tcpServer.Logger
+	}
+	if sv.httpServer != nil {
+		return sv.httpServer.Logger
+	}
+	return nil
 }

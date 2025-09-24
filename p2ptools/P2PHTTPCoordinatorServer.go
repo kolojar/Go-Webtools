@@ -2,8 +2,6 @@ package p2ptools
 
 import (
 	"crypto/rsa"
-	"strconv"
-	"time"
 	"webtools"
 	"webtools/encryption"
 	httptools "webtools/httpTools"
@@ -80,26 +78,32 @@ func PackP2PMessage(enc *encryption.AsymmetricEncryption, logger *webtools.Conso
 
 /*
 Unpacks P2P Message to command and parameters of command with validating signature and decrypting
-Returns: Command, Parameters, hadError
+Returns: Command, Parameters, hadError, wasVerified
 */
-func UnpackP2PMessage(enc *encryption.AsymmetricEncryption, logger *webtools.ConsoleLogger, sourcePublicKey *rsa.PublicKey, data []byte) (string, map[string]string, bool) {
+func UnpackP2PMessage(enc *encryption.AsymmetricEncryption, logger *webtools.ConsoleLogger, sourcePublicKey *rsa.PublicKey, data []byte) (string, map[string]string, bool, bool) {
 	// Decrypt
 	decrypt, err := enc.Decrypt(data)
 	if err != nil {
 		logger.Log(3, "Error decrypting message: "+err.Error())
-		return "", nil, true
+		return "", nil, true, false
 	}
 
 	//Verify data
 	verify, err := enc.VerifyFromJson(decrypt, sourcePublicKey)
+	wasVerified := true
 	if err != nil {
-		logger.Log(3, "Error verifing signature: "+err.Error())
-		return "", nil, true
+		if err.Error() == encryption.ERR_NO_PUBLIC_KEY {
+			logger.Log(2, "No valid public key specified, continuing without verification.")
+			wasVerified = false
+		} else {
+			logger.Log(3, "Error verifing signature: "+err.Error())
+			return "", nil, true, false
+		}
 	}
 
 	//Unpack standard
 	command, params := httptools.CreateParametersFromURL(string(verify))
-	return command, params, false
+	return command, params, false, wasVerified
 }
 
 type P2PServerConnection struct {
@@ -113,6 +117,7 @@ type P2PServerConnection struct {
 	origin                  *P2PHTTPCoordinatorServer
 	allowP2P                bool
 	relayConn               *httptools.WebSocketServerConn
+	awaitingFirstMessage    bool
 }
 
 /*
@@ -149,11 +154,6 @@ type P2PHTTPCoordinatorServer struct {
 	asymmetricEncryption *encryption.AsymmetricEncryption
 	allowRelay           bool
 	allowP2P             bool
-}
-
-func (sv *P2PHTTPCoordinatorServer) CloseConnection(conn *P2PServerPeersConnection) {
-	conn.source.conn.Send([]byte(P2P_CMD_CONNECT_PEER_CANCEL))
-	conn.target.conn.Send([]byte(P2P_CMD_CONNECT_PEER_CANCEL))
 }
 
 /*
@@ -199,6 +199,18 @@ func (sv *P2PHTTPCoordinatorServer) readFuncLocal(conn *P2PServerConnection, dat
 		// TODO:HANDLE TCP_DISCONNECT_STATUS
 	}
 	if status == webtools.TCP_CONNECT_STATUS {
+		//Handle connect, send public key
+		// Only send data Server -> Client
+		publicKeyData, err := sv.asymmetricEncryption.EncodePublicKey()
+		if err != nil {
+			sv.httpServer.Logger.Log(3, "Could not encode public key: "+err.Error())
+			conn.Close()
+			return
+		}
+		conn.awaitingFirstMessage = true
+		conn.conn.Send(publicKeyData)
+	}
+	/*if status == webtools.TCP_CONNECT_STATUS {
 		//Handle connect
 		// Only send data Server -> Client
 		publicKeyData, err := sv.asymmetricEncryption.EncodePublicKey()
@@ -211,7 +223,7 @@ func (sv *P2PHTTPCoordinatorServer) readFuncLocal(conn *P2PServerConnection, dat
 		//Sign
 		signedJsonData, err := sv.asymmetricEncryption.SignToJson(publicKeyData)
 		if err != nil {
-			sv.httpServer.Logger.Log(3, "Could not sing public key: "+err.Error())
+			sv.httpServer.Logger.Log(3, "Could not sign public key: "+err.Error())
 			conn.Close()
 			return
 		}
@@ -223,9 +235,8 @@ func (sv *P2PHTTPCoordinatorServer) readFuncLocal(conn *P2PServerConnection, dat
 
 	//Regular read
 	if !isBinary {
-
 		//Sort error command
-		command, params, hadError := UnpackP2PMessage(sv.asymmetricEncryption, sv.httpServer.Logger, conn.publicKey, data)
+		command, params, hadError, wasVerified := UnpackP2PMessage(sv.asymmetricEncryption, sv.httpServer.Logger, conn.publicKey, data)
 		if hadError {
 			return
 		}
@@ -235,7 +246,16 @@ func (sv *P2PHTTPCoordinatorServer) readFuncLocal(conn *P2PServerConnection, dat
 			conn.Close()
 			return
 		}
-
+		if !wasVerified {
+			//Not verified
+			if conn.firstNotVerified {
+				conn.firstNotVerified = false
+				//Got public key from client
+			}
+			sv.httpServer.Logger.Log(3, "Client returned not verified message.")
+			conn.Close()
+			return
+		}
 		//Sort commands
 		switch command {
 		case P2P_CMD_VERIFY_SIGNATURES:
@@ -383,5 +403,5 @@ func (sv *P2PHTTPCoordinatorServer) readFuncLocal(conn *P2PServerConnection, dat
 		}
 	} else {
 		sv.httpServer.Logger.Log(2, "P2P sent data as binary, ignoring.")
-	}
+	}*/
 }

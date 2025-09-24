@@ -2,7 +2,9 @@ package p2ptools
 
 import (
 	"webtools"
+	"webtools/encryption"
 	httptools "webtools/httpTools"
+	"webtools/universalHttpTcpTools"
 )
 
 type RelayServerConnection struct {
@@ -46,7 +48,14 @@ func UnpackRelayMessage(message []byte) (isCommand bool, data []byte) {
 	return string(isCommandByte) == "1", message[1:]
 }
 
-func (sv *P2PHTTPCoordinatorServer) readFuncRelay(conn *httptools.WebSocketServerConn, data []byte, status uint8, isBinary bool) {
+type RelayServerForP2P struct {
+	universalServer      *universalHttpTcpTools.UniversalHttpTcpServer
+	p2pServer            *P2PHTTPCoordinatorServer
+	relaysByClient       webtools.SafeMap[*universalHttpTcpTools.UniversalHttpTcpServerConn, *RelayServerConnection]
+	asymmetricEncryption *encryption.AsymmetricEncryption
+}
+
+func (sv *RelayServerForP2P) readFuncRelay(conn *universalHttpTcpTools.UniversalHttpTcpServerConn, data []byte, status uint8, isBinary bool) {
 	if sv.relaysByClient.Get(conn) == nil {
 		//No connection found, create new
 		sv.relaysByClient.Set(conn, &RelayServerConnection{conn: conn})
@@ -57,24 +66,34 @@ func (sv *P2PHTTPCoordinatorServer) readFuncRelay(conn *httptools.WebSocketServe
 /*
 Function for handling relay requests
 */
-func (sv *P2PHTTPCoordinatorServer) readFuncRelayLocal(conn *RelayServerConnection, data []byte, status uint8, isBinary bool) {
-	//No relay allowed
-	if !sv.allowRelay {
-		sv.httpServer.Logger.Log(3, "No relay allowed.")
-		conn.Close()
-		return
-	}
-
+func (sv *RelayServerForP2P) readFuncRelayLocal(conn *RelayServerConnection, data []byte, status uint8, isBinary bool) {
 	//Sort status
 	if status == webtools.TCP_CONNECT_STATUS {
-		//On connect
-		conn.conn.IsBinary = true
-		conn.SendCommand(RELAY_CMD_GET_RELAY_INFO, nil)
+		//Handle connect
+		// Only send data Server -> Client
+		publicKeyData, err := sv.asymmetricEncryption.EncodePublicKey()
+		if err != nil {
+			sv.universalServer.GetLogger().Log(3, "Could not encode public key: "+err.Error())
+			conn.Close()
+			return
+		}
+
+		//Sign
+		signedJsonData, err := sv.asymmetricEncryption.SignToJson(publicKeyData)
+		if err != nil {
+			sv.universalServer.GetLogger().Log(3, "Could not sing public key: "+err.Error())
+			conn.Close()
+			return
+		}
+
+		//Send
+		conn.conn.Send(signedJsonData)
+		return
 	}
 
 	if !isBinary {
 		//Command
-		command, params, hadError := UnpackP2PMessage(sv.asymmetricEncryption, sv.httpServer.Logger, conn..publicKey, data)
+		command, params, hadError := UnpackP2PMessage(sv.asymmetricEncryption, sv.httpServer.Logger, conn.publicKey, data)
 		if hadError {
 			return
 		}
@@ -112,7 +131,6 @@ func (sv *P2PHTTPCoordinatorServer) readFuncRelayLocal(conn *RelayServerConnecti
 			}
 
 		}
-
 	} else {
 		//Data
 	}
