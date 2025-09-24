@@ -18,6 +18,7 @@ import (
 
 // TIMEOUT_LIMIT_OF_SIGNATURE_IN_MINUTES tells how long will the signature be valid
 const TIMEOUT_LIMIT_OF_SIGNATURE_IN_MINUTES = 5
+const ERR_NO_PUBLIC_KEY = "no public key specified"
 
 /*
 Asymmectric encryption support using OAEP
@@ -254,6 +255,11 @@ func (enc *AsymmetricEncryption) Verify(signedData *AsymmetricSignedData, source
 	signature, err := base64.StdEncoding.DecodeString(signedData.Signature)
 	if err != nil {
 		return nil, err
+	}
+
+	//No source key
+	if sourcePublicKey == nil {
+		return signedData.Data, errors.New(ERR_NO_PUBLIC_KEY)
 	}
 
 	// Create hash
