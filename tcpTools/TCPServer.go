@@ -4,6 +4,7 @@ import (
 	"net"
 	"strconv"
 	"time"
+	"webtools/encryption"
 
 	"webtools"
 )
@@ -63,24 +64,25 @@ type TCPServerReadFunc func(conn *TCPServerConn, data []byte, status uint8)
 Basic TCP server
 */
 type TCPServer struct {
-	listener           *net.TCPListener
-	readFunc           TCPServerReadFunc
-	address            *net.TCPAddr
-	Logger             *webtools.ConsoleLogger
-	requestedStop      bool
-	isAlive            bool
-	conns              webtools.SafeMap[*TCPClientSimple, *TCPServerConn]
-	framed             bool
-	useEncryption      bool
-	encryptionPassword []byte
+	listener               *net.TCPListener
+	readFunc               TCPServerReadFunc
+	address                *net.TCPAddr
+	Logger                 *webtools.ConsoleLogger
+	requestedStop          bool
+	isAlive                bool
+	conns                  webtools.SafeMap[*TCPClientSimple, *TCPServerConn]
+	framed                 bool
+	useSymmetricEncryption bool
+	encryptionPassword     []byte
+	asymmetricEncryption   *encryption.AsymmetricEncryption
 }
 
-func (sv *TCPServer) IsAlive() bool {
-	return sv.isAlive
+func (tcp *TCPServer) IsAlive() bool {
+	return tcp.isAlive
 }
 
-func (sv *TCPServer) GetAddress() string {
-	return sv.address.String()
+func (tcp *TCPServer) GetAddress() string {
+	return tcp.address.String()
 }
 
 /*
@@ -96,14 +98,33 @@ func NewTCPServer(address string, readFunc TCPServerReadFunc, reportTraffic bool
 }
 
 /*
-Setups encryption, it is strongly recommended to use encryption with framed connection
+Setups symmetric encryption, it is strongly recommended to use encryption with framed connection
 */
-func (sv *TCPServer) SetupEncryption(useEncryption bool, password []byte) {
-	sv.useEncryption = useEncryption
+func (tcp *TCPServer) SetupSymmetricEncryption(useEncryption bool, password []byte) {
+	tcp.useSymmetricEncryption = useEncryption
 	if useEncryption {
-		sv.encryptionPassword = password
+		tcp.encryptionPassword = password
 	} else {
-		sv.encryptionPassword = nil
+		tcp.encryptionPassword = nil
+	}
+}
+
+/*
+Setups asymmetric encryption, it is strongly recommended to use encryption with framed connection
+*/
+func (sv *TCPServer) SetupAsymmetricEncryption(useEncryption bool, useSaving bool, privateKeyPath string, publicKeyPath string) {
+	if useEncryption {
+		var err error
+		sv.asymmetricEncryption, err = encryption.LoadOrCreateAsymmetricEncryption(true, privateKeyPath, publicKeyPath)
+		if err != nil {
+			sv.Logger.Log(3, "Error setting up asymmetric encryption: "+err.Error())
+			return
+		}
+		if useSaving {
+			sv.asymmetricEncryption.SaveAsymmetricEncryption(privateKeyPath, publicKeyPath)
+		}
+	} else {
+		sv.asymmetricEncryption = nil
 	}
 }
 
@@ -144,7 +165,9 @@ func (tcp *TCPServer) Start() {
 		// Handle connection
 		cl := NewTCPClientSimpleFromConnection(conn, webtools.FormatByBool(tcp.framed, 0, -1), false, tcp.readFuncLocal, false)
 		cl.SetLogger(tcp.Logger)
-		cl.SetupEncryption(tcp.useEncryption, tcp.encryptionPassword)
+		cl.SetupSymmetricEncryption(tcp.useSymmetricEncryption, tcp.encryptionPassword)
+		cl.SetAsymmetricEncryption(tcp.asymmetricEncryption)
+		cl.GetTCPClientUniversal().IsServerClient = true
 		cl.Connect()
 	}
 	tcp.isAlive = false

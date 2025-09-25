@@ -1,6 +1,7 @@
 package tcpTools
 
 import (
+	"crypto/rsa"
 	"encoding/hex"
 	"net"
 	"strconv"
@@ -52,8 +53,12 @@ type TCPClientUniversal struct {
 	currentWriteHandlerWaitOneWrite bool
 	switchWriteHandler              bool
 	isPreparedWithConnection        bool
-	useEncryption                   bool
+	useSymmetricEncryption          bool
 	encryptionPassword              []byte
+	asymmetricEncryption            *encryption.AsymmetricEncryption
+	serverPublicKey                 *rsa.PublicKey
+	isAsymmetricReady               bool
+	IsServerClient                  bool
 }
 
 func (tcp *TCPClientUniversal) IsAlive() bool {
@@ -93,15 +98,45 @@ func NewTCPClientUniversalFromConnection(conn *net.TCPConn, reportTraffic bool) 
 }
 
 /*
-Setups encryption for universal TCP Client, it is strongly recommended to use encryption with framed connection
+Setups symmetric encryption for universal TCP Client, it is strongly recommended to use encryption with framed connection
 */
-func (tcp *TCPClientUniversal) SetupEncryption(useEncryption bool, password []byte) {
-	tcp.useEncryption = useEncryption
+func (tcp *TCPClientUniversal) SetupSymmetricEncryption(useEncryption bool, password []byte) {
+	tcp.useSymmetricEncryption = useEncryption
 	if useEncryption {
 		tcp.encryptionPassword = password
 	} else {
 		tcp.encryptionPassword = nil
 	}
+}
+
+/*
+Setups asymmetric encryption, it is strongly recommended to use encryption with framed connection
+*/
+func (tcp *TCPClientUniversal) SetupAsymmetricEncryption(useEncryption bool, useSaving bool, privateKeyPath string, publicKeyPath string) {
+	if useEncryption {
+		enc, err := encryption.LoadOrCreateAsymmetricEncryption(true, privateKeyPath, publicKeyPath)
+		if err != nil {
+			tcp.Logger.Log(3, "Error setting up asymmetric encryption: "+err.Error())
+			return
+		}
+		if useSaving {
+			enc.SaveAsymmetricEncryption(privateKeyPath, publicKeyPath)
+		}
+		tcp.SetAsymmetricEncryption(enc)
+	} else {
+		tcp.asymmetricEncryption = nil
+	}
+}
+
+/*
+Just sets asymmetric encryption passed from variable
+*/
+func (tcp *TCPClientUniversal) SetAsymmetricEncryption(enc *encryption.AsymmetricEncryption) {
+	tcp.asymmetricEncryption = enc
+	if enc != nil {
+		tcp.HandlerFuncs = append([]TCPClientUniversalHanderFuncs{TCPClientUniversalHanderFuncs{UseCount: webtools.FormatByBool(tcp.IsServerClient, 1, 1), ReadHandler: HandleTCPReadFramed, ReadFunc: tcp.handleAsymmetricKeyRead, WriteHandler: WriteToTCPFramedHandler, CanOneWriteAfterSwitch: !tcp.IsServerClient}}, tcp.HandlerFuncs...)
+	}
+
 }
 
 /*
@@ -179,13 +214,32 @@ func (tcp *TCPClientUniversal) readNextFunc() {
 
 // Local helper read function
 func (tcp *TCPClientUniversal) localReadFunc(data []byte, otherData map[string]any) {
-	if tcp.useEncryption {
-		// Decrypt
+	if tcp.useSymmetricEncryption || (tcp.asymmetricEncryption != nil && tcp.useSymmetricEncryption) {
 		tcp.Logger.Log(0, "Reading enrypted from: "+tcp.conn.RemoteAddr().String()+" connected locally to: "+tcp.conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data)+" | Other data: "+webtools.MapToString(otherData))
+	}
+	if tcp.useSymmetricEncryption {
+		// Decrypt
 		var err error
 		data, err = encryption.DecryptSymmetric([]byte(tcp.encryptionPassword), data)
 		if err != nil {
 			tcp.Logger.Log(3, "Error decrypting: "+err.Error())
+			return
+		}
+	}
+
+	if tcp.asymmetricEncryption != nil && tcp.isAsymmetricReady {
+		//Decrypt
+		var err error
+		data, err = tcp.asymmetricEncryption.Decrypt(data)
+		if err != nil {
+			tcp.Logger.Log(3, "Error decrypting: "+err.Error())
+			return
+		}
+
+		//Verify signature
+		data, err = tcp.asymmetricEncryption.VerifyFromJson(data, tcp.serverPublicKey)
+		if err != nil {
+			tcp.Logger.Log(3, "Error verifying: "+err.Error())
 			return
 		}
 	}
@@ -220,7 +274,23 @@ func (tcp *TCPClientUniversal) Send(data []byte, otherData map[string]any) {
 	// Write
 	if tcp.currentHandlers.WriteHandler != nil {
 		tcp.Logger.Log(0, "Writing to: "+tcp.conn.RemoteAddr().String()+" connected locally to: "+tcp.conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data)+" | Other data: "+webtools.MapToString(otherData))
-		if tcp.useEncryption {
+		if tcp.asymmetricEncryption != nil && tcp.useSymmetricEncryption && tcp.isAsymmetricReady {
+			//Sign
+			var err error
+			data, err = tcp.asymmetricEncryption.SignToJson(data)
+			if err != nil {
+				tcp.Logger.Log(3, "Error signing: "+err.Error())
+				return
+			}
+
+			//Encrypt
+			data, err = tcp.asymmetricEncryption.Encrypt(data, tcp.serverPublicKey)
+			if err != nil {
+				tcp.Logger.Log(3, "Error encrypting: "+err.Error())
+				return
+			}
+		}
+		if tcp.useSymmetricEncryption {
 			// Encrypt
 			var err error
 			data, err = encryption.EncryptSymmetric([]byte(tcp.encryptionPassword), data)
@@ -228,9 +298,11 @@ func (tcp *TCPClientUniversal) Send(data []byte, otherData map[string]any) {
 				tcp.Logger.Log(3, "Error encrypting: "+err.Error())
 				return
 			}
-			tcp.Logger.Log(0, "Writing enrypted from: "+tcp.conn.RemoteAddr().String()+" connected locally to: "+tcp.conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data)+" | Other data: "+webtools.MapToString(otherData))
 		}
 
+		if tcp.useSymmetricEncryption || (tcp.asymmetricEncryption != nil && tcp.isAsymmetricReady) {
+			tcp.Logger.Log(0, "Writing enrypted to: "+tcp.conn.RemoteAddr().String()+" connected locally to: "+tcp.conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data)+" | Other data: "+webtools.MapToString(otherData))
+		}
 		// Write
 		err := tcp.currentHandlers.WriteHandler(tcp, data, otherData)
 		if err != nil {
@@ -263,5 +335,44 @@ func (tcp *TCPClientUniversal) Stop() {
 	err := tcp.conn.Close()
 	if err != nil {
 		tcp.Logger.Log(3, "Error disconnecting from: "+tcp.address.String()+" | Error: "+err.Error())
+	}
+}
+
+/*
+Read asymmetric encryption key
+*/
+func (tcp *TCPClientUniversal) handleAsymmetricKeyRead(_ *TCPClientUniversal, data []byte, status uint8, otherData map[string]any) {
+	if status == webtools.TCP_READ_DATA_STATUS {
+		//Read data
+		var err error
+		tcp.serverPublicKey, err = encryption.ParsePublicKey(data)
+		if err != nil {
+			tcp.Logger.Log(3, "Error parsing public key of server: "+err.Error())
+			return
+		}
+
+		if !tcp.IsServerClient {
+			//Encode public key
+			pubKey, err := tcp.asymmetricEncryption.EncodePublicKey()
+			if err != nil {
+				tcp.Logger.Log(3, "Failed to encode public key of client: "+err.Error())
+				return
+			}
+
+			//Write to server
+			tcp.Send(pubKey, nil)
+		}
+		tcp.isAsymmetricReady = true
+	}
+	if status == webtools.TCP_CONNECT_STATUS && tcp.IsServerClient {
+		//Encode public key
+		pubKey, err := tcp.asymmetricEncryption.EncodePublicKey()
+		if err != nil {
+			tcp.Logger.Log(3, "Failed to encode public key of server: "+err.Error())
+			return
+		}
+
+		//Write to server
+		tcp.Send(pubKey, nil)
 	}
 }

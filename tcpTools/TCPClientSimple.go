@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"webtools/encryption"
 
 	"webtools"
 )
@@ -68,10 +69,24 @@ func (cl *TCPClientSimple) GetLogger() *webtools.ConsoleLogger {
 }
 
 /*
-Setups encryption, it is strongly recommended to use encryption with framed connection
+Setups symmetric encryption, it is strongly recommended to use encryption with framed connection
 */
-func (cl *TCPClientSimple) SetupEncryption(useEncryption bool, password []byte) {
-	cl.universalClient.SetupEncryption(useEncryption, password)
+func (cl *TCPClientSimple) SetupSymmetricEncryption(useEncryption bool, password []byte) {
+	cl.universalClient.SetupSymmetricEncryption(useEncryption, password)
+}
+
+/*
+Setups asymmetric encryption, it is strongly recommended to use encryption with framed connection
+*/
+func (cl *TCPClientSimple) SetupAsymmetricEncryption(useEncryption bool, useSaving bool, privateKeyPath string, publicKeyPath string) {
+	cl.universalClient.SetupAsymmetricEncryption(useEncryption, useSaving, privateKeyPath, publicKeyPath)
+}
+
+/*
+Just sets asymmetric encryption passed from variable
+*/
+func (cl *TCPClientSimple) SetAsymmetricEncryption(enc *encryption.AsymmetricEncryption) {
+	cl.universalClient.SetAsymmetricEncryption(enc)
 }
 
 // Generates HanderFuncs for universal client, this function is not needed but because I have 2 constructors, I do not want to repeat code
@@ -202,4 +217,8 @@ Stops TCP client
 */
 func (tcp *TCPClientSimple) Stop() {
 	tcp.universalClient.Stop()
+}
+
+func (tcp *TCPClientSimple) GetTCPClientUniversal() *TCPClientUniversal {
+	return tcp.universalClient
 }

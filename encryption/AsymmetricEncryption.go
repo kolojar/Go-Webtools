@@ -12,8 +12,7 @@ import (
 	"errors"
 	"os"
 	"time"
-
-	"webtools"
+	//"webtools"
 )
 
 // TIMEOUT_LIMIT_OF_SIGNATURE_IN_MINUTES tells how long will the signature be valid
@@ -62,7 +61,9 @@ func newAsymmetricEncryptionStruct(encryptStoredKeys bool) (*AsymmetricEncryptio
 	}
 
 	// Get password
-	pass, err := webtools.ReadLineFromConsole("Enter password for keys: ")
+	//pass, err := webtools.ReadLineFromConsole("Enter password for keys: ")
+	pass := []byte("1234")
+	var err error = nil
 	if err != nil {
 		return nil, err
 	}
@@ -170,6 +171,19 @@ func LoadAsymmetricEncryption(encryptStoredKeys bool, privateKeyPath string, pub
 	enc.privateKey.PublicKey = *publicKey
 
 	return enc, nil
+}
+
+/*
+Tries to load private and public key for Asymmetric Encryption, if it fails, it creates new set of keys
+*/
+func LoadOrCreateAsymmetricEncryption(encryptStoredKeys bool, privateKeyPath string, publicKeyPath string) (*AsymmetricEncryption, error) {
+	enc, err := LoadAsymmetricEncryption(encryptStoredKeys, privateKeyPath, publicKeyPath)
+	if enc == nil || err != nil {
+		//Create new
+		println("No encryption files found!")
+		return NewAsymmetricEncryption(encryptStoredKeys)
+	}
+	return enc, err
 }
 
 /*

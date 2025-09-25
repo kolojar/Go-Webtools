@@ -19,14 +19,16 @@ func main() {
 	case "ts":
 		{
 			server, _ := tcptools.NewTCPServer("127.0.0.1:7777", readFuncTCPSv, true, true)
-			server.SetupEncryption(true, []byte("1234"))
+			server.SetupSymmetricEncryption(true, []byte("1234"))
+			server.SetupAsymmetricEncryption(true, false, "", "")
 			server.Start()
 			break
 		}
 	case "tc":
 		{
 			client, _ := tcptools.NewTCPClientSimple("127.0.0.1:7777", 0, false, readFuncTCPCl, true)
-			client.SetupEncryption(true, []byte("1234"))
+			client.SetupSymmetricEncryption(true, []byte("1234"))
+			client.SetupAsymmetricEncryption(true, false, "", "")
 			client.Connect()
 			for i := 0; i < 100; i++ {
 				client.Send([]byte("Test" + strconv.Itoa(i) + "|"))
