@@ -352,6 +352,9 @@ func (tcp *TCPClientUniversal) handleAsymmetricKeyRead(_ *TCPClientUniversal, da
 		}
 
 		if !tcp.IsServerClient {
+			//Verify key
+			tcp.Logger.Log(2, "Verify this key with server: "+encryption.StringPublicKey(tcp.serverPublicKey))
+
 			//Encode public key
 			pubKey, err := tcp.asymmetricEncryption.EncodePublicKey()
 			if err != nil {

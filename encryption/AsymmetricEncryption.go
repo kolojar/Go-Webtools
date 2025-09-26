@@ -11,6 +11,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"os"
+	"strconv"
 	"time"
 	//"webtools"
 )
@@ -57,7 +58,7 @@ func ParseAsymmetricSignedData(jsonData []byte) (*AsymmetricSignedData, error) {
 func newAsymmetricEncryptionStruct(encryptStoredKeys bool) (*AsymmetricEncryption, error) {
 	if !encryptStoredKeys {
 		// No encryption
-		return &AsymmetricEncryption{password: nil}, nil
+		return &AsymmetricEncryption{password: nil, encryptStoredKeys: encryptStoredKeys}, nil
 	}
 
 	// Get password
@@ -69,7 +70,7 @@ func newAsymmetricEncryptionStruct(encryptStoredKeys bool) (*AsymmetricEncryptio
 	}
 
 	// Create struct
-	return &AsymmetricEncryption{password: pass}, nil
+	return &AsymmetricEncryption{password: pass, encryptStoredKeys: encryptStoredKeys}, nil
 }
 
 /*
@@ -336,13 +337,15 @@ func (enc *AsymmetricEncryption) SaveAsymmetricEncryption(privateKeyPath string,
 	}
 
 	// Encrypt public key data
-	publicKeyDataEnc, err := EncryptSymmetric(enc.password, publicKeyData)
-	if err != nil {
-		return err
+	if enc.encryptStoredKeys {
+		publicKeyData, err = EncryptSymmetric(enc.password, publicKeyData)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Save public key from file
-	err = os.WriteFile(publicKeyPath, publicKeyDataEnc, 0600)
+	err = os.WriteFile(publicKeyPath, publicKeyData, 0600)
 	if err != nil {
 		return err
 	}
@@ -354,13 +357,15 @@ func (enc *AsymmetricEncryption) SaveAsymmetricEncryption(privateKeyPath string,
 	}
 
 	// Encrypt private key data
-	privateKeyDataEnc, err := EncryptSymmetric(enc.password, privateKeyData)
-	if err != nil {
-		return err
+	if enc.encryptStoredKeys {
+		privateKeyData, err = EncryptSymmetric(enc.password, privateKeyData)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Save private key from file
-	return os.WriteFile(privateKeyPath, privateKeyDataEnc, 0600)
+	return os.WriteFile(privateKeyPath, privateKeyData, 0600)
 }
 
 func (enc *AsymmetricEncryption) EncodePublicKey() ([]byte, error) {
@@ -369,4 +374,14 @@ func (enc *AsymmetricEncryption) EncodePublicKey() ([]byte, error) {
 
 func (enc *AsymmetricEncryption) EncodePrivateKey() ([]byte, error) {
 	return EncodePrivateKey(enc.privateKey)
+}
+
+/*
+Prints public key in Base64
+*/
+func StringPublicKey(publicKey *rsa.PublicKey) string {
+	return base64.StdEncoding.EncodeToString(publicKey.N.Bytes()) + " | " + strconv.Itoa(publicKey.E)
+}
+func (enc *AsymmetricEncryption) StringPublicKey() string {
+	return StringPublicKey(&enc.privateKey.PublicKey)
 }

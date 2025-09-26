@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -107,4 +108,19 @@ func ReadLineFromConsole(message string) ([]byte, error) {
 	reader := bufio.NewReader(os.Stdin)
 	fmt.Print(message)
 	return reader.ReadBytes(byte('\n'))
+}
+
+/*
+Reads choice from console
+*/
+func ReadChoiceFromConsole[T any](message string, choices map[string]T, defaultChoice string) T {
+	//Print choices
+	i := 0
+	for k, _ := range choices {
+		i++
+		fmt.Println(strconv.Itoa(i) + ": " + k)
+	}
+	fmt.Println()
+	//Set user select
+
 }
