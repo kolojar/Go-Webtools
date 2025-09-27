@@ -72,6 +72,12 @@ func (tcp *TCPClientUniversal) GetConn() *net.TCPConn {
 func (tcp *TCPClientUniversal) GetAddress() *net.TCPAddr {
 	return tcp.address
 }
+func (tcp *TCPClientUniversal) IsReady() bool {
+	if tcp.asymmetricEncryption != nil {
+		return tcp.isAsymmetricReady
+	}
+	return true
+}
 
 /*
 Creates new TCP Client but does not starts it
@@ -159,7 +165,9 @@ func (tcp *TCPClientUniversal) Connect() bool {
 
 	// Handle read
 	go tcp.readNextFunc()
-	time.Sleep(500 * time.Millisecond)
+	for tcp.IsReady() {
+		time.Sleep(100 * time.Millisecond)
+	}
 	return true
 }
 
@@ -354,6 +362,14 @@ func (tcp *TCPClientUniversal) handleAsymmetricKeyRead(_ *TCPClientUniversal, da
 		if !tcp.IsServerClient {
 			//Verify key
 			tcp.Logger.Log(2, "Verify this key with server: "+encryption.StringPublicKey(tcp.serverPublicKey))
+			choice, err := webtools.ReadChoiceFromConsoleValid[bool]("Is the key valid: ", map[string]bool{"Yes": true, "No": false}, "No")
+			if err != nil {
+				tcp.Logger.Log(3, "Error getting choice from terminal: "+err.Error())
+			}
+			if !choice {
+				tcp.Logger.Log(2, "Public key marked as invalid.")
+				return
+			}
 
 			//Encode public key
 			pubKey, err := tcp.asymmetricEncryption.EncodePublicKey()

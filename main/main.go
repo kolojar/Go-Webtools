@@ -177,6 +177,7 @@ func main() {
 			}
 		}
 	}
+	webtools.ReadLineFromConsole("Press enter to exit.")
 }
 
 var rc int = 0

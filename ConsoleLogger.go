@@ -113,14 +113,64 @@ func ReadLineFromConsole(message string) ([]byte, error) {
 /*
 Reads choice from console
 */
-func ReadChoiceFromConsole[T any](message string, choices map[string]T, defaultChoice string) T {
+func ReadChoiceFromConsole[T comparable](message string, choices map[string]T, defaultChoice string) (T, error) {
 	//Print choices
 	i := 0
 	for k, _ := range choices {
 		i++
 		fmt.Println(strconv.Itoa(i) + ": " + k)
 	}
-	fmt.Println()
-	//Set user select
+	fmt.Println(strings.Repeat("=", 20))
 
+	//Set user select
+	sel, err := ReadLineFromConsole(message)
+	if err != nil {
+		return choices[""], err
+	}
+
+	//Sort choices
+	selString := string(sel)
+	selectOption, err := strconv.Atoi(strings.Replace(strings.Replace(selString, ".", "", 1), ":", "", 1))
+	if err != nil {
+		if selectOption <= i {
+			j := 0
+			for _, v := range choices {
+				j++
+				if j == selectOption {
+					return v, nil
+				}
+			}
+		}
+	}
+	j := 0
+	for k, v := range choices {
+		if k == selString {
+			return v, nil
+		}
+		j++
+		if k == strconv.Itoa(j)+": "+selString {
+			return v, nil
+		}
+	}
+
+	//Invalid choice
+	if defaultChoice != "" {
+		fmt.Println("Selected default option: " + defaultChoice)
+		return choices[defaultChoice], nil
+	}
+	fmt.Println("Invalid choice!")
+	return choices[""], os.ErrInvalid
+}
+
+/*
+Reads choice from console until it is not correct
+*/
+func ReadChoiceFromConsoleValid[T comparable](message string, choices map[string]T, defaultChoice string) (T, error) {
+	val, err := ReadChoiceFromConsole(message, choices, defaultChoice)
+	if err == os.ErrInvalid {
+		fmt.Println()
+		fmt.Println()
+		return ReadChoiceFromConsole(message, choices, defaultChoice)
+	}
+	return val, err
 }
