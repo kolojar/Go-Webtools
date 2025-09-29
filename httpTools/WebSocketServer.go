@@ -437,7 +437,15 @@ func (sv *WebSocketServer) Stop() {
 Broadcasts data to clients with specific url parameter/s supplied in filter, set filter to nil for all connections
 */
 func (sv *WebSocketServer) BroadcastToClients(filterURLParams map[string]string, data []byte) {
-	for _, v := range sv.conns.GetValues() {
+	BroadcastToWebSocketClients(sv.conns.GetValues(), filterURLParams, data)
+}
+
+/*
+Filters WebSocket connections matching URL parameters
+*/
+func FilterWebSocketClients(clients []*WebSocketServerConn, filterURLParams map[string]string) []*WebSocketServerConn {
+	result := make([]*WebSocketServerConn, 0)
+	for _, v := range clients {
 		if filterURLParams != nil {
 			//Check parameters
 			var invalid bool = false
@@ -452,6 +460,16 @@ func (sv *WebSocketServer) BroadcastToClients(filterURLParams map[string]string,
 				continue
 			}
 		}
+		result = append(result, v)
+	}
+	return result
+}
+
+/*
+Broadcasts data to clients with specific url parameter/s supplied in filter, set filter to nil for all connections
+*/
+func BroadcastToWebSocketClients(clients []*WebSocketServerConn, filterURLParams map[string]string, data []byte) {
+	for _, v := range FilterWebSocketClients(clients, filterURLParams) {
 		v.Send(data)
 	}
 }
