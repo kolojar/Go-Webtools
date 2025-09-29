@@ -438,7 +438,9 @@ func (sv *WebSocketServer) Stop() {
 Broadcasts data to clients with specific url parameter/s supplied in filter, set filter to nil for all connections
 */
 func (sv *WebSocketServer) BroadcastToClients(filterURLParams map[string]string, data []byte) {
-	BroadcastToWebSocketClients(sv.conns.GetValues(), filterURLParams, data)
+	if sv != nil {
+		BroadcastToWebSocketClients(sv.conns.GetValues(), filterURLParams, data)
+	}
 }
 
 /*
