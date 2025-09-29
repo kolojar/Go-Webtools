@@ -111,6 +111,17 @@ func ReadLineFromConsole(message string) ([]byte, error) {
 }
 
 /*
+Reads line from console in string format
+*/
+func ReadLineStringFromConsole(message string) (string, error) {
+	data, err := ReadLineFromConsole(message)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSuffix(string(data), "\n"), nil
+}
+
+/*
 Reads choice from console
 */
 func ReadChoiceFromConsole[T comparable](message string, choices map[string]T, defaultChoice string) (T, error) {
@@ -123,7 +134,7 @@ func ReadChoiceFromConsole[T comparable](message string, choices map[string]T, d
 	fmt.Println(strings.Repeat("=", 20))
 
 	//Set user select
-	sel, err := ReadLineFromConsole(message)
+	sel, err := ReadLineStringFromConsole(message)
 	if err != nil {
 		return choices[""], err
 	}
@@ -131,7 +142,7 @@ func ReadChoiceFromConsole[T comparable](message string, choices map[string]T, d
 	//Sort choices
 	selString := string(sel)
 	selectOption, err := strconv.Atoi(strings.Replace(strings.Replace(selString, ".", "", 1), ":", "", 1))
-	if err != nil {
+	if err == nil {
 		if selectOption <= i {
 			j := 0
 			for _, v := range choices {
