@@ -443,6 +443,13 @@ func (sv *WebSocketServer) BroadcastToClients(filterURLParams map[string]string,
 /*
 Filters WebSocket connections matching URL parameters
 */
+func (sv *WebSocketServer) FilterClients(filterURLParams map[string]string) []*WebSocketServerConn {
+	return FilterWebSocketClients(sv.conns.GetValues(), filterURLParams)
+}
+
+/*
+Filters WebSocket connections matching URL parameters
+*/
 func FilterWebSocketClients(clients []*WebSocketServerConn, filterURLParams map[string]string) []*WebSocketServerConn {
 	result := make([]*WebSocketServerConn, 0)
 	for _, v := range clients {
