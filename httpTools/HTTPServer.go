@@ -338,6 +338,7 @@ func CreateURLFromParameters(preURL string, params map[string]string) string {
 		result += url.QueryEscape(k) + "=" + url.QueryEscape(v) + "&"
 	}
 	result = strings.TrimSuffix(result, "&")
+	result = strings.TrimPrefix(result, "&")
 	return result
 }
 
