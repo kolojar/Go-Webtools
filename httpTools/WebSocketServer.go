@@ -49,6 +49,7 @@ type WebSocketServerConn struct {
 	firstRead bool
 	urlParams map[string]string
 	sourceURL string
+	Cookies   []*http.Cookie
 }
 
 func (httpConn *WebSocketServerConn) GetConn() *net.TCPConn {
@@ -194,7 +195,7 @@ func (sv *WebSocketServer) handleHTTPAccess(_ *HTTPServer, w http.ResponseWriter
 				WriteHandler:           WriteToWebSocketFrameHandler,
 				CanOneWriteAfterSwitch: false,
 			})
-		sv.conns.Set(cl, &WebSocketServerConn{origin: sv, Client: cl, urlParams: params, IsBinary: false, firstRead: true, sourceURL: r.URL.Path})
+		sv.conns.Set(cl, &WebSocketServerConn{origin: sv, Client: cl, urlParams: params, IsBinary: false, firstRead: true, sourceURL: r.URL.Path, Cookies: r.Cookies()})
 		cl.Connect()
 
 		//sv.Logger.Log(2, "Connection from: "+conn.RemoteAddr().String()+" connected locally to: "+conn.LocalAddr().String())
