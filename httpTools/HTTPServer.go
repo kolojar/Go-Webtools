@@ -108,6 +108,9 @@ func (sv *HTTPServer) ResolvePath(url string) []string {
 	for k, v := range sv.HostPaths {
 		//Sort out hostPaths
 		if strings.HasPrefix(url, k) {
+			if k == "/" {
+				v += "/"
+			}
 			result = append(result, strings.Replace(url, k, v, 1))
 		}
 	}
