@@ -226,7 +226,8 @@ func TryHandleHTTPFile(w http.ResponseWriter, filePath string, contentType strin
 		if sv != nil && sv.UseDirectoryListing {
 			HandleDirectoryListingHTTP(w, filePath, urlPath, sv)
 		} else {
-			http.Error(w, "Directory listing not supported.", http.StatusForbidden)
+			//http.Error(w, "Directory listing not supported.", http.StatusForbidden)
+			return errors.New("directory listing not supported")
 		}
 		return nil
 	}
