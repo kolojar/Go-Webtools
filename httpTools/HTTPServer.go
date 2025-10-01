@@ -72,6 +72,18 @@ func (sv *HTTPServer) GetAddress() string {
 }
 
 /*
+Replaces double slashes with one
+*/
+func TidyURLPath(url string) string {
+	originalLenght := len(url)
+	url = strings.ReplaceAll(url, "//", "/")
+	if originalLenght != len(url) {
+		return TidyURLPath(url)
+	}
+	return url
+}
+
+/*
 Creates new HTTP server but does not starts it. Adds new host path to HTTP server (used for shared scripts, css, images)
 */
 func NewHTTPServer(address string, onAccessFunc HTTPAccessFunc, rootPath string, startWebBrowser bool) *HTTPServer {
