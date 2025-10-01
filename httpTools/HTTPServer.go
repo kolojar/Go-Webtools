@@ -123,10 +123,10 @@ func (sv *HTTPServer) ResolvePath(url string) []string {
 			if !strings.HasSuffix(v, "/") {
 				v += "/"
 			}
-			result = append(result, strings.Replace(url, k, v, 1))
+			result = append(result, TidyURLPath(strings.Replace(url, k, v, 1)))
 		}
 	}
-	result = append(result, strings.Replace(url, "/", sv.rootPath, 1))
+	result = append(result, TidyURLPath(strings.Replace(url, "/", sv.rootPath, 1)))
 	return result
 }
 
