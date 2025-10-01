@@ -87,6 +87,9 @@ func TidyURLPath(url string) string {
 Creates new HTTP server but does not starts it. Adds new host path to HTTP server (used for shared scripts, css, images)
 */
 func NewHTTPServer(address string, onAccessFunc HTTPAccessFunc, rootPath string, startWebBrowser bool) *HTTPServer {
+	if !strings.HasSuffix(rootPath, "/") {
+		rootPath += "/"
+	}
 	return &HTTPServer{address: address, HostPaths: map[string]string{}, Logger: webtools.NewConsoleLogger("HTTPServer", 0), onAccessFunc: onAccessFunc, startWebBrowser: startWebBrowser, rootPath: rootPath}
 }
 
