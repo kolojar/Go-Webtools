@@ -361,7 +361,7 @@ func WriteToWebSocketFrameHandler(cl *tcptools.TCPClientUniversal, data []byte, 
 }
 
 func (sv *WebSocketServer) readFuncLocal(cl *tcptools.TCPClientUniversal, data []byte, status uint8, otherData map[string]any) {
-	if status != webtools.TCP_READ_DATA_STATUS && status != webtools.TCP_DISCONNECT_STATUS {
+	if status != webtools.TCP_READ_DATA_STATUS && status != webtools.TCP_DISCONNECT_STATUS && status != webtools.TCP_CONNECT_STATUS {
 		//Non data requests
 		return
 	}
