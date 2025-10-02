@@ -233,13 +233,6 @@ func JoinPaths(path1 string, path2 string) string {
 Tries to handle file or folder request
 */
 func TryHandleHTTPFile(w http.ResponseWriter, filePath string, contentType string, urlPath string, sv *HTTPServer) error {
-	//Try add HTML at the end
-	if contentType == "text/html" {
-		if !strings.HasSuffix(filePath, ".html") {
-			filePath += ".html"
-		}
-	}
-
 	//Read data
 	data, isDir, err := ReadFileString(filePath)
 	if err != nil {
