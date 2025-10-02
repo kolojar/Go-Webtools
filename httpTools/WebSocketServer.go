@@ -366,6 +366,21 @@ func (sv *WebSocketServer) readFuncLocal(cl *tcptools.TCPClientUniversal, data [
 		return
 	}
 
+	//Get connection
+	var httpConn *WebSocketServerConn = sv.conns.Get(cl)
+	if httpConn == nil {
+		sv.Logger.Log(3, "Connection for client connected from: "+cl.GetConn().RemoteAddr().String()+" connected locally to: "+cl.GetConn().LocalAddr().String()+" not found!")
+		return
+	}
+
+	//Get read
+	readFunc := sv.websocketURLsAndReadFuncs.Get(httpConn.sourceURL)
+	if status == webtools.TCP_CONNECT_STATUS || status == webtools.TCP_DISCONNECT_STATUS {
+		if readFunc != nil {
+			readFunc(httpConn, data, status, httpConn.IsBinary)
+		}
+	}
+
 	//Get isBinary
 	isBinaryRaw := otherData["isBinary"]
 	if isBinaryRaw == nil || isBinaryRaw == "" {
@@ -373,13 +388,6 @@ func (sv *WebSocketServer) readFuncLocal(cl *tcptools.TCPClientUniversal, data [
 		return
 	}
 	isBinary := isBinaryRaw.(bool)
-
-	//Get connection
-	var httpConn *WebSocketServerConn = sv.conns.Get(cl)
-	if httpConn == nil {
-		sv.Logger.Log(3, "Connection for client connected from: "+cl.GetConn().RemoteAddr().String()+" connected locally to: "+cl.GetConn().LocalAddr().String()+" not found!")
-		return
-	}
 
 	//Sort if first read
 	if httpConn.firstRead {
@@ -393,7 +401,6 @@ func (sv *WebSocketServer) readFuncLocal(cl *tcptools.TCPClientUniversal, data [
 	}
 
 	//Process read
-	readFunc := sv.websocketURLsAndReadFuncs.Get(httpConn.sourceURL)
 	if readFunc != nil {
 		readFunc(httpConn, data, status, isBinary)
 	}
