@@ -8,7 +8,7 @@ import (
 UDPBridge copies data from one port to other in UDP protocol
 */
 type UDPBridge struct {
-	tcpSourceServerAdress     string
+	udpSourceServerAdress     string
 	udpServer                 *UDPServer
 	connetionUDPLocalToRemote webtools.SafeMap[*UDPClient, *UDPServerConn]
 	connetionUDPRemoteToLocal webtools.SafeMap[*UDPServerConn, *UDPClient]
@@ -43,9 +43,9 @@ Read data Handler for bridget UDP (new server - virtual target server)
 */
 func (bridge *UDPBridge) readFuncUDPRemote(conn *UDPServerConn, data []byte, ended bool) {
 	if bridge.connetionUDPRemoteToLocal.Get(conn) == nil {
-		udpClient, err := NewUDPClient(bridge.tcpSourceServerAdress, bridge.readFuncUDPLocal, bridge.reportTraffic)
+		udpClient, err := NewUDPClient(bridge.udpSourceServerAdress, bridge.readFuncUDPLocal, bridge.reportTraffic)
 		if err != nil {
-			bridge.udpServer.Logger.Log(3, "Error connecting to: "+bridge.tcpSourceServerAdress+" | Error: "+err.Error())
+			bridge.udpServer.Logger.Log(3, "Error connecting to: "+bridge.udpSourceServerAdress+" | Error: "+err.Error())
 		}
 		udpClient.Logger.Prefix = "UDPBridge - " + udpClient.Logger.Prefix
 		udpClient.Connect()
@@ -67,11 +67,11 @@ func (bridge *UDPBridge) readFuncUDPRemote(conn *UDPServerConn, data []byte, end
 }
 
 /*
-Constructs new instance of HTTPProxy Server for TCP but does not start it
+Constructs new instance of UDP Bridge but does not start it
 */
-func NewUDPBridge(tcpSourceServerAdress string, tcpClientAddress string, reportTraffic bool) (*UDPBridge, error) {
-	udpBridge := &UDPBridge{tcpSourceServerAdress: tcpSourceServerAdress, connetionUDPLocalToRemote: webtools.MakeSafeMap[*UDPClient, *UDPServerConn](), connetionUDPRemoteToLocal: webtools.MakeSafeMap[*UDPServerConn, *UDPClient](), reportTraffic: reportTraffic}
-	udpServer, err := NewUDPServer(tcpClientAddress, udpBridge.readFuncUDPRemote, reportTraffic)
+func NewUDPBridge(udpSourceServerAdress string, udpNewVirtualAddress string, reportTraffic bool) (*UDPBridge, error) {
+	udpBridge := &UDPBridge{udpSourceServerAdress: udpSourceServerAdress, connetionUDPLocalToRemote: webtools.MakeSafeMap[*UDPClient, *UDPServerConn](), connetionUDPRemoteToLocal: webtools.MakeSafeMap[*UDPServerConn, *UDPClient](), reportTraffic: reportTraffic}
+	udpServer, err := NewUDPServer(udpNewVirtualAddress, udpBridge.readFuncUDPRemote, reportTraffic)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +84,7 @@ func NewUDPBridge(tcpSourceServerAdress string, tcpClientAddress string, reportT
 Starts bridge, locks execution thread
 */
 func (bridge *UDPBridge) Start() {
-	bridge.udpServer.Logger.Log(2, "Started bridging from "+bridge.tcpSourceServerAdress+" to "+bridge.udpServer.GetAddress().String())
+	bridge.udpServer.Logger.Log(2, "Started bridging from "+bridge.udpSourceServerAdress+" to "+bridge.udpServer.GetAddress().String())
 	bridge.udpServer.Start()
 }
 

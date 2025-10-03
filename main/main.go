@@ -10,6 +10,7 @@ import (
 	httptools "webtools/httpTools"
 	proxytools "webtools/proxyTools"
 	tcptools "webtools/tcpTools"
+	"webtools/udpTools"
 	udptools "webtools/udpTools"
 )
 
@@ -173,6 +174,11 @@ func main() {
 			for cl.IsAlive() {
 				time.Sleep(1 * time.Second)
 			}
+		}
+	case "ub":
+		{
+			ub, _ := udpTools.NewUDPBridge("127.0.0.1:7777", "127.0.0.1:17777", true)
+			ub.Start()
 		}
 	}
 }
