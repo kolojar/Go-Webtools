@@ -59,7 +59,7 @@ func main() {
 		}
 	case "hs":
 		{
-			sv := httptools.NewHTTPServer("127.0.0.1:7777", nil, "../encryption/", false)
+			sv := httptools.NewHTTPServer("0.0.0.0:7777", nil, "../encryption/", false)
 			sv.HostPaths["/test"] = "../test"
 			sv.UseDirectoryListing = true
 			sv.Start()
