@@ -60,6 +60,10 @@ type UDPServer struct {
 	conns         webtools.SafeMap[string, *UDPServerConn]
 }
 
+func (udp *UDPServer) GetAddress() *net.UDPAddr {
+	return udp.address
+}
+
 /*
 Creates new UDP Server but does not starts it
 */
@@ -73,7 +77,7 @@ func NewUDPServer(address string, readFunc UDPServerReadFunc, reportTraffic bool
 }
 
 /*
-Starts UDP Server
+Starts UDP Server, locks execution thread
 */
 func (udp *UDPServer) Start() {
 	//Check if already running
