@@ -1,6 +1,7 @@
 package udpTools
 
 import (
+	"net"
 	"webtools"
 )
 
@@ -18,7 +19,7 @@ type UDPBridge struct {
 /*
 Read data Handler for local UDP (original server - source server)
 */
-func (bridge *UDPBridge) readFuncUDPLocal(client *UDPClient, data []byte, ended bool) {
+func (bridge *UDPBridge) readFuncUDPLocal(client *UDPClient, sourceAddress *net.UDPAddr, data []byte, ended bool) {
 	if bridge.connetionUDPLocalToRemote.Get(client) == nil {
 		bridge.udpServer.Logger.Log(3, "Error writing to UDP Client - Connection does not exist!")
 		return

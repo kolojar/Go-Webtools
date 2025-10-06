@@ -4,7 +4,6 @@ import (
 	"encoding/hex"
 	"net"
 	"strconv"
-	"strings"
 	"time"
 	"webtools"
 )
@@ -19,13 +18,14 @@ type UDPServerConn struct {
 	origin   *UDPServer
 	Address  *net.UDPAddr
 	lastSeen time.Time
+	Client   *UDPClient
 }
 
 /*
 Sends data to client
 */
 func (udpConn *UDPServerConn) Send(data []byte) {
-	udpConn.origin.WriteToClient(udpConn, data)
+	udpConn.Client.Send(data)
 }
 
 /*
@@ -34,9 +34,10 @@ Closes connection to client
 func (udpConn *UDPServerConn) Close() {
 	udpConn.origin.conns.Delete(udpConn.Address.String())
 	udpConn.origin.Logger.Log(0, "Closed connection on "+udpConn.Address.String())
-	if udpConn.origin.readFunc != nil {
-		udpConn.origin.readFunc(udpConn, nil, true)
-	}
+	//if udpConn.origin.readFunc != nil {
+	//	udpConn.origin.readFunc(udpConn, nil, true)
+	//}
+	udpConn.Client.Stop()
 }
 
 /*
@@ -51,13 +52,14 @@ type UDPServerReadFunc func(*UDPServerConn, []byte, bool)
 Basic UDP server
 */
 type UDPServer struct {
-	listener      *net.UDPConn
-	readFunc      UDPServerReadFunc
-	address       *net.UDPAddr
-	Logger        *webtools.ConsoleLogger
-	requestedStop bool
-	isRunning     bool
-	conns         webtools.SafeMap[string, *UDPServerConn]
+	//listener      *net.UDPConn
+	readFunc UDPServerReadFunc
+	address  *net.UDPAddr
+	Logger   *webtools.ConsoleLogger
+	//requestedStop bool
+	//isRunning     bool
+	conns  webtools.SafeMap[string, *UDPServerConn]
+	Client *UDPClient
 }
 
 func (udp *UDPServer) GetAddress() *net.UDPAddr {
@@ -73,7 +75,13 @@ func NewUDPServer(address string, readFunc UDPServerReadFunc, reportTraffic bool
 	if err != nil {
 		return nil, err
 	}
-	return &UDPServer{address: addressObj, readFunc: readFunc, Logger: webtools.NewConsoleLoggerForTraffic("UDPServer", reportTraffic), conns: webtools.MakeSafeMap[string, *UDPServerConn]()}, nil
+
+	//Make UDP sv
+	udp := &UDPServer{address: addressObj, readFunc: readFunc, Logger: webtools.NewConsoleLoggerForTraffic("UDPServer", reportTraffic), conns: webtools.MakeSafeMap[string, *UDPServerConn]()}
+	cl, _ := NewUDPClient(address, udp.readFuncLocal, reportTraffic)
+	cl.Logger = udp.Logger
+	udp.Client = cl
+	return udp, nil
 }
 
 /*
@@ -81,66 +89,41 @@ Starts UDP Server, locks execution thread
 */
 func (udp *UDPServer) Start() {
 	//Check if already running
-	if udp.isRunning {
+	if udp.Client.IsAlive() {
 		return
 	}
 
 	//Reset stop request
-	udp.requestedStop = false
+	//udp.requestedStop = false
 
 	//Open listener
 	var err error
-	udp.listener, err = net.ListenUDP("udp", udp.address)
+	udp.Client.Conn, err = net.ListenUDP("udp", udp.address)
 	if err != nil {
 		udp.Logger.Log(3, "Error listening to "+udp.address.String()+" with error: "+err.Error())
 		return
 	}
-	udp.isRunning = true
+	//udp.isRunning = true
 	udp.Logger.Log(2, "Started listening on "+udp.address.String())
+	udp.Client.startRead()
 
-	//Listener loop
-	for !udp.requestedStop {
-		//Handle read and connection accept
-		handleUDPRead(udp.listener, udp.Logger, udp.readFuncLocal)
-	}
-	udp.isRunning = false
-}
-
-/*
-Handles UDP Read
-*/
-func handleUDPRead(listener *net.UDPConn, logger *webtools.ConsoleLogger, readFunc func(*net.UDPAddr, []byte, bool)) bool {
-	buffer := make([]byte, webtools.BUFFER_SIZE)
-	//Get connection and data
-	n, addr, err := listener.ReadFromUDP(buffer)
-	if err != nil {
-		if addr == nil {
-			if !strings.Contains(err.Error(), "use of closed network connection") {
-				logger.Log(3, "Error getting UDP connection from: "+err.Error())
-			}
-		} else {
-			logger.Log(3, "Error reading from: "+addr.String()+" | Error: "+err.Error())
-		}
-		return false
-	}
-
-	//Process read
-	if readFunc != nil {
-		data := buffer[:n]
-		readFunc(addr, data, false)
-	}
-	return true
+	////Listener loop
+	//for !udp.requestedStop {
+	//	//Handle read and connection accept
+	//	handleUDPRead(udp.listener, udp.Logger, udp.readFuncLocal)
+	//}
+	//udp.isRunning = false
 }
 
 /*
 Handles UDP Read for server
 */
-func (udp *UDPServer) readFuncLocal(addr *net.UDPAddr, data []byte, ended bool) {
+func (udp *UDPServer) readFuncLocal(_ *UDPClient, addr *net.UDPAddr, data []byte, ended bool) {
 	//Get connection association
 	var udpConn *UDPServerConn = udp.conns.Get(addr.String())
 	if udpConn == nil {
 		//No connection, create new
-		udpConn = &UDPServerConn{origin: udp, Address: addr, lastSeen: time.Now()}
+		udpConn = &UDPServerConn{origin: udp, Address: addr, lastSeen: time.Now(),Client: }
 		udpConn.origin.conns.Set(addr.String(), udpConn)
 	}
 	udpConn.lastSeen = time.Now()
@@ -156,49 +139,29 @@ func (udp *UDPServer) readFuncLocal(addr *net.UDPAddr, data []byte, ended bool) 
 }
 
 /*
-Handles TCP Write
-*/
-func writeToUDP(isServer bool, listener *net.UDPConn, addr *net.UDPAddr, data []byte, logger *webtools.ConsoleLogger) {
-	if addr == nil {
-		logger.Log(1, "Invalid connecting, cancelling write.")
-		return
-	}
-
-	//Write
-	logger.Log(0, "Writing to: "+addr.String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data))
-	var err error
-	if isServer {
-		_, err = listener.WriteToUDP(data, addr)
-	} else {
-		_, err = listener.Write(data)
-	}
-	if err != nil {
-		logger.Log(3, "Error writing to: "+addr.String()+" | Error: "+err.Error())
-	}
-}
-
-/*
 Writes to Client
 */
 func (udp *UDPServer) WriteToClient(conn *UDPServerConn, data []byte) {
-	writeToUDP(true, conn.origin.listener, conn.Address, data, udp.Logger)
+	//writeToUDP(true, conn.origin.listener, conn.Address, data, udp.Logger)
+	udp.Client.SendSpecificAddress(data, conn.Address)
 }
 
 /*
 Stops UDP server
 */
 func (udp *UDPServer) Stop() {
-	if !udp.isRunning {
-		return
-	}
-
-	//Request stop
-	udp.requestedStop = true
-	err := udp.listener.Close()
-	time.Sleep(1 * time.Second)
-	if err != nil {
-		udp.Logger.Log(3, "Error stopping UDP server: "+err.Error())
-	}
+	//if !udp.isRunning {
+	//	return
+	//}
+	//
+	////Request stop
+	//udp.requestedStop = true
+	//err := udp.listener.Close()
+	//time.Sleep(1 * time.Second)
+	//if err != nil {
+	//	udp.Logger.Log(3, "Error stopping UDP server: "+err.Error())
+	//}
+	udp.Client.Stop()
 }
 
 /*

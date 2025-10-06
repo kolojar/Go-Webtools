@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"strconv"
 	"strings"
@@ -206,7 +207,7 @@ func readFuncUDPSv(conn *udptools.UDPServerConn, data []byte, ended bool) {
 	}
 }
 
-func readFuncUDPCl(conn *udptools.UDPClient, data []byte, ended bool) {
+func readFuncUDPCl(conn *udptools.UDPClient, sourceAddress *net.UDPAddr, data []byte, ended bool) {
 	//conn.Send(data)
 	//if !ended {
 	//	conn.Stop()

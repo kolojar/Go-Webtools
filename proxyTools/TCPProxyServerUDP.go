@@ -1,6 +1,7 @@
 package proxyTools
 
 import (
+	"net"
 	"webtools"
 	tcptools "webtools/tcpTools"
 	udptools "webtools/udpTools"
@@ -136,7 +137,7 @@ func (sv *TCPProxyServerUDP) handleTCPReadFunc(conn *tcptools.TCPServerConn, fra
 	}
 }
 
-func (sv *TCPProxyServerUDP) handleUDPReadFunc(udp *udptools.UDPClient, data []byte, ended bool) {
+func (sv *TCPProxyServerUDP) handleUDPReadFunc(udp *udptools.UDPClient, sourceAddress *net.UDPAddr, data []byte, ended bool) {
 	//Get TCP client
 	if sv.clientToId.Get(udp) == "" || sv.idToClient.Get(sv.clientToId.Get(udp)) == nil {
 		//Connection does not exists
