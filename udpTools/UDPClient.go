@@ -188,14 +188,18 @@ func (udp *UDPClient) Send(data []byte) {
 Sends data to specific address
 */
 func SendSpecificAddress(data []byte, address *net.UDPAddr, isFramed bool, conn *net.UDPConn, logger *webtools.ConsoleLogger) {
-	if isFramed {
-		sendUDPFrame(webtools.GenerateRandomId(), 1, data)
-		return
-	}
-	writeToUDP(false, conn, address, data, logger)
+
 }
 
-func sendUDPFrame(id string, sequenceNum uint, data []byte, isOrganised bool, conn *net.UDPConn, logger *webtools.ConsoleLogger) {
+func sendToUDP(isServer bool, data []byte, address *net.UDPAddr, conn *net.UDPConn, isFramed bool, logger *webtools.ConsoleLogger) {
+	if isFramed {
+		sendUDPFrame(isServer, webtools.GenerateRandomId(), 1, data)
+		return
+	}
+	writeToUDP(isServer, conn, address, data, logger)
+}
+
+func sendUDPFrame(isServer bool, id string, sequenceNum uint, data []byte, address *net.UDPAddr, isOrganised bool, conn *net.UDPConn, logger *webtools.ConsoleLogger) {
 	//Build frame
 	frame := make([]byte, 0)
 	frame = append(frame, byte('0')) //0 for data
@@ -220,17 +224,17 @@ func sendUDPFrame(id string, sequenceNum uint, data []byte, isOrganised bool, co
 	logger.Log(0, "Sending frame: "+id+" with sequence number: "+strconv.FormatUint(uint64(sequenceNum), 10))
 
 	//Send
-	writeToUDP(false, conn, udp.address, frame, udp.Logger)
+	writeToUDP(false, conn, address, frame, logger)
 	udp.gotResponce.Set(id, false)
 	go udp.checkResponce(id, sequenceNum, data)
 }
 
-func (udp *UDPClient) checkResponce(id string, sequenceNum uint, data []byte) {
+func (udp *UDPClient) checkResponce(isServer bool, id string, sequenceNum uint, data []byte) {
 	time.Sleep(time.Duration(udp.timeoutForResendInMs) * time.Millisecond)
 	if !udp.gotResponce.Get(id) {
 		//If no responce, resend
 		if udp.resendMaxLimit > sequenceNum {
-			sendFrame(id, sequenceNum+1, data)
+			sendFrame(isServer, id, sequenceNum+1, data)
 		}
 	}
 	udp.gotResponce.Delete(id)
