@@ -69,7 +69,7 @@ func (cl *TCPProxyClientUDP) handleTCPReadFunc(_ *tcptools.TCPClientSimple, fram
 				cl.pendingConnections.Delete(string(frame.Data))
 				cl.clientToId.Set(conn, string(frame.Id))
 				cl.idToClient.Set(string(frame.Id), conn)
-				cl.tcpClient.GetLogger().Log(1, "Prepared new connection with temporary id: "+string(frame.Data)+" for connection connected to: "+conn.Address.String()+" with new id: "+string(frame.Id))
+				cl.tcpClient.GetLogger().Log(1, "Prepared new connection with temporary id: "+string(frame.Data)+" for connection connected to: "+conn.GetAddress().String()+" with new id: "+string(frame.Id))
 
 				//Process pending data
 				for len(cl.pendingConnsData.Get(conn)) > 0 {
@@ -106,7 +106,7 @@ func (cl *TCPProxyClientUDP) handleUDPReadFunc(udpConn *udptools.UDPServerConn, 
 		//No connection found, request new
 		tempId := webtools.GenerateRandomId()
 		cl.pendingConnections.Set(tempId, udpConn)
-		cl.tcpClient.GetLogger().Log(1, "Preparing new connection with temporary id: "+tempId+" for connection connected to: "+udpConn.Address.String())
+		cl.tcpClient.GetLogger().Log(1, "Preparing new connection with temporary id: "+tempId+" for connection connected to: "+udpConn.GetAddress().String())
 		cl.tcpClient.Send(webtools.PackWebtoolsFrame(webtools.WEBTOOLS_FRAME_TYPE_CONNECT, []byte("0"), []byte(tempId)))
 		cl.pendingConnsData.Set(udpConn, append(make([][]byte, 0), data))
 		return

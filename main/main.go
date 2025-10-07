@@ -41,14 +41,16 @@ func main() {
 	case "us":
 		{
 			server, _ := udptools.NewUDPServer("127.0.0.1:7777", readFuncUDPSv, true)
+			server.SetupFraming(true, 100, 5, false, 0)
 			server.Start()
 			break
 		}
 	case "uc":
 		{
-			client, _ := udptools.NewUDPClient("127.0.0.1:17777", readFuncUDPCl, true)
+			client, _ := udptools.NewUDPClient("127.0.0.1:7777", readFuncUDPCl, true)
+			client.SetupFraming(true, 100, 5, false, 0)
 			client.Connect()
-			for i := 0; i < 500; i++ {
+			for i := 0; i < 1; i++ {
 				client.Send([]byte("Test"))
 			}
 			time.Sleep(3 * time.Second)

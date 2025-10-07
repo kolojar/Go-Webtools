@@ -19,6 +19,14 @@ type FiveValuePair[A any, B any, C any, D any, E any] struct {
 }
 
 // Value pair
+type FourValuePair[A any, B any, C any, D any] struct {
+	A A
+	B B
+	C C
+	D D
+}
+
+// Value pair
 type KeyValuePair[K comparable, V any] struct {
 	Key   K
 	Value V
@@ -91,6 +99,15 @@ func (m *SafeMap[K, V]) Len() int {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 	return len(m.m)
+}
+
+// Clears map
+func (m *SafeMap[K, V]) Clear() {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	for k := range m.m {
+		delete(m.m, k)
+	}
 }
 
 // Gets keys and values safely value to map
