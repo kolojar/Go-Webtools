@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"strconv"
 	"strings"
@@ -16,6 +17,7 @@ import (
 
 func main() {
 	fmt.Println("Hello world")
+	framer := udpTools.NewUDPFramerSimple(50, 5, true, 50)
 	switch os.Args[1] {
 	case "ts":
 		{
@@ -40,17 +42,20 @@ func main() {
 	case "us":
 		{
 			server, _ := udptools.NewUDPServer("127.0.0.1:7777", readFuncUDPSv, true)
+			server.SetupFraming(framer)
 			server.Start()
 			break
 		}
 	case "uc":
 		{
-			client, _ := udptools.NewUDPClient("127.0.0.1:17777", readFuncUDPCl, true)
+			client, _ := udptools.NewUDPClient("127.0.0.1:7777", readFuncUDPCl, true)
+			client.SetupFraming(framer)
 			client.Connect()
-			for i := 0; i < 500; i++ {
-				client.Send([]byte("Test"))
+			for i := 0; i < 10; i++ {
+				client.Send([]byte("Test" + strconv.Itoa(i) + "|"))
+				time.Sleep(time.Millisecond)
 			}
-			time.Sleep(3 * time.Second)
+			time.Sleep(30 * time.Second)
 			client.Stop()
 			fmt.Println(rc)
 			for client.IsAlive() {
@@ -206,7 +211,7 @@ func readFuncUDPSv(conn *udptools.UDPServerConn, data []byte, ended bool) {
 	}
 }
 
-func readFuncUDPCl(conn *udptools.UDPClient, data []byte, ended bool) {
+func readFuncUDPCl(conn *udptools.UDPClient, sourceAddress *net.UDPAddr, data []byte, ended bool) {
 	//conn.Send(data)
 	//if !ended {
 	//	conn.Stop()

@@ -1,9 +1,7 @@
 package udpTools
 
 import (
-	"encoding/hex"
 	"net"
-	"strconv"
 	"webtools"
 )
 
@@ -13,21 +11,29 @@ Standardized type of function
 String = message
 Bool = is ended
 */
-type UDPClientReadFunc func(*UDPClient, []byte, bool)
+type UDPClientReadFunc func(client *UDPClient, sourceAddress *net.UDPAddr, data []byte, ended bool)
 
 /*
-Basic TCP Client
+Basic UDP Client
 */
 type UDPClient struct {
-	readFunc UDPClientReadFunc
-	Logger   *webtools.ConsoleLogger
-	Conn     *net.UDPConn
-	address  *net.UDPAddr
-	isAlive  bool
+	readFunc  UDPClientReadFunc
+	Logger    *webtools.ConsoleLogger
+	Conn      *net.UDPConn
+	address   *net.UDPAddr
+	isAlive   bool
+	udpFramer *UDPFramer
 }
 
 func (udp *UDPClient) IsAlive() bool {
 	return udp.isAlive
+}
+
+/*
+Setups UDP framer for client
+*/
+func (udp *UDPClient) SetupFraming(framer *UDPFramer) {
+	udp.udpFramer = framer
 }
 
 /*
@@ -55,33 +61,42 @@ func (udp *UDPClient) Connect() {
 		udp.Logger.Log(3, "Error connecting to: "+udp.address.String()+" | Error: "+err.Error())
 		return
 	}
-
-	udp.isAlive = true
-	//Handle read
 	go func() {
+		udp.isAlive = true
+		//Handle read
 		var ok bool = true
 		for ok {
-			ok = handleUDPRead(udp.Conn, udp.Logger, udp.readFuncLocal)
+			ok = handleUDPRead(udp.Conn, udp.Logger, func(addrFrom *net.UDPAddr, data []byte, ended bool) {
+				processDataForUDP(addrFrom, data, ended, udp.readFuncLocal, udp.Logger, udp.udpFramer, false, udp.Conn)
+			})
 		}
 		udp.isAlive = false
+		udp.readFuncLocal(nil, nil, true)
 	}()
 }
 
-func (udp *UDPClient) readFuncLocal(addr *net.UDPAddr, data []byte, ended bool) {
-	//Process read
+func (udp *UDPClient) readFuncLocal(addrFrom *net.UDPAddr, data []byte, ended bool) {
 	if udp.readFunc != nil {
-		if !ended {
-			udp.Logger.Log(0, "Reading from: "+addr.String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data))
-		}
-		udp.readFunc(udp, data, ended)
+		udp.readFunc(udp, addrFrom, data, ended)
 	}
+	return
+
+	//Sort if framed
+
+	//Process read
+	//if udp.readFunc != nil {
+	//	if !ended {
+	//		udp.Logger.Log(0, "Reading from: "+addr.String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data))
+	//	}
+	//	udp.readFunc(udp, data, ended)
+	//}
 }
 
 /*
 Sends data to server
 */
 func (udp *UDPClient) Send(data []byte) {
-	writeToUDP(false, udp.Conn, udp.address, data, udp.Logger)
+	processSendForUDP(false, udp.Conn, udp.address, data, udp.Logger, udp.udpFramer)
 }
 
 /*

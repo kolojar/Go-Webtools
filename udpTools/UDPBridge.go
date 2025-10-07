@@ -1,6 +1,9 @@
 package udpTools
 
 import (
+	"math/rand/v2"
+	"net"
+	"time"
 	"webtools"
 )
 
@@ -18,12 +21,13 @@ type UDPBridge struct {
 /*
 Read data Handler for local UDP (original server - source server)
 */
-func (bridge *UDPBridge) readFuncUDPLocal(client *UDPClient, data []byte, ended bool) {
+func (bridge *UDPBridge) readFuncUDPLocal(client *UDPClient, sourceAddress *net.UDPAddr, data []byte, ended bool) {
 	if bridge.connetionUDPLocalToRemote.Get(client) == nil {
 		bridge.udpServer.Logger.Log(3, "Error writing to UDP Client - Connection does not exist!")
 		return
 	}
 	if !ended {
+		time.Sleep(time.Millisecond * time.Duration(rand.Int32N(50))) //Fake latency test
 		bridge.connetionUDPLocalToRemote.Get(client).Send(data)
 	} else {
 		//conn := proxySv.connetionWebSocketToTCPTranslator[ws].connection
@@ -43,6 +47,9 @@ Read data Handler for bridget UDP (new server - virtual target server)
 */
 func (bridge *UDPBridge) readFuncUDPRemote(conn *UDPServerConn, data []byte, ended bool) {
 	if bridge.connetionUDPRemoteToLocal.Get(conn) == nil {
+		if ended {
+			return
+		}
 		udpClient, err := NewUDPClient(bridge.udpSourceServerAdress, bridge.readFuncUDPLocal, bridge.reportTraffic)
 		if err != nil {
 			bridge.udpServer.Logger.Log(3, "Error connecting to: "+bridge.udpSourceServerAdress+" | Error: "+err.Error())
