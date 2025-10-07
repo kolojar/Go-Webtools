@@ -177,7 +177,7 @@ Writes to Client
 */
 func (udp *UDPServer) WriteToClient(conn *UDPServerConn, data []byte) {
 	//writeToUDP(true, conn.origin.listener, conn.Address, data, udp.Logger)
-	processSendForUDP(false, udp.listener, udp.address, data, udp.Logger, udp.udpFramer)
+	processSendForUDP(true, udp.listener, conn.Address, data, udp.Logger, udp.udpFramer)
 	//udp.WriteToClient(conn, data)
 }
 

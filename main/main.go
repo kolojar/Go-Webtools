@@ -17,7 +17,7 @@ import (
 
 func main() {
 	fmt.Println("Hello world")
-	framer := udpTools.NewUDPFramerSimple(50, 5, false, 50)
+	framer := udpTools.NewUDPFramerSimple(50, 5, true, 50)
 	switch os.Args[1] {
 	case "ts":
 		{
@@ -51,10 +51,11 @@ func main() {
 			client, _ := udptools.NewUDPClient("127.0.0.1:7777", readFuncUDPCl, true)
 			client.SetupFraming(framer)
 			client.Connect()
-			for i := 0; i < 1; i++ {
-				client.Send([]byte("Test"))
+			for i := 0; i < 10; i++ {
+				client.Send([]byte("Test" + strconv.Itoa(i) + "|"))
+				time.Sleep(time.Millisecond)
 			}
-			time.Sleep(3 * time.Second)
+			time.Sleep(30 * time.Second)
 			client.Stop()
 			fmt.Println(rc)
 			for client.IsAlive() {
