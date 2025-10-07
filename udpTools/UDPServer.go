@@ -16,7 +16,7 @@ const CLEANUP_TIMEOUT = 10
 UDP server connection object
 */
 type UDPServerConn struct {
-	origin *UDPServer
+	origin   *UDPServer
 	Address  *net.UDPAddr
 	lastSeen time.Time
 }
@@ -25,19 +25,19 @@ type UDPServerConn struct {
 Sends data to client
 */
 func (udpConn *UDPServerConn) Send(data []byte) {
-	udpConn.Client.Send(data)
+	udpConn.origin.WriteToClient(udpConn, data)
 }
 
 /*
 Closes connection to client
 */
 func (udpConn *UDPServerConn) Close() {
-	udpConn.origin.conns.Delete(udpConn.Client.address.String())
-	udpConn.origin.Logger.Log(0, "Closed connection on "+udpConn.Client.address.String())
-	//if udpConn.origin.readFunc != nil {
-	//	udpConn.origin.readFunc(udpConn, nil, true)
-	//}
-	udpConn.Client.Stop()
+	udpConn.origin.conns.Delete(udpConn.Address.String())
+	udpConn.origin.Logger.Log(0, "Closed connection on "+udpConn.Address.String())
+	if udpConn.origin.readFunc != nil {
+		udpConn.origin.readFunc(udpConn, nil, true)
+	}
+	//udpConn.Client.Stop()
 }
 
 /*
@@ -81,6 +81,13 @@ func NewUDPServer(address string, readFunc UDPServerReadFunc, reportTraffic bool
 }
 
 /*
+Setups UDP framer for server
+*/
+func (udp *UDPServer) SetupFraming(framer *UDPFramer) {
+	udp.udpFramer = framer
+}
+
+/*
 Starts UDP Server, locks execution thread
 */
 func (udp *UDPServer) Start() {
@@ -106,7 +113,9 @@ func (udp *UDPServer) Start() {
 	for !udp.requestedStop {
 		//Handle read and connection accept
 		//udp.Client.startRead()
-		handleUDPRead(udp.listener, udp.Logger, udp.readFuncLocal)
+		handleUDPRead(udp.listener, udp.Logger, func(addrFrom *net.UDPAddr, data []byte, ended bool) {
+			processDataForUDP(addrFrom, data, ended, udp.readFuncLocal, udp.Logger, udp.udpFramer, true, udp.listener)
+		})
 	}
 	udp.isRunning = false
 }
@@ -138,7 +147,6 @@ func handleUDPRead(listener *net.UDPConn, logger *webtools.ConsoleLogger, readFu
 	return true
 }
 
-
 /*
 Handles UDP Read for server
 */
@@ -148,13 +156,10 @@ func (udp *UDPServer) readFuncLocal(addr *net.UDPAddr, data []byte, ended bool) 
 		var udpConn *UDPServerConn = udp.conns.Get(addr.String())
 		if udpConn == nil {
 			//No connection, create new
-			udpConn = &UDPServerConn{origin: udp, lastSeen: time.Now()}
+			udpConn = &UDPServerConn{origin: udp, lastSeen: time.Now(), Address: addr}
 			udpConn.origin.conns.Set(addr.String(), udpConn)
 		}
 		udpConn.lastSeen = time.Now()
-		if udp.udpFramer != nil {
-			udp.udpFramer.
-		}
 
 		//Process read
 		if udp.readFunc != nil {
@@ -172,9 +177,9 @@ Writes to Client
 */
 func (udp *UDPServer) WriteToClient(conn *UDPServerConn, data []byte) {
 	//writeToUDP(true, conn.origin.listener, conn.Address, data, udp.Logger)
-	udp.Client.Send(data)
+	processSendForUDP(false, udp.listener, udp.address, data, udp.Logger, udp.udpFramer)
+	//udp.WriteToClient(conn, data)
 }
-
 
 /*
 Handles UDP Write
@@ -182,6 +187,10 @@ Handles UDP Write
 func writeToUDP(isServer bool, listener *net.UDPConn, addr *net.UDPAddr, data []byte, logger *webtools.ConsoleLogger) {
 	if addr == nil {
 		logger.Log(1, "Invalid connecting, cancelling write.")
+		return
+	}
+	if data == nil {
+		logger.Log(1, "Invalid data, cancelling write.")
 		return
 	}
 
@@ -198,7 +207,6 @@ func writeToUDP(isServer bool, listener *net.UDPConn, addr *net.UDPAddr, data []
 	}
 }
 
-
 /*
 Stops UDP server
 */
@@ -209,12 +217,12 @@ func (udp *UDPServer) Stop() {
 	//
 	////Request stop
 	udp.requestedStop = true
-	udp.Client.Stop()
-	//err := udp.listener.Close()
+	//udp.Client.Stop()
+	err := udp.listener.Close()
 	time.Sleep(1 * time.Second)
-	//if err != nil {
-	//	udp.Logger.Log(3, "Error stopping UDP server: "+err.Error())
-	//}
+	if err != nil {
+		udp.Logger.Log(3, "Error stopping UDP server: "+err.Error())
+	}
 }
 
 /*
@@ -244,11 +252,4 @@ func (udp *UDPServer) CleanupConnections(forceAll bool) {
 	current := udp.conns.Len()
 	removed := oldCount - current
 	udp.Logger.Log(0, "Connection cleanup done! Removed connections: "+strconv.Itoa(removed)+" / "+strconv.Itoa(oldCount))
-}
-
-/*
-Setups framing for UDP connection and simulates basic TCP properties - mainly checks delivery of all packets and optionly can organise them in orger they got sent
-*/
-func (udp *UDPServer) SetupFraming(isFramed bool, timeoutForResendInMs uint, resendMaxLimit uint, isOrganised bool, organisedTimeoutInMs uint) {
-	udp.Client.SetupFraming(isFramed, timeoutForResendInMs, resendMaxLimit, isOrganised, organisedTimeoutInMs)
 }

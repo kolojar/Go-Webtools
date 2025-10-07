@@ -69,7 +69,7 @@ func (cl *HTTPProxyClientUDP) handleWebTransportReadFunc(client *httptools.WebSo
 				cl.pendingConnections.Delete(string(frame.Data))
 				cl.clientToId.Set(conn, string(frame.Id))
 				cl.idToClient.Set(string(frame.Id), conn)
-				cl.httpClient.Logger.Log(1, "Prepared new connection with temporary id: "+string(frame.Data)+" for connection connected to: "+conn.GetAddress().String()+" with new id: "+string(frame.Id))
+				cl.httpClient.Logger.Log(1, "Prepared new connection with temporary id: "+string(frame.Data)+" for connection connected to: "+conn.Address.String()+" with new id: "+string(frame.Id))
 
 				// Process pending data
 				for len(cl.pendingConnsData.Get(conn)) > 0 {
@@ -105,7 +105,7 @@ func (cl *HTTPProxyClientUDP) handleUDPReadFunc(udpConn *udptools.UDPServerConn,
 		// No connection found, request new
 		tempId := webtools.GenerateRandomId()
 		cl.pendingConnections.Set(tempId, udpConn)
-		cl.httpClient.Logger.Log(1, "Preparing new connection with temporary id: "+tempId+" for connection connected to: "+udpConn.GetAddress().String())
+		cl.httpClient.Logger.Log(1, "Preparing new connection with temporary id: "+tempId+" for connection connected to: "+udpConn.Address.String())
 		cl.httpClient.Send(webtools.PackWebtoolsFrame(webtools.WEBTOOLS_FRAME_TYPE_CONNECT, []byte("0"), []byte(tempId)), 2)
 		cl.pendingConnsData.Set(udpConn, append(make([][]byte, 0), data))
 		return

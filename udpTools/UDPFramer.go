@@ -41,10 +41,22 @@ func NewUDPFramer(readFunc UDPFramerReadFunc, timeoutForResendInMs uint, resendM
 }
 
 /*
+Creates new UDP framer
+*/
+func NewUDPFramerSimple(timeoutForResendInMs uint, resendMaxLimit uint, isOrganised bool, organisedTimeoutInMs uint) *UDPFramer {
+	return &UDPFramer{onReadFunc: nil, timeoutForResendInMs: timeoutForResendInMs, resendMaxLimit: resendMaxLimit, isOrganised: isOrganised, organisedTimeoutInMs: organisedTimeoutInMs, gotResponce: webtools.MakeSafeMap[string, bool](), readData: webtools.MakeSafeMap[string, time.Time](), orderList: make([]webtools.FourValuePair[string, uint64, *net.UDPAddr, []byte], 0), orderListMutex: &sync.RWMutex{}}
+}
+
+/*
 Resolves UDP frames
 Returns ACK frame
 */
 func (framer *UDPFramer) Resolve(address *net.UDPAddr, data []byte, logger *webtools.ConsoleLogger) []byte {
+	//Invalid frame
+	if len(data) == 0 {
+		return nil
+	}
+
 	//Check size
 	if len(data) < 2 {
 		logger.Log(3, "Frame too short. | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data))
@@ -194,23 +206,23 @@ func (framer *UDPFramer) ExportAllOrdered() {
 /*
 Removes old not used UDP read data
 */
-func (udp *UDPFramer) CleanupData(logger *webtools.ConsoleLogger, forceAll bool) {
-	oldCount := udp.readData.Len()
+func (framer *UDPFramer) CleanupData(logger *webtools.ConsoleLogger, forceAll bool) {
+	oldCount := framer.readData.Len()
 	if forceAll {
 		//Forced
-		udp.readData.Clear()
+		framer.readData.Clear()
 	} else {
-		for _, d := range udp.readData.GetData() {
+		for _, d := range framer.readData.GetData() {
 			k := d.Key
 			v := d.Value
 			if time.Since(v).Seconds() >= CLEANUP_TIMEOUT {
 				//Remove not used connection
-				udp.readData.Delete(k)
+				framer.readData.Delete(k)
 				continue
 			}
 		}
 	}
-	current := udp.readData.Len()
+	current := framer.readData.Len()
 	removed := oldCount - current
 	logger.Log(0, "Data cleanup done! Removed data: "+strconv.Itoa(removed)+" / "+strconv.Itoa(oldCount))
 }
@@ -244,7 +256,7 @@ func processDataForUDP(address *net.UDPAddr, data []byte, ended bool, readFunc U
 /*
 Sends data frame for UDP frame protocol, blocks execution thread
 */
-func (udp *UDPFramer) SendFrame(isServer bool, listener *net.UDPConn, addr *net.UDPAddr, id string, sequenceNum uint, data []byte, logger *webtools.ConsoleLogger) {
+func (framer *UDPFramer) SendFrame(isServer bool, listener *net.UDPConn, addr *net.UDPAddr, id string, sequenceNum uint, data []byte, logger *webtools.ConsoleLogger) {
 	var resend bool = true
 	for resend {
 		//Build frame
@@ -256,7 +268,7 @@ func (udp *UDPFramer) SendFrame(isServer bool, listener *net.UDPConn, addr *net.
 		frame = append(frame, []byte(id)...)
 		frame = append(frame, webtools.WEBTOOLS_FRAME_SEPARATOR)
 
-		if udp.isOrganised {
+		if framer.isOrganised {
 			//Put timestamp
 			timeStamp := make([]byte, 8)
 			binary.BigEndian.PutUint64(timeStamp, uint64(time.Now().UnixNano()))
@@ -272,20 +284,20 @@ func (udp *UDPFramer) SendFrame(isServer bool, listener *net.UDPConn, addr *net.
 
 		//Send
 		writeToUDP(isServer, listener, addr, frame, logger)
-		udp.gotResponce.Set(id, false)
+		framer.gotResponce.Set(id, false)
 
 		//Check responce
-		time.Sleep(time.Duration(udp.timeoutForResendInMs) * time.Millisecond)
-		if !udp.gotResponce.Get(id) {
+		time.Sleep(time.Duration(framer.timeoutForResendInMs) * time.Millisecond)
+		if !framer.gotResponce.Get(id) {
 			//If no responce, resend
-			if udp.resendMaxLimit <= sequenceNum {
+			if framer.resendMaxLimit <= sequenceNum {
 				resend = false
 			}
 		} else {
 			//Got responce
 			resend = false
 		}
-		udp.gotResponce.Delete(id)
+		framer.gotResponce.Delete(id)
 		sequenceNum++
 	}
 }

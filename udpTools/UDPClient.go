@@ -30,6 +30,13 @@ func (udp *UDPClient) IsAlive() bool {
 }
 
 /*
+Setups UDP framer for client
+*/
+func (udp *UDPClient) SetupFraming(framer *UDPFramer) {
+	udp.udpFramer = framer
+}
+
+/*
 Creates new UDP Client but does not starts it
 */
 func NewUDPClient(address string, readFunc UDPClientReadFunc, reportTraffic bool) (*UDPClient, error) {
