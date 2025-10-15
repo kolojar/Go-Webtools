@@ -46,7 +46,7 @@ Standardized type of function
 String = message
 Bool = is ended
 */
-type UDPServerReadFunc func(*UDPServerConn, []byte, bool)
+type UDPServerReadFunc func(conn *UDPServerConn, data []byte, ended bool)
 
 /*
 Basic UDP server
