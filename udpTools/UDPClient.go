@@ -53,13 +53,17 @@ func NewUDPClient(address string, readFunc UDPClientReadFunc, reportTraffic bool
 /*
 Connects to TCP server and start reading loop, does not locks execution thread
 */
-func (udp *UDPClient) Connect() {
+func (udp *UDPClient) Connect() error {
+	if udp.isAlive {
+		return nil
+	}
+
 	//Dial
 	var err error
 	udp.Conn, err = net.DialUDP("udp", nil, udp.address)
 	if err != nil {
-		udp.Logger.Log(3, "Error connecting to: "+udp.address.String()+" | Error: "+err.Error())
-		return
+		//udp.Logger.Log(3, "Error connecting to: "+udp.address.String()+" | Error: "+err.Error())
+		return err
 	}
 	go func() {
 		udp.isAlive = true
@@ -73,6 +77,7 @@ func (udp *UDPClient) Connect() {
 		udp.isAlive = false
 		udp.readFuncLocal(nil, nil, true)
 	}()
+	return nil
 }
 
 func (udp *UDPClient) readFuncLocal(addrFrom *net.UDPAddr, data []byte, ended bool) {
