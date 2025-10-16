@@ -41,7 +41,7 @@ Creates new UDP P2P Server but does not starts it
 5
 */
 func NewP2PCoordinator(address string, allowRelay bool, reportTraffic bool) (*P2PCoordinator, error) {
-	p2p := &P2PCoordinator{peersToConns: webtools.MakeSafeMap[string, webtools.KeyValuePair[*udpTools.UDPServerConn, int]](), peerToId: webtools.MakeSafeMap[*udpTools.UDPServerConn, string](), pendingConnections: webtools.MakeSafeMap[string, webtools.FiveValuePair[bool, string, bool, string, bool]](), allowRelay: allowRelay}
+	p2p := &P2PCoordinator{peersToConns: webtools.MakeSafeMap[string, webtools.KeyValuePair[*udpTools.UDPServerConn, int]](), peerToId: webtools.MakeSafeMap[*udpTools.UDPServerConn, string](), pendingConnections: webtools.MakeSafeMap[string, webtools.FiveValuePair[bool, string, bool, string, bool]](), idToPeer: webtools.MakeSafeMap[string, *udpTools.UDPServerConn](), allowRelay: allowRelay}
 	var err error
 	p2p.udpServer, err = udpTools.NewUDPServer(address, p2p.readFuncLocal, reportTraffic)
 	p2p.udpServer.Logger.Prefix = "P2P - " + p2p.udpServer.Logger.Prefix
@@ -76,6 +76,7 @@ func (p2p *P2PCoordinator) readFuncLocal(conn *udpTools.UDPServerConn, data []by
 	}
 
 	//Commands
+	println(command, "|"+webtools.MapToString(args))
 	switch command {
 	case P2P_CMD_CONNECT:
 		{
@@ -184,7 +185,7 @@ func (p2p *P2PCoordinator) readFuncLocal(conn *udpTools.UDPServerConn, data []by
 			}
 
 			//Check settings
-			if !p2p.peersToConns.Has(args["connId"]) {
+			if !p2p.pendingConnections.Has(args["connId"]) {
 				p2p.udpServer.Logger.Log(3, "No connection found for this id: "+args["connId"])
 				return
 			}

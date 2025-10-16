@@ -9,6 +9,7 @@ import (
 	"time"
 	"webtools"
 	httptools "webtools/httpTools"
+	"webtools/p2pTools"
 	proxytools "webtools/proxyTools"
 	tcptools "webtools/tcpTools"
 	"webtools/udpTools"
@@ -184,6 +185,26 @@ func main() {
 		{
 			ub, _ := udpTools.NewUDPBridge("127.0.0.1:7777", "127.0.0.1:17777", true)
 			ub.Start()
+		}
+	case "p2psv":
+		{
+			sv, _ := p2pTools.NewP2PCoordinator("127.0.0.1:1234", true, true)
+			sv.Start()
+		}
+	case "p2pcl":
+		{
+			cl, _ := p2pTools.NewP2PClientUDP("127.0.0.1:1234", 5678, true)
+			cl.ConnectToCoordinator()
+			webtools.ReadLineFromConsole("Wait")
+		}
+	case "p2pcl2":
+		{
+			cl, _ := p2pTools.NewP2PClientUDP("127.0.0.1:1234", 5679, true)
+			cl.ConnectToCoordinator()
+			data, _ := webtools.ReadLineFromConsole("Enter target id: ")
+			cl.ConnectToPeer(strings.ReplaceAll(string(data), "\n", ""))
+			cl.Send(strings.ReplaceAll(string(data), "\n", ""), []byte("Hello"))
+			webtools.ReadLineFromConsole("wait")
 		}
 	}
 }
