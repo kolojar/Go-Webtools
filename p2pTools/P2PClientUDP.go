@@ -176,12 +176,12 @@ func (p2p *P2PClientUDP) readFuncLocal(client *udpTools.UDPClient, sourceAddress
 				println(args["id"])
 				p2p.peerStatuses.Set(args["id"], webtools.ThreeValuePair[bool, bool, bool]{A: false, B: false, C: false})
 			}
-			get2 := p2p.serverIdsToConns.Get(args["id"])
-			get2.Value = true
-			p2p.serverIdsToConns.Set(args["id"], get2)
 			get := p2p.peerStatuses.Get(args["id"])
 			if args["connType"] == "server" {
 				get.A = true
+				get2 := p2p.serverIdsToConns.Get(args["id"])
+				get2.Value = true
+				p2p.serverIdsToConns.Set(args["id"], get2)
 				//p2p.gotConnected = true
 			} else {
 				get.B = true
