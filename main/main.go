@@ -219,7 +219,7 @@ func main() {
 }
 
 func p2pReadFunc(client *p2pTools.P2PClientUDP, sourceId string, data []byte, ended bool) {
-	//client.Send(sourceId, data)
+	client.Send(sourceId, data)
 }
 
 var rc int = 0

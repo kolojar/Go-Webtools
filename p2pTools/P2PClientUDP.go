@@ -166,10 +166,6 @@ func (p2p *P2PClientUDP) readFuncLocal(client *udpTools.UDPClient, sourceAddress
 				client.Logger.Log(3, "No id from server.")
 				return
 			}
-			if args["status"] == "" {
-				client.Logger.Log(3, "No status from server.")
-				return
-			}
 			if args["connType"] == "" {
 				client.Logger.Log(3, "No connType from server.")
 				return
@@ -177,16 +173,21 @@ func (p2p *P2PClientUDP) readFuncLocal(client *udpTools.UDPClient, sourceAddress
 
 			//Decode data
 			if !p2p.peerStatuses.Has(args["id"]) {
+				println(args["id"])
 				p2p.peerStatuses.Set(args["id"], webtools.ThreeValuePair[bool, bool, bool]{A: false, B: false, C: false})
 			}
-			get := p2p.peerStatuses.Get("id")
+			get2 := p2p.serverIdsToConns.Get(args["id"])
+			get2.Value = true
+			p2p.serverIdsToConns.Set(args["id"], get2)
+			get := p2p.peerStatuses.Get(args["id"])
 			if args["connType"] == "server" {
-				get.B = true
-				p2p.gotConnected = true
+				get.A = true
+				//p2p.gotConnected = true
 			} else {
-				get.C = true
-				p2p.gotConnected = true
+				get.B = true
 			}
+			p2p.peerStatuses.Set(args["id"], get)
+			p2p.gotConnected = true
 			p2p.isConnecting = false
 			break
 		}
@@ -239,6 +240,7 @@ func (p2p *P2PClientUDP) readFuncLocalOtherServer(conn *udpTools.UDPServerConn, 
 		println(command + "|" + webtools.MapToString(args))
 		if command != P2P_CMD_PUNCH {
 			p2p.udpServerOther.Logger.Log(3, "Invalid commmand.")
+			return
 		}
 		p2p.udpServerOther.Logger.Log(1, "Got punch from: "+conn.Address.String())
 		conn.Send([]byte(httpTools.CreateURLFromParameters(P2P_CMD_PUNCH, map[string]string{"connId": args["connId"]})))
