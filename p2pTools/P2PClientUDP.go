@@ -37,9 +37,9 @@ type P2PClientUDP struct {
 /*
 Creates new P2P UDP client but does not start it
 */
-func NewP2PClientUDP(address string, serverPort int, reportTraffic bool) (*P2PClientUDP, error) {
+func NewP2PClientUDP(address string, serverPort int, readFunc P2PClientUDPReadFunc, reportTraffic bool) (*P2PClientUDP, error) {
 	//Creates new P2P Client
-	p2p := &P2PClientUDP{reportTraffic: reportTraffic, udpClientOtherFromId: webtools.MakeSafeMap[string, *udpTools.UDPClient](), udpClientOtherToId: webtools.MakeSafeMap[*udpTools.UDPClient, string](), udpServerOtherConns: webtools.MakeSafeMap[*udpTools.UDPServerConn, bool](), udpServerOtherConnIdToConn: webtools.MakeSafeMap[string, *udpTools.UDPServerConn](), udpServerOtherConnConnToId: webtools.MakeSafeMap[*udpTools.UDPServerConn, string](), isIdRelay: webtools.MakeSafeMap[string, bool]()}
+	p2p := &P2PClientUDP{reportTraffic: reportTraffic, udpClientOtherFromId: webtools.MakeSafeMap[string, *udpTools.UDPClient](), udpClientOtherToId: webtools.MakeSafeMap[*udpTools.UDPClient, string](), udpServerOtherConns: webtools.MakeSafeMap[*udpTools.UDPServerConn, bool](), udpServerOtherConnIdToConn: webtools.MakeSafeMap[string, *udpTools.UDPServerConn](), udpServerOtherConnConnToId: webtools.MakeSafeMap[*udpTools.UDPServerConn, string](), isIdRelay: webtools.MakeSafeMap[string, bool](), readFunc: readFunc}
 	var err error
 
 	//Create coordinator client
@@ -143,9 +143,12 @@ func (p2p *P2PClientUDP) readFuncLocal(client *udpTools.UDPClient, sourceAddress
 	case P2P_CMD_CONNECT_STATUS:
 		{
 			//Review status connect request
-			if args["id"] == p2p.targetId {
-				p2p.udpServerOtherConns.Set(p2p.udpServerOtherConnIdToConn.Get(args["id"]), args["status"] == "true")
+			if args["id"] == p2p.id {
+				println("Connection ok")
 				p2p.isConnecting = 4
+			} else {
+				BLBE
+				p2p.udpServerOtherConns.Set(p2p.udpServerOtherConnIdToConn.Get(args["id"]), args["status"] == "true")
 			}
 		}
 	}
@@ -172,6 +175,7 @@ func (p2p *P2PClientUDP) readFuncLocalOtherServer(conn *udpTools.UDPServerConn, 
 	//Reads from other connections
 	if !p2p.udpServerOtherConns.Get(conn) {
 		command, args := httpTools.CreateParametersFromURL(string(data))
+		println(command + "|" + webtools.MapToString(args))
 		if command != P2P_CMD_PUNCH {
 			p2p.udpServerOther.Logger.Log(3, "Invalid commmand.")
 		}
@@ -212,17 +216,21 @@ Connects to specified id,does not lock execution thread
 */
 func (p2p *P2PClientUDP) ConnectToPeer(targetId string) bool {
 	//Send connect request and try to connect
+	p2p.targetId = targetId
 	p2p.isConnecting = 1
 	p2p.udpClientCoordinator.Send([]byte(httpTools.CreateURLFromParameters(P2P_CMD_CONNECT, map[string]string{"id": p2p.id, "targetId": targetId})))
 	for p2p.isConnecting == 1 {
 		time.Sleep(100 * time.Millisecond)
 	}
 	if p2p.isConnecting == 3 {
+		println("Connecting error")
 		return false
 	}
 	for p2p.isConnecting < 4 {
+		println("Connecting wait")
 		time.Sleep(100 * time.Millisecond)
 	}
+	println("Connecting done")
 	return p2p.isConnecting == 4
 }
 
