@@ -2,7 +2,6 @@ package p2pTools
 
 import (
 	"net"
-	"slices"
 	"strconv"
 	"time"
 	"webtools"
@@ -16,22 +15,33 @@ const P2P_CMD_PUNCH = "punch"
 type P2PClientUDPReadFunc func(client *P2PClientUDP, sourceId string, data []byte, ended bool)
 
 type P2PClientUDP struct {
-	udpClientCoordinator       *udpTools.UDPClient
-	udpClientOtherFromId       webtools.SafeMap[string, *udpTools.UDPClient]
-	udpClientOtherToId         webtools.SafeMap[*udpTools.UDPClient, string]
-	udpServerOther             *udpTools.UDPServer
-	udpServerOtherConns        webtools.SafeMap[*udpTools.UDPServerConn, bool]
-	id                         string
-	targetId                   string
-	isPreparingId              uint8
-	isConnecting               uint8
-	isConnected                bool
-	pendingData                [][]byte
-	isIdRelay                  webtools.SafeMap[string, bool]
-	reportTraffic              bool
-	readFunc                   P2PClientUDPReadFunc
-	udpServerOtherConnIdToConn webtools.SafeMap[string, *udpTools.UDPServerConn]
-	udpServerOtherConnConnToId webtools.SafeMap[*udpTools.UDPServerConn, string]
+	//Coordination
+	udpClientCoordinator *udpTools.UDPClient
+	id                   string
+	readFunc             P2PClientUDPReadFunc
+	isPreparingId        bool
+	reportTraffic        bool
+
+	//Connecting
+	//isConnectingToSomething bool
+	isConnecting bool
+	gotConnected bool
+	targetId     string
+
+	//In format: ID - Is connected via Server / Client / Relay
+	peerStatuses webtools.SafeMap[string, webtools.ThreeValuePair[bool, bool, bool]]
+
+	//Server connections resolve
+	udpServerOther   *udpTools.UDPServer
+	serverConnsToIds webtools.SafeMap[*udpTools.UDPServerConn, string]
+	serverIdsToConns webtools.SafeMap[string, webtools.KeyValuePair[*udpTools.UDPServerConn, bool]]
+
+	//Client connection resolve
+	clientConnsToIds webtools.SafeMap[*udpTools.UDPClient, string]
+	clientIdsToConns webtools.SafeMap[string, webtools.KeyValuePair[*udpTools.UDPClient, bool]]
+
+	//Pending data
+	//pendingSendData webtools.SafeMap[string, [][]byte]
 }
 
 /*
@@ -39,7 +49,15 @@ Creates new P2P UDP client but does not start it
 */
 func NewP2PClientUDP(address string, serverPort int, readFunc P2PClientUDPReadFunc, reportTraffic bool) (*P2PClientUDP, error) {
 	//Creates new P2P Client
-	p2p := &P2PClientUDP{reportTraffic: reportTraffic, udpClientOtherFromId: webtools.MakeSafeMap[string, *udpTools.UDPClient](), udpClientOtherToId: webtools.MakeSafeMap[*udpTools.UDPClient, string](), udpServerOtherConns: webtools.MakeSafeMap[*udpTools.UDPServerConn, bool](), udpServerOtherConnIdToConn: webtools.MakeSafeMap[string, *udpTools.UDPServerConn](), udpServerOtherConnConnToId: webtools.MakeSafeMap[*udpTools.UDPServerConn, string](), isIdRelay: webtools.MakeSafeMap[string, bool](), readFunc: readFunc}
+	p2p := &P2PClientUDP{
+		reportTraffic:    reportTraffic,
+		readFunc:         readFunc,
+		peerStatuses:     webtools.MakeSafeMap[string, webtools.ThreeValuePair[bool, bool, bool]](),
+		serverConnsToIds: webtools.MakeSafeMap[*udpTools.UDPServerConn, string](),
+		serverIdsToConns: webtools.MakeSafeMap[string, webtools.KeyValuePair[*udpTools.UDPServerConn, bool]](),
+		clientConnsToIds: webtools.MakeSafeMap[*udpTools.UDPClient, string](),
+		clientIdsToConns: webtools.MakeSafeMap[string, webtools.KeyValuePair[*udpTools.UDPClient, bool]](),
+	}
 	var err error
 
 	//Create coordinator client
@@ -68,12 +86,13 @@ func (p2p *P2PClientUDP) readFuncLocal(client *udpTools.UDPClient, sourceAddress
 			//Sets new id to client
 			if args["id"] == "" {
 				p2p.udpClientCoordinator.Logger.Log(3, "Error getting peer id.")
-				p2p.isPreparingId = 3
+				p2p.isPreparingId = false
+				p2p.id = ""
 				return
 			}
 			p2p.id = args["id"]
 			client.Logger.Log(2, "This client id is: "+p2p.id)
-			p2p.isPreparingId = 2
+			p2p.isPreparingId = false
 			break
 		}
 	case P2P_CMD_CONNECT:
@@ -81,22 +100,22 @@ func (p2p *P2PClientUDP) readFuncLocal(client *udpTools.UDPClient, sourceAddress
 			//Read connect request
 			if args["targetId"] == "" {
 				p2p.udpClientCoordinator.Logger.Log(3, "Error getting peer id.")
-				p2p.isConnecting = 3
+				p2p.isConnecting = false
 				return
 			}
 			if args["targetIP"] == "" {
 				p2p.udpClientCoordinator.Logger.Log(3, "Error getting peer IP.")
-				p2p.isConnecting = 3
+				p2p.isConnecting = false
 				return
 			}
 			if args["connId"] == "" {
 				p2p.udpClientCoordinator.Logger.Log(3, "Error getting conn id.")
-				p2p.isConnecting = 3
+				p2p.isConnecting = false
 				return
 			}
 			if args["time"] == "" {
 				p2p.udpClientCoordinator.Logger.Log(3, "Error getting peer time.")
-				p2p.isConnecting = 3
+				p2p.isConnecting = false
 				return
 			}
 
@@ -116,8 +135,8 @@ func (p2p *P2PClientUDP) readFuncLocal(client *udpTools.UDPClient, sourceAddress
 				return
 			}
 			client.Logger.Prefix = "P2PClientUDP - PeerClientUDP for id: " + args["targetId"]
-			p2p.udpClientOtherFromId.Set(args["targetId"], client)
-			p2p.udpClientOtherToId.Set(client, args["targetId"])
+			p2p.clientIdsToConns.Set(args["targetId"], webtools.KeyValuePair[*udpTools.UDPClient, bool]{Key: client, Value: false})
+			p2p.clientConnsToIds.Set(client, args["targetId"])
 
 			//Wait for time
 			time.Sleep(time.Until(timeStart))
@@ -127,28 +146,64 @@ func (p2p *P2PClientUDP) readFuncLocal(client *udpTools.UDPClient, sourceAddress
 				client.Logger.Log(1, "Connecting to target IP: "+args["targetIP"]+" attempt: "+strconv.Itoa(i)+"/"+strconv.Itoa(P2P_RETRY_COUNT))
 				err = client.Connect()
 				if err == nil {
-					client.Send([]byte(httpTools.CreateURLFromParameters(P2P_CMD_PUNCH, map[string]string{"id": p2p.id})))
+					client.Send([]byte(httpTools.CreateURLFromParameters(P2P_CMD_PUNCH, map[string]string{"id": p2p.id, "connId": args["connId"]})))
 				} else {
 					client.Logger.Log(3, "Error connecting to target IP: "+args["targetIP"]+" with error: "+err.Error())
 				}
 				time.Sleep(time.Duration(i+1) * 100 * time.Millisecond)
-				if p2p.isConnecting == 2 {
+				if p2p.gotConnected {
 					//Connected to server
 					client.Logger.Log(1, "Connected to other peer.")
 					break
 				}
 			}
-			p2p.udpClientCoordinator.Send([]byte(httpTools.CreateURLFromParameters(P2P_CMD_CONNECT_STATUS, map[string]string{"id": p2p.id, "connId": args["connId"], "status": webtools.FormatByBool(p2p.isConnecting == 2, "true", "false")})))
+			p2p.udpClientCoordinator.Send([]byte(httpTools.CreateURLFromParameters(P2P_CMD_CONNECT_STATUS, map[string]string{"id": p2p.id, "connId": args["connId"], "status": webtools.FormatByBool(p2p.gotConnected, "true", "false")})))
 		}
 	case P2P_CMD_CONNECT_STATUS:
 		{
 			//Review status connect request
-			if args["id"] == p2p.id {
-				println("Connection ok")
-				p2p.isConnecting = 4
+			if args["id"] == "" {
+				client.Logger.Log(3, "No id from server.")
+				return
+			}
+			if args["status"] == "" {
+				client.Logger.Log(3, "No status from server.")
+				return
+			}
+			if args["connType"] == "" {
+				client.Logger.Log(3, "No connType from server.")
+				return
+			}
+
+			//Decode data
+			if !p2p.peerStatuses.Has(args["id"]) {
+				p2p.peerStatuses.Set(args["id"], webtools.ThreeValuePair[bool, bool, bool]{A: false, B: false, C: false})
+			}
+			get := p2p.peerStatuses.Get("id")
+			if args["connType"] == "server" {
+				get.B = true
+				p2p.gotConnected = true
 			} else {
-				BLBE
-				p2p.udpServerOtherConns.Set(p2p.udpServerOtherConnIdToConn.Get(args["id"]), args["status"] == "true")
+				get.C = true
+				p2p.gotConnected = true
+			}
+			p2p.isConnecting = false
+			break
+		}
+	case P2P_CMD_CONNECT_DONE:
+		{
+			//Connecting done
+			p2p.isConnecting = false
+		}
+	case P2P_CMD_RELAY:
+		{
+			//Relay
+			if args["sourceId"] == "" {
+				client.Logger.Log(3, "Invalid source id.")
+				return
+			}
+			if p2p.readFunc != nil {
+				p2p.readFunc(p2p, args["sourceId"], []byte(args["data"]), args["ended"] == "true")
 			}
 		}
 	}
@@ -156,39 +211,43 @@ func (p2p *P2PClientUDP) readFuncLocal(client *udpTools.UDPClient, sourceAddress
 
 func (p2p *P2PClientUDP) readFuncLocalOtherClient(client *udpTools.UDPClient, sourceAddress *net.UDPAddr, data []byte, ended bool) {
 	//Reads from client
-	if p2p.isConnecting == 1 {
-		if slices.Equal(data, []byte(P2P_CMD_PUNCH)) {
+	get := p2p.clientIdsToConns.Get(p2p.clientConnsToIds.Get(client))
+	if !get.Value {
+		command, args := httpTools.CreateParametersFromURL(string(data))
+		println(command + "|" + webtools.MapToString(args))
+		if command == P2P_CMD_PUNCH {
 			//Got punch
 			client.Logger.Log(1, "Got punch.")
-			p2p.isConnecting = 2
+			get.Value = true
+			p2p.clientIdsToConns.Set(p2p.clientConnsToIds.Get(client), get)
+			p2p.udpClientCoordinator.Send([]byte(httpTools.CreateURLFromParameters(P2P_CMD_CONNECT_STATUS, map[string]string{"id": p2p.id, "connId": args["connId"], "status": "true"})))
 		}
 		return
 	}
 
 	//Transport it to read func
 	if p2p.readFunc != nil {
-		p2p.readFunc(p2p, p2p.udpClientOtherToId.Get(client), data, ended)
+		p2p.readFunc(p2p, p2p.clientConnsToIds.Get(client), data, ended)
 	}
 }
 
 func (p2p *P2PClientUDP) readFuncLocalOtherServer(conn *udpTools.UDPServerConn, data []byte, ended bool) {
 	//Reads from other connections
-	if !p2p.udpServerOtherConns.Get(conn) {
+	get := p2p.serverIdsToConns.Get(p2p.serverConnsToIds.Get(conn))
+	if !get.Value {
 		command, args := httpTools.CreateParametersFromURL(string(data))
 		println(command + "|" + webtools.MapToString(args))
 		if command != P2P_CMD_PUNCH {
 			p2p.udpServerOther.Logger.Log(3, "Invalid commmand.")
 		}
 		p2p.udpServerOther.Logger.Log(1, "Got punch from: "+conn.Address.String())
-		p2p.udpServerOtherConnIdToConn.Set(args["id"], conn)
-		p2p.udpServerOtherConnConnToId.Set(conn, args["id"])
-		conn.Send([]byte(P2P_CMD_PUNCH))
+		conn.Send([]byte(httpTools.CreateURLFromParameters(P2P_CMD_PUNCH, map[string]string{"connId": args["connId"]})))
 		return
 	}
 
 	//Transport it to read func
 	if p2p.readFunc != nil {
-		p2p.readFunc(p2p, p2p.udpServerOtherConnConnToId.Get(conn), data, ended)
+		p2p.readFunc(p2p, p2p.serverConnsToIds.Get(conn), data, ended)
 	}
 }
 
@@ -199,15 +258,14 @@ func (p2p *P2PClientUDP) ConnectToCoordinator() bool {
 	//Start and connect to coordinator
 	p2p.udpClientCoordinator.Connect()
 	go p2p.udpServerOther.Start()
-	p2p.isConnecting = 1
-	p2p.isPreparingId = 1
+	p2p.isPreparingId = true
 	p2p.udpClientCoordinator.Send([]byte(httpTools.CreateURLFromParameters(P2P_CMD_NEW_ID, map[string]string{"port": strconv.FormatInt(int64(p2p.udpServerOther.GetAddress().Port), 10)})))
 
 	//Wait for ID
-	for p2p.isPreparingId == 1 {
+	for p2p.isPreparingId {
 		time.Sleep(100 * time.Millisecond)
 	}
-	return p2p.isPreparingId == 2
+	return p2p.id != ""
 
 }
 
@@ -215,44 +273,42 @@ func (p2p *P2PClientUDP) ConnectToCoordinator() bool {
 Connects to specified id,does not lock execution thread
 */
 func (p2p *P2PClientUDP) ConnectToPeer(targetId string) bool {
-	//Send connect request and try to connect
-	p2p.targetId = targetId
-	p2p.isConnecting = 1
-	p2p.udpClientCoordinator.Send([]byte(httpTools.CreateURLFromParameters(P2P_CMD_CONNECT, map[string]string{"id": p2p.id, "targetId": targetId})))
-	for p2p.isConnecting == 1 {
+	for p2p.isConnecting {
+		//Wait, still connecting to something else
 		time.Sleep(100 * time.Millisecond)
 	}
-	if p2p.isConnecting == 3 {
-		println("Connecting error")
-		return false
-	}
-	for p2p.isConnecting < 4 {
-		println("Connecting wait")
+
+	//Send connect request and try to connect
+	p2p.targetId = targetId
+	p2p.isConnecting = true
+	//p2p.isConnectingToSomething = true
+	p2p.gotConnected = false
+	p2p.udpClientCoordinator.Send([]byte(httpTools.CreateURLFromParameters(P2P_CMD_CONNECT, map[string]string{"id": p2p.id, "targetId": targetId})))
+	for p2p.isConnecting {
 		time.Sleep(100 * time.Millisecond)
 	}
 	println("Connecting done")
-	return p2p.isConnecting == 4
+	return p2p.gotConnected
 }
 
 /*
 Sends data to peer
 */
 func (p2p *P2PClientUDP) Send(targetId string, data []byte) {
-	if p2p.isIdRelay.Get(targetId) {
+	get := p2p.peerStatuses.Get(targetId)
+	if get.C {
 		//Use relay
 		p2p.udpClientCoordinator.Send([]byte(httpTools.CreateURLFromParameters(P2P_CMD_RELAY, map[string]string{"data": string(data), "targetId": targetId, "id": p2p.id})))
 		return
 	}
-	client := p2p.udpClientOtherFromId.Get(targetId)
-	if client != nil {
+	if get.B {
 		//Use this as client to write to other side server
-		client.Send(data)
+		p2p.clientIdsToConns.Get(targetId).Key.Send(data)
 		return
 	}
-	server := p2p.udpServerOtherConnIdToConn.Get(targetId)
-	if server != nil {
+	if get.A {
 		//Use this as server to write to other side client
-		server.Send(data)
+		p2p.serverIdsToConns.Get(targetId).Key.Send(data)
 		return
 	}
 	p2p.udpClientCoordinator.Logger.Log(3, "Error sending data to: "+targetId+" - id not found.")
