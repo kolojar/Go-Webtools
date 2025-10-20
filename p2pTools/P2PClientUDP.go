@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"net"
+	"slices"
 	"strconv"
 	"time"
 	"webtools"
@@ -22,9 +23,9 @@ type P2PClientUDP struct {
 	id                        []byte
 	isConnecting              bool
 	targetIdThisConnecting    []byte
-	targetIdsConnectingStatus webtools.SafeMap[string, uint8]
+	targetIdsConnectingStatus webtools.SafeMap[string, bool]
 	reportTraffic             bool
-	//gotConnected              bool
+	allowRelay                webtools.SafeMap[string, bool]
 
 	//Server for incomming conns
 	udpIncommingConnsSv *udpTools.UDPServer
@@ -45,7 +46,8 @@ func NewP2PClientUDP(address string, portForIncommingConns int, reportTraffic bo
 		reportTraffic:             reportTraffic,
 		udpOutcommingConnsCls:     webtools.MakeSafeMap[string, webtools.KeyValuePair[*udpTools.UDPClient, bool]](),
 		udpIncommingConns:         webtools.MakeSafeMap[string, webtools.KeyValuePair[*udpTools.UDPServerConn, bool]](),
-		targetIdsConnectingStatus: webtools.MakeSafeMap[string, uint8](),
+		targetIdsConnectingStatus: webtools.MakeSafeMap[string, bool](),
+		allowRelay:                webtools.MakeSafeMap[string, bool](),
 	}
 
 	//New client for Coordinator
@@ -107,7 +109,7 @@ func (p2p *P2PClientUDP) readFuncCoordinator(_ *udpTools.UDPClient, sourceAddres
 				//p2p.clientConnsToIds.Set(client, args["targetId"])
 
 				//Wait for time
-				p2p.targetIdsConnectingStatus.Set(string(frame.Id), 1)
+				p2p.targetIdsConnectingStatus.Set(string(frame.Id), true)
 				time.Sleep(time.Until(startTime))
 
 				//Start punching
@@ -120,17 +122,62 @@ func (p2p *P2PClientUDP) readFuncCoordinator(_ *udpTools.UDPClient, sourceAddres
 						client.Logger.Log(3, "Error connecting to target IP: "+string(split[1])+" with error: "+err.Error())
 					}
 					time.Sleep(time.Duration(i+1) * 100 * time.Millisecond)
-					if p2p.targetIdsConnectingStatus.Get(string(frame.Id)) == 2 {
+					if !p2p.targetIdsConnectingStatus.Get(string(frame.Id)) {
 						//Connected to server
 						client.Logger.Log(1, "Connected to other peer, waiting for coordinator.")
 						break
 					}
 				}
-				if p2p.targetIdsConnectingStatus.Get(string(frame.Id)) != 2 {
+				if p2p.targetIdsConnectingStatus.Get(string(frame.Id)) {
 					//Not connected to server
 					client.Logger.Log(3, "Could not connect to other peer.")
 				}
 				break
+			}
+		case P2P_CMD_CONNECT_STATUS:
+			{
+				//Status about connection
+				switch string(frame.Data) {
+				case "server":
+					{
+						//Set true for server
+						if !p2p.udpIncommingConns.Has(string(frame.Id)) {
+							p2p.udpClientCoordinator.Logger.Log(3, "Incomming connection not found: "+string(frame.Id))
+							return
+						}
+						val := p2p.udpIncommingConns.Get(string(frame.Id))
+						val.Value = true
+						p2p.udpIncommingConns.Set(string(frame.Id), val)
+						break
+					}
+				case "client":
+					{
+						//Set true for client
+						if !p2p.udpOutcommingConnsCls.Has(string(frame.Id)) {
+							p2p.udpClientCoordinator.Logger.Log(3, "Outcomming connection not found: "+string(frame.Id))
+							return
+						}
+						val := p2p.udpOutcommingConnsCls.Get(string(frame.Id))
+						val.Value = true
+						p2p.udpOutcommingConnsCls.Set(string(frame.Id), val)
+						break
+					}
+				default:
+					{
+						p2p.udpClientCoordinator.Logger.Log(3, "Invalid connection type: "+string(frame.Data))
+						return
+					}
+				}
+				break
+			}
+		case P2P_CMD_CONNECT_DONE:
+			{
+				//Punching done
+				p2p.allowRelay.Set(string(frame.Id), string(frame.Data) == "true")
+				if slices.Equal(p2p.targetIdThisConnecting, frame.Id) {
+					p2p.isConnecting = false
+				}
+				p2p.targetIdsConnectingStatus.Delete(string(frame.Id))
 			}
 		}
 	}
@@ -142,7 +189,7 @@ func (p2p *P2PClientUDP) readFuncOutcommingClients(client *udpTools.UDPClient, s
 		case P2P_CMD_PUNCH:
 			{
 				//Got punch, process as OK
-				p2p.targetIdsConnectingStatus.Set(string(frame.Data), 2)
+				p2p.targetIdsConnectingStatus.Set(string(frame.Data), false)
 				p2p.udpClientCoordinator.Send(webtools.PackWebtoolsFrame(P2P_CMD_CONNECT_STATUS, frame.Id, frame.Data))
 				break
 			}
