@@ -203,7 +203,7 @@ func main() {
 			cl.ConnectToCoordinator()
 			data, _ := webtools.ReadLineFromConsole("Enter target id: ")
 			cl.ConnectToPeer(strings.ReplaceAll(string(data), "\n", ""))
-			cl.Send(strings.ReplaceAll(string(data), "\n", ""), []byte("Hello"))
+			cl.Send([]byte(strings.ReplaceAll(string(data), "\n", "")), []byte("Hello"))
 			webtools.ReadLineFromConsole("wait")
 		}
 	case "p2pcl3":
@@ -212,13 +212,13 @@ func main() {
 			cl.ConnectToCoordinator()
 			data, _ := webtools.ReadLineFromConsole("Enter target id: ")
 			cl.ConnectToPeer(strings.ReplaceAll(string(data), "\n", ""))
-			cl.Send(strings.ReplaceAll(string(data), "\n", ""), []byte("Hello"))
+			cl.Send([]byte(strings.ReplaceAll(string(data), "\n", "")), []byte("Hello"))
 			webtools.ReadLineFromConsole("wait")
 		}
 	}
 }
 
-func p2pReadFunc(client *p2pTools.P2PClientUDP, sourceId string, data []byte, ended bool) {
+func p2pReadFunc(client *p2pTools.P2PClientUDP, sourceId []byte, data []byte, ended bool) {
 	client.Send(sourceId, data)
 }
 

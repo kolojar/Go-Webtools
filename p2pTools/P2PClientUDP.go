@@ -17,6 +17,8 @@ const P2P_PUNCH_RETRY_COUNT = 10
 // Used for sending punch, in id there is origin id and in data is targetId - server does not modifies frame, just sends it back
 const P2P_CMD_PUNCH uint8 = 50
 
+type P2PClientUDPReadFunc func(client *P2PClientUDP, sourceId []byte, data []byte, ended bool)
+
 type P2PClientUDP struct {
 	//Coordinator
 	udpClientCoordinator      *udpTools.UDPClient
@@ -26,6 +28,7 @@ type P2PClientUDP struct {
 	targetIdsConnectingStatus webtools.SafeMap[string, bool]
 	reportTraffic             bool
 	allowRelay                webtools.SafeMap[string, bool]
+	readFunc                  P2PClientUDPReadFunc
 
 	//Server for incomming conns
 	udpIncommingConnsSv *udpTools.UDPServer
@@ -38,7 +41,7 @@ type P2PClientUDP struct {
 /*
 Creates new P2P Client for UDP but does not starts it
 */
-func NewP2PClientUDP(address string, portForIncommingConns int, reportTraffic bool) (*P2PClientUDP, error) {
+func NewP2PClientUDP(address string, portForIncommingConns int, readFunc P2PClientUDPReadFunc, reportTraffic bool) (*P2PClientUDP, error) {
 	//New P2P
 	p2p := &P2PClientUDP{
 		id:                        nil,
@@ -48,6 +51,7 @@ func NewP2PClientUDP(address string, portForIncommingConns int, reportTraffic bo
 		udpIncommingConns:         webtools.MakeSafeMap[string, webtools.KeyValuePair[*udpTools.UDPServerConn, bool]](),
 		targetIdsConnectingStatus: webtools.MakeSafeMap[string, bool](),
 		allowRelay:                webtools.MakeSafeMap[string, bool](),
+		readFunc:                  readFunc,
 	}
 
 	//New client for Coordinator
@@ -209,6 +213,13 @@ func (p2p *P2PClientUDP) readFuncCoordinator(_ *udpTools.UDPClient, sourceAddres
 					p2p.isConnecting = false
 				}
 			}
+		case P2P_CMD_RELAY:
+			{
+				//Get relay data
+				if p2p.readFunc != nil {
+					p2p.readFunc(p2p, frame.Id, frame.Data, ended)
+				}
+			}
 		}
 	}
 }
@@ -224,7 +235,9 @@ func (p2p *P2PClientUDP) readFuncOutcommingClients(client *udpTools.UDPClient, s
 				break
 			}
 		}
-		DATA
+		if p2p.readFunc != nil {
+			p2p.readFunc(p2p, frame.Id, frame.Data, ended)
+		}
 	}
 }
 
@@ -240,7 +253,9 @@ func (p2p *P2PClientUDP) readFuncIncommingServer(conn *udpTools.UDPServerConn, d
 				break
 			}
 		}
-		DATA
+		if p2p.readFunc != nil {
+			p2p.readFunc(p2p, frame.Id, frame.Data, ended)
+		}
 	}
 }
 
@@ -291,9 +306,9 @@ func (p2p *P2PClientUDP) ConnectToPeer(targetId string) bool {
 /*
 Sends data to target peer
 */
-func (p2p *P2PClientUDP) Send(targetId string, data []byte) bool {
+func (p2p *P2PClientUDP) Send(targetId []byte, data []byte) bool {
 	//Handle outcomming
-	outcomming, ok := p2p.udpOutcommingConnsCls.GetHas(targetId)
+	outcomming, ok := p2p.udpOutcommingConnsCls.GetHas(string(targetId))
 	if ok && outcomming.Value {
 		//Send using client
 		outcomming.Key.Send(data)
@@ -301,7 +316,7 @@ func (p2p *P2PClientUDP) Send(targetId string, data []byte) bool {
 	}
 
 	//Handle intcomming
-	incomming, ok := p2p.udpIncommingConns.GetHas(targetId)
+	incomming, ok := p2p.udpIncommingConns.GetHas(string(targetId))
 	if ok && incomming.Value {
 		//Send using server
 		incomming.Key.Send(data)
@@ -309,14 +324,14 @@ func (p2p *P2PClientUDP) Send(targetId string, data []byte) bool {
 	}
 
 	//Handle relay
-	relay, ok := p2p.allowRelay.GetHas(targetId)
+	relay, ok := p2p.allowRelay.GetHas(string(targetId))
 	if ok && relay {
 		//Send using relay
 		p2p.udpClientCoordinator.Send(webtools.PackWebtoolsFrame(P2P_CMD_RELAY, p2p.id, append(append([]byte(targetId), webtools.WEBTOOLS_FRAME_SEPARATOR), data...)))
 		return true
 	}
 
-	p2p.udpClientCoordinator.Logger.Log(3, "Failed to send message to peer Id: "+targetId)
+	p2p.udpClientCoordinator.Logger.Log(3, "Failed to send message to peer Id: "+string(targetId))
 	return false
 }
 
