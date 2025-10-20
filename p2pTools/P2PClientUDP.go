@@ -178,6 +178,36 @@ func (p2p *P2PClientUDP) readFuncCoordinator(_ *udpTools.UDPClient, sourceAddres
 					p2p.isConnecting = false
 				}
 				p2p.targetIdsConnectingStatus.Delete(string(frame.Id))
+				p2p.udpClientCoordinator.Logger.Log(2, "Connecting done.")
+				break
+			}
+		case P2P_CMD_CANCEL_CLIENT:
+			{
+				//Cancels current operation
+				p2p.udpClientCoordinator.Logger.Log(3, "Error from server: "+string(frame.Data))
+				if p2p.targetIdsConnectingStatus.Has(string(frame.Id)) {
+					p2p.targetIdsConnectingStatus.Set(string(frame.Data), false)
+				}
+				if p2p.udpIncommingConns.Has(string(frame.Id)) {
+					val, ok := p2p.udpIncommingConns.GetHas(string(frame.Id))
+					if ok {
+						val.Value = false
+						p2p.udpIncommingConns.Set(string(frame.Id), val)
+					}
+				}
+				if p2p.udpOutcommingConnsCls.Has(string(frame.Id)) {
+					val, ok := p2p.udpOutcommingConnsCls.GetHas(string(frame.Id))
+					if ok {
+						val.Value = false
+						p2p.udpOutcommingConnsCls.Set(string(frame.Id), val)
+					}
+				}
+				if p2p.allowRelay.Has(string(frame.Id)) {
+					p2p.allowRelay.Set(string(frame.Id), false)
+				}
+				if bytes.Equal(p2p.targetIdThisConnecting, frame.Id) {
+					p2p.isConnecting = false
+				}
 			}
 		}
 	}
@@ -194,6 +224,7 @@ func (p2p *P2PClientUDP) readFuncOutcommingClients(client *udpTools.UDPClient, s
 				break
 			}
 		}
+		DATA
 	}
 }
 
@@ -209,6 +240,7 @@ func (p2p *P2PClientUDP) readFuncIncommingServer(conn *udpTools.UDPServerConn, d
 				break
 			}
 		}
+		DATA
 	}
 }
 
@@ -244,7 +276,6 @@ func (p2p *P2PClientUDP) ConnectToPeer(targetId string) bool {
 
 	//Send request to Coordinator
 	p2p.isConnecting = true
-	p2p.gotConnected = true
 	p2p.targetIdThisConnecting = []byte(targetId)
 	p2p.udpClientCoordinator.Send(webtools.PackWebtoolsFrame(P2P_CMD_CONNECT_TO_PEER, p2p.id, []byte(targetId)))
 
@@ -252,4 +283,50 @@ func (p2p *P2PClientUDP) ConnectToPeer(targetId string) bool {
 	for p2p.isConnecting {
 		time.Sleep(100 * time.Millisecond)
 	}
+
+	//Return status
+	return p2p.udpIncommingConns.Get(targetId).Value || p2p.udpOutcommingConnsCls.Get(targetId).Value || p2p.allowRelay.Get(targetId)
+}
+
+/*
+Sends data to target peer
+*/
+func (p2p *P2PClientUDP) Send(targetId string, data []byte) bool {
+	//Handle outcomming
+	outcomming, ok := p2p.udpOutcommingConnsCls.GetHas(targetId)
+	if ok && outcomming.Value {
+		//Send using client
+		outcomming.Key.Send(data)
+		return true
+	}
+
+	//Handle intcomming
+	incomming, ok := p2p.udpIncommingConns.GetHas(targetId)
+	if ok && incomming.Value {
+		//Send using server
+		incomming.Key.Send(data)
+		return true
+	}
+
+	//Handle relay
+	relay, ok := p2p.allowRelay.GetHas(targetId)
+	if ok && relay {
+		//Send using relay
+		p2p.udpClientCoordinator.Send(webtools.PackWebtoolsFrame(P2P_CMD_RELAY, p2p.id, append(append([]byte(targetId), webtools.WEBTOOLS_FRAME_SEPARATOR), data...)))
+		return true
+	}
+
+	p2p.udpClientCoordinator.Logger.Log(3, "Failed to send message to peer Id: "+targetId)
+	return false
+}
+
+/*
+Stops P2P client
+*/
+func (p2p *P2PClientUDP) Stop() {
+	p2p.udpClientCoordinator.Stop()
+	for _, v := range p2p.udpIncommingConns.GetValues() {
+		v.Key.Close()
+	}
+	p2p.udpIncommingConnsSv.Stop()
 }
