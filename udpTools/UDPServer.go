@@ -131,9 +131,16 @@ func handleUDPRead(listener *net.UDPConn, logger *webtools.ConsoleLogger, readFu
 		if addr == nil {
 			if !strings.Contains(err.Error(), "use of closed network connection") {
 				logger.Log(3, "Error getting UDP connection from: "+err.Error())
+			} else {
+				if readFunc != nil {
+					readFunc(nil, nil, true)
+				}
 			}
 		} else {
 			logger.Log(3, "Error reading from: "+addr.String()+" | Error: "+err.Error())
+			if readFunc != nil {
+				readFunc(addr, nil, true)
+			}
 		}
 		return false
 	}

@@ -11,21 +11,27 @@ import (
 	"webtools"
 )
 
+/*
+Config settings for UDP framer
+*/
+type UDPFramerConfig struct {
+	//Organise packets in order as they were send
+	IsOrganised bool
+	//How long to wait for other packets to arrive to do the sorting
+	OrganisedTimeoutInMs int64
+	//How long to wait for resending the packet if no responce arrive
+	TimeoutForResendInMs int64
+	//Retry count
+	ResendMaxLimit uint
+}
+
 type UDPFramerReadFunc func(address *net.UDPAddr, data []byte, ended bool)
 
 /*
 Adds basic checking for resending packages and ordering them same as TCP
 */
 type UDPFramer struct {
-	//Organise packets in order as they were send
-	isOrganised bool
-	//How long to wait for other packets to arrive to do the sorting
-	organisedTimeoutInMs int64
-	//How long to wait for resending the packet if no responce arrive
-	timeoutForResendInMs int64
-	//Retry count
-	resendMaxLimit uint
-
+	config         *UDPFramerConfig
 	gotResponce    webtools.SafeMap[string, bool]
 	readData       webtools.SafeMap[string, time.Time]
 	orderList      []webtools.FourValuePair[string, uint64, *net.UDPAddr, []byte]
@@ -37,14 +43,21 @@ type UDPFramer struct {
 Creates new UDP framer
 */
 func NewUDPFramer(readFunc UDPFramerReadFunc, timeoutForResendInMs int64, resendMaxLimit uint, isOrganised bool, organisedTimeoutInMs int64) *UDPFramer {
-	return &UDPFramer{onReadFunc: readFunc, timeoutForResendInMs: timeoutForResendInMs, resendMaxLimit: resendMaxLimit, isOrganised: isOrganised, organisedTimeoutInMs: organisedTimeoutInMs, gotResponce: webtools.MakeSafeMap[string, bool](), readData: webtools.MakeSafeMap[string, time.Time](), orderList: make([]webtools.FourValuePair[string, uint64, *net.UDPAddr, []byte], 0), orderListMutex: &sync.RWMutex{}}
+	return &UDPFramer{onReadFunc: readFunc, config: &UDPFramerConfig{TimeoutForResendInMs: timeoutForResendInMs, ResendMaxLimit: resendMaxLimit, IsOrganised: isOrganised, OrganisedTimeoutInMs: organisedTimeoutInMs}, gotResponce: webtools.MakeSafeMap[string, bool](), readData: webtools.MakeSafeMap[string, time.Time](), orderList: make([]webtools.FourValuePair[string, uint64, *net.UDPAddr, []byte], 0), orderListMutex: &sync.RWMutex{}}
 }
 
 /*
 Creates new UDP framer
 */
 func NewUDPFramerSimple(timeoutForResendInMs int64, resendMaxLimit uint, isOrganised bool, organisedTimeoutInMs int64) *UDPFramer {
-	return &UDPFramer{onReadFunc: nil, timeoutForResendInMs: timeoutForResendInMs, resendMaxLimit: resendMaxLimit, isOrganised: isOrganised, organisedTimeoutInMs: organisedTimeoutInMs, gotResponce: webtools.MakeSafeMap[string, bool](), readData: webtools.MakeSafeMap[string, time.Time](), orderList: make([]webtools.FourValuePair[string, uint64, *net.UDPAddr, []byte], 0), orderListMutex: &sync.RWMutex{}}
+	return NewUDPFramerSimpleFromConfig(&UDPFramerConfig{TimeoutForResendInMs: timeoutForResendInMs, ResendMaxLimit: resendMaxLimit, IsOrganised: isOrganised, OrganisedTimeoutInMs: organisedTimeoutInMs})
+}
+
+/*
+Creates new UDP framer
+*/
+func NewUDPFramerSimpleFromConfig(config *UDPFramerConfig) *UDPFramer {
+	return &UDPFramer{onReadFunc: nil, config: config, gotResponce: webtools.MakeSafeMap[string, bool](), readData: webtools.MakeSafeMap[string, time.Time](), orderList: make([]webtools.FourValuePair[string, uint64, *net.UDPAddr, []byte], 0), orderListMutex: &sync.RWMutex{}}
 }
 
 /*
@@ -91,7 +104,7 @@ func (framer *UDPFramer) Resolve(address *net.UDPAddr, data []byte, logger *webt
 				return nil
 			}
 			var timeStamp uint64
-			if framer.isOrganised {
+			if framer.config.IsOrganised {
 				timeStamp = binary.BigEndian.Uint64(data[idEndIndex+1 : idEndIndex+9])
 				if data[idEndIndex+9] != webtools.WEBTOOLS_FRAME_SEPARATOR {
 					logger.Log(3, "Invalid frame at index "+strconv.Itoa(idEndIndex+9)+". | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data))
@@ -112,7 +125,7 @@ func (framer *UDPFramer) Resolve(address *net.UDPAddr, data []byte, logger *webt
 			//Process read
 			if !framer.readData.Has(string(id)) {
 				framer.readData.Set(string(id), time.Now())
-				if framer.isOrganised {
+				if framer.config.IsOrganised {
 					go framer.ProcessOrdered(string(id), timeStamp, address, data[idEndIndex+10:])
 				} else {
 					if framer.onReadFunc != nil {
@@ -163,7 +176,7 @@ func (framer *UDPFramer) ProcessOrdered(id string, timeData uint64, address *net
 	framer.orderListMutex.Unlock()
 
 	//Wait timeout
-	time.Sleep(time.Millisecond * time.Duration(framer.organisedTimeoutInMs))
+	time.Sleep(time.Millisecond * time.Duration(framer.config.OrganisedTimeoutInMs))
 
 	//Return all order than this
 	framer.orderListMutex.Lock()
@@ -192,7 +205,7 @@ After double timeout exports all reading stored in framer
 */
 func (framer *UDPFramer) ExportAllOrdered() {
 	//Wait timeout
-	time.Sleep(time.Millisecond * 2 * time.Duration(framer.organisedTimeoutInMs))
+	time.Sleep(time.Millisecond * 2 * time.Duration(framer.config.OrganisedTimeoutInMs))
 
 	//Return all order than this
 	framer.orderListMutex.Lock()
@@ -247,7 +260,7 @@ func processDataForUDP(address *net.UDPAddr, data []byte, ended bool, readFunc U
 		framer.onReadFunc = readFunc
 		if ended {
 			//Ended - clear framed data
-			if framer.isOrganised {
+			if framer.config.IsOrganised {
 				framer.ExportAllOrdered()
 			}
 			if readFunc != nil {
@@ -276,7 +289,7 @@ func (framer *UDPFramer) SendFrame(isServer bool, listener *net.UDPConn, addr *n
 		frame = append(frame, []byte(id)...)
 		frame = append(frame, webtools.WEBTOOLS_FRAME_SEPARATOR)
 
-		if framer.isOrganised {
+		if framer.config.IsOrganised {
 			//Put timestamp
 			timeStamp := make([]byte, 8)
 			binary.BigEndian.PutUint64(timeStamp, uint64(time.Now().UnixNano()))
@@ -295,10 +308,10 @@ func (framer *UDPFramer) SendFrame(isServer bool, listener *net.UDPConn, addr *n
 		framer.gotResponce.Set(id, false)
 
 		//Check responce
-		time.Sleep(time.Millisecond * time.Duration(framer.timeoutForResendInMs))
+		time.Sleep(time.Millisecond * time.Duration(framer.config.TimeoutForResendInMs))
 		if !framer.gotResponce.Get(id) {
 			//If no responce, resend
-			if framer.resendMaxLimit <= sequenceNum {
+			if framer.config.ResendMaxLimit <= sequenceNum {
 				resend = false
 			}
 		} else {
