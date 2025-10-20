@@ -188,7 +188,7 @@ func main() {
 		}
 	case "p2psv":
 		{
-			sv, _ := p2pTools.NewP2PCoordinator("127.0.0.1:1234", true, true)
+			sv, _ := p2pTools.NewP2PCoordinator("0.0.0.0:1234", true, true)
 			sv.Start()
 		}
 	case "p2pcl":
