@@ -3,6 +3,7 @@ package p2pTools
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"strconv"
 	"time"
 	"webtools"
@@ -74,7 +75,21 @@ func NewP2PCoordinator(address string, allowRelay bool, reportTraffic bool) (*P2
 
 func (p2p *P2PCoordinator) readFunc(conn *udpTools.UDPServerConn, data []byte, ended bool) {
 	for _, frame := range webtools.UnpackWebtoolsFrame(data, p2p.udpServer.Logger) {
-		if string(frame.Id) == "" || string(frame.Id) == "0" {
+		if frame.Operation == P2P_CMD_NEW_ID {
+			//Generates new Id
+			id := "p2pConn-" + webtools.GenerateRandomId()
+			port, err := strconv.Atoi(string(frame.Data))
+			if err != nil {
+				p2p.udpServer.Logger.Log(3, "Invalid port number from: "+conn.Address.String())
+				conn.Send(webtools.PackWebtoolsFrame(P2P_CMD_CANCEL_CLIENT, frame.Id, []byte("Invalid port number")))
+				return
+			}
+			p2p.idsToConns.Set(id, &P2PCoordinatorConn{conn: conn, id: frame.Id, port: port})
+			conn.Send(webtools.PackWebtoolsFrame(P2P_CMD_NEW_ID, []byte(id), []byte(id)))
+			p2p.udpServer.Logger.Log(1, "Connection at: "+conn.Address.String()+" has this new ID: "+id)
+			return
+		}
+		if string(frame.Id) == "" || string(frame.Id) == "0" || frame.Id == nil {
 			p2p.udpServer.Logger.Log(3, "Invalid connection from: "+conn.Address.String())
 			conn.Send(webtools.PackWebtoolsFrame(P2P_CMD_CANCEL_CLIENT, frame.Id, []byte("Invalid connection")))
 			return
@@ -83,15 +98,6 @@ func (p2p *P2PCoordinator) readFunc(conn *udpTools.UDPServerConn, data []byte, e
 		//Sort commands
 		p2pConn := p2p.idsToConns.Get(string(frame.Id))
 		switch frame.Operation {
-		case P2P_CMD_NEW_ID:
-			{
-				//Generates new Id
-				id := "p2pConn-" + webtools.GenerateRandomId()
-				p2p.idsToConns.Set(id, &P2PCoordinatorConn{conn: conn, id: frame.Id, port: int(binary.LittleEndian.Uint32(frame.Data))})
-				conn.Send(webtools.PackWebtoolsFrame(P2P_CMD_NEW_ID, []byte(id), []byte(id)))
-				p2p.udpServer.Logger.Log(1, "Connection at: "+conn.Address.String()+" has this new ID: "+id)
-				break
-			}
 		case P2P_CMD_CONNECT_TO_PEER:
 			{
 				//Check if Id is on server
@@ -117,6 +123,10 @@ func (p2p *P2PCoordinator) readFunc(conn *udpTools.UDPServerConn, data []byte, e
 				mapValue.Set(string(frame.Data), webtools.ThreeValuePair[bool, bool, bool]{A: false, B: false, C: false})
 				p2p.punchingConns.Set(string(frame.Id), mapValue)
 				//connId := webtools.GenerateRandomId()
+
+				fmt.Println(target.port)
+				fmt.Println([]byte(target.conn.Address.IP.String() + ":" + strconv.Itoa(target.port)))
+				fmt.Println(string([]byte(target.conn.Address.IP.String() + ":" + strconv.Itoa(target.port))))
 
 				//Send to clients
 				p2p.udpServer.Logger.Log(2, "Starting punching between: "+string(frame.Id)+" at: "+conn.Address.String()+" and: "+string(frame.Data)+" at: "+target.conn.Address.String())
@@ -258,4 +268,3 @@ Stops P2P coordinator server
 func (p2p *P2PCoordinator) Stop() {
 	p2p.udpServer.Stop()
 }
-

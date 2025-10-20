@@ -199,7 +199,7 @@ func main() {
 		}
 	case "p2pcl2":
 		{
-			cl, _ := p2pTools.NewP2PClientUDP("127.0.0.1:1234", 5679, nil, true)
+			cl, _ := p2pTools.NewP2PClientUDP("127.0.0.1:1234", 5679, p2pReadFunc2, true)
 			cl.ConnectToCoordinator()
 			data, _ := webtools.ReadLineFromConsole("Enter target id: ")
 			cl.ConnectToPeer(strings.ReplaceAll(string(data), "\n", ""))
@@ -208,7 +208,7 @@ func main() {
 		}
 	case "p2pcl3":
 		{
-			cl, _ := p2pTools.NewP2PClientUDP("127.0.0.1:1234", 5677, nil, true)
+			cl, _ := p2pTools.NewP2PClientUDP("127.0.0.1:1234", 5677, p2pReadFunc2, true)
 			cl.ConnectToCoordinator()
 			data, _ := webtools.ReadLineFromConsole("Enter target id: ")
 			cl.ConnectToPeer(strings.ReplaceAll(string(data), "\n", ""))
@@ -220,6 +220,10 @@ func main() {
 
 func p2pReadFunc(client *p2pTools.P2PClientUDP, sourceId []byte, data []byte, ended bool) {
 	client.Send(sourceId, data)
+}
+
+func p2pReadFunc2(client *p2pTools.P2PClientUDP, sourceId []byte, data []byte, ended bool) {
+	fmt.Println(string(data))
 }
 
 var rc int = 0
