@@ -3,7 +3,6 @@ package p2pTools
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
 	"strconv"
 	"time"
 	"webtools"
@@ -123,10 +122,6 @@ func (p2p *P2PCoordinator) readFunc(conn *udpTools.UDPServerConn, data []byte, e
 				mapValue.Set(string(frame.Data), webtools.ThreeValuePair[bool, bool, bool]{A: false, B: false, C: false})
 				p2p.punchingConns.Set(string(frame.Id), mapValue)
 				//connId := webtools.GenerateRandomId()
-
-				fmt.Println(target.port)
-				fmt.Println([]byte(target.conn.Address.IP.String() + ":" + strconv.Itoa(target.port)))
-				fmt.Println(string([]byte(target.conn.Address.IP.String() + ":" + strconv.Itoa(target.port))))
 
 				//Send to clients
 				p2p.udpServer.Logger.Log(2, "Starting punching between: "+string(frame.Id)+" at: "+conn.Address.String()+" and: "+string(frame.Data)+" at: "+target.conn.Address.String())

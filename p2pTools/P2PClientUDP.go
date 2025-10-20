@@ -3,7 +3,6 @@ package p2pTools
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
 	"net"
 	"slices"
 	"strconv"
@@ -106,9 +105,6 @@ func (p2p *P2PClientUDP) readFuncCoordinator(_ *udpTools.UDPClient, sourceAddres
 					p2p.udpClientCoordinator.Logger.Log(3, "Invalid split data in frame.")
 					return
 				}
-				fmt.Println(string(frame.Data))
-				fmt.Println(split[0])
-				fmt.Println(split[1])
 				startTime := time.Unix(0, int64(binary.LittleEndian.Uint64(split[0])))
 
 				//Create new client
