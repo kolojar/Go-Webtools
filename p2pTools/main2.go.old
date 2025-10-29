@@ -1,0 +1,54 @@
+package p2pTools
+
+import (
+	"fmt"
+	"net"
+	"strings"
+	"time"
+)
+
+func main() {
+	ssdpAddr := "239.255.255.250:1900"
+	st := "urn:schemas-upnp-org:device:InternetGatewayDevice:1"
+
+	msg := strings.Join([]string{
+		"M-SEARCH * HTTP/1.1",
+		"HOST: 239.255.255.250:1900",
+		`MAN: "ssdp:discover"`,
+		"MX: 2",
+		fmt.Sprintf("ST: %s", st),
+		"", // blank line to terminate headers
+		"",
+	}, "\r\n")
+
+	// Create UDP socket
+	conn, err := net.ListenPacket("udp4", ":0")
+	if err != nil {
+		panic(err)
+	}
+	defer conn.Close()
+
+	// Send discovery message
+	dst, err := net.ResolveUDPAddr("udp4", ssdpAddr)
+	if err != nil {
+		panic(err)
+	}
+	_, err = conn.WriteTo([]byte(msg), dst)
+	if err != nil {
+		panic(err)
+	}
+
+	// Wait for responses
+	buf := make([]byte, 2048)
+	conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+	for {
+		n, addr, err := conn.ReadFrom(buf)
+		if err != nil {
+			break
+		}
+		resp := string(buf[:n])
+		fmt.Println("Response from:", addr)
+		fmt.Println(resp)
+		fmt.Println("------")
+	}
+}

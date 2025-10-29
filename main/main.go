@@ -215,6 +215,18 @@ func main() {
 			cl.Send([]byte(strings.ReplaceAll(string(data), "\n", "")), []byte("Hello"))
 			webtools.ReadLineFromConsole("wait")
 		}
+	case "upnp":
+		{
+			localIp, _ := p2pTools.GetThisComputerLocalIP()
+			fmt.Println(localIp)
+			//time.Sleep(5 * time.Second)
+			upnp := p2pTools.NewUPnPServiceManager(localIp)
+			println(upnp.SetupUPnP().Error())
+			upnp.AddUPnPPort(5555, 5555, "TCP", "This it test")
+			time.Sleep(10 * time.Second)
+			//upnp.RemoveUPnPPort(5555, "TCP")
+			upnp.Shutdown()
+		}
 	}
 }
 
