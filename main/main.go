@@ -19,6 +19,9 @@ import (
 func main() {
 	fmt.Println("Hello world")
 	framer := udpTools.NewUDPFramerSimple(50, 5, true, 50)
+	localIP, _ := p2pTools.GetThisComputerLocalIP()
+	upnp := p2pTools.NewUPnPServiceManager(localIP)
+	upnp.SetupUPnP()
 	switch os.Args[1] {
 	case "ts":
 		{
@@ -194,12 +197,14 @@ func main() {
 	case "p2pcl":
 		{
 			cl, _ := p2pTools.NewP2PClientUDP("127.0.0.1:1234", 5678, p2pReadFunc, true)
+			cl.SetupUPnP(upnp)
 			cl.ConnectToCoordinator()
 			webtools.ReadLineFromConsole("Wait")
 		}
 	case "p2pcl2":
 		{
 			cl, _ := p2pTools.NewP2PClientUDP("127.0.0.1:1234", 5679, p2pReadFunc2, true)
+			cl.SetupUPnP(upnp)
 			cl.ConnectToCoordinator()
 			data, _ := webtools.ReadLineFromConsole("Enter target id: ")
 			cl.ConnectToPeer(strings.ReplaceAll(string(data), "\n", ""))
@@ -209,6 +214,7 @@ func main() {
 	case "p2pcl3":
 		{
 			cl, _ := p2pTools.NewP2PClientUDP("127.0.0.1:1234", 5677, p2pReadFunc2, true)
+			cl.SetupUPnP(upnp)
 			cl.ConnectToCoordinator()
 			data, _ := webtools.ReadLineFromConsole("Enter target id: ")
 			cl.ConnectToPeer(strings.ReplaceAll(string(data), "\n", ""))
@@ -224,6 +230,15 @@ func main() {
 			println(upnp.SetupUPnP().Error())
 			upnp.AddUPnPPort(5555, 5555, "TCP", "This it test")
 			time.Sleep(10 * time.Second)
+			//upnp.RemoveUPnPPort(5555, "TCP")
+			upnp.Shutdown()
+		}
+
+	case "upnpCleanup":
+		{
+			upnp.RemoveUPnPPort(5677, "UDP")
+			upnp.RemoveUPnPPort(5678, "UDP")
+			upnp.RemoveUPnPPort(5679, "UDP")
 			//upnp.RemoveUPnPPort(5555, "TCP")
 			upnp.Shutdown()
 		}

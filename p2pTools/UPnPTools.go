@@ -22,12 +22,12 @@ type UPnPXMLRoot struct {
 type UPnPXMLDevice struct {
 	XMLName  xml.Name         `xml:"device"`
 	Services []UPnPXMLService `xml:"serviceList>service"`
-	Device   []UPnPXMLDevice2 `xml:"deviceList>device""` //Cast to UPnPXMLDevice
+	Device   []UPnPXMLDevice2 `xml:"deviceList>device"`
 }
 type UPnPXMLDevice2 struct {
 	XMLName  xml.Name         `xml:"device"`
 	Services []UPnPXMLService `xml:"serviceList>service"`
-	Device   []UPnPXMLDevice  `xml:"deviceList>device""` //Cast to UPnPXMLDevice
+	Device   []UPnPXMLDevice  `xml:"deviceList>device"`
 }
 type UPnPXMLService struct {
 	XMLName     xml.Name `xml:"service"`

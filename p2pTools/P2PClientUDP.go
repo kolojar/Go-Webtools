@@ -24,6 +24,7 @@ type P2PClientUDPReadFunc func(client *P2PClientUDP, sourceId []byte, data []byt
 
 type P2PClientUDP struct {
 	//Coordinator
+	upnpServiceManager        *UPnPServiceManager
 	udpClientCoordinator      *udpTools.UDPClient
 	id                        []byte
 	isConnecting              bool
@@ -44,6 +45,7 @@ type P2PClientUDP struct {
 
 /*
 Creates new P2P Client for UDP but does not starts it
+Setup UPnP using SetupUPnP()
 */
 func NewP2PClientUDP(address string, portForIncommingConns int, readFunc P2PClientUDPReadFunc, reportTraffic bool) (*P2PClientUDP, error) {
 	//New P2P
@@ -75,6 +77,29 @@ func NewP2PClientUDP(address string, portForIncommingConns int, readFunc P2PClie
 	}
 	p2p.udpIncommingConnsSv.Logger.Prefix = "P2PClientUDP - IncommingServer"
 	return p2p, nil
+}
+
+// Setups UPnP for P2P Client
+func (p2p *P2PClientUDP) SetupUPnP(upnp *UPnPServiceManager) error {
+	if p2p.upnpServiceManager != nil {
+		//Remove old
+		err := p2p.upnpServiceManager.RemoveUPnPPort(p2p.port, "UDP")
+		if err != nil {
+			return err
+		}
+	}
+
+	//Add UPnP
+	if upnp != nil {
+		err := upnp.AddUPnPPort(p2p.port, p2p.port, "UDP", "P2P UDP port")
+		if err != nil {
+			return err
+		}
+	} else {
+		//No UPnP
+	}
+	p2p.upnpServiceManager = upnp
+	return nil
 }
 
 func (p2p *P2PClientUDP) readFuncCoordinator(_ *udpTools.UDPClient, sourceAddress *net.UDPAddr, data []byte, ended bool) {
@@ -366,6 +391,9 @@ func (p2p *P2PClientUDP) Send(targetId []byte, data []byte) bool {
 Stops P2P client
 */
 func (p2p *P2PClientUDP) Stop() {
+	if p2p.upnpServiceManager != nil {
+		p2p.upnpServiceManager.Shutdown()
+	}
 	p2p.udpClientCoordinator.Stop()
 	for _, v := range p2p.udpIncommingConns.GetValues() {
 		v.Key.Close()
