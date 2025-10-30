@@ -34,6 +34,7 @@
     - [ ] UDP HTTP Proxy Client
 - [X] Add some kind of connection merger and splitter
 - [ ] Add encryption to all servers and clients
+- [ ] P2P
 
 # Fixes
 - [X] Fix map sync error
