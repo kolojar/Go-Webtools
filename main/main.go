@@ -238,6 +238,7 @@ func main() {
 
 	case "upnpCleanup":
 		{
+			upnp.GetRouterPublicIP()
 			upnp.RemoveUPnPPort(5677, "UDP")
 			upnp.RemoveUPnPPort(5678, "UDP")
 			upnp.RemoveUPnPPort(5679, "UDP")
@@ -257,6 +258,16 @@ func main() {
 			for {
 				time.Sleep(100 * time.Millisecond)
 			}
+		}
+	case "checkcgnat":
+		{
+			p2p, _ := p2pTools.NewP2PClientUDP("127.0.0.1:1234", 5678, nil, true)
+			p2p.SetupUPnP(upnp)
+			if p2p.ConnectToCoordinator() {
+				p2p.CheckCGNAT()
+			}
+			p2p.Stop()
+			upnp.Shutdown()
 		}
 	}
 }

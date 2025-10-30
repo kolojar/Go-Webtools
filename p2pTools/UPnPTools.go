@@ -230,7 +230,8 @@ func (upnp *UPnPServiceManager) AddUPnPPort(externalPort int, internalPort int, 
 
 	//Create SOAP body
 	upnp.Logger.Log(1, "Adding UPnP port for external port: "+strconv.Itoa(externalPort)+" to internal port: "+strconv.Itoa(internalPort)+" to IP: "+upnp.localIP+" with protocol: "+protocol+" with description: "+description+"...")
-	soapAddPortBody := `<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+	soapAddPortBody := `<?xml version="1.0"?>
+	<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
     <s:Body>
         <u:AddPortMapping xmlns:u="` + UPnPTargetService + `">
             <NewRemoteHost></NewRemoteHost>
@@ -269,10 +270,10 @@ func (upnp *UPnPServiceManager) AddUPnPPort(externalPort int, internalPort int, 
 		//Check if created successfully
 		if soapResponce.StatusCode == http.StatusOK {
 			upnp.mappedUrls.Set(externalPort, protocol)
-			upnp.Logger.Log(2, "Successfully created SOAP request at: "+controlUrl)
+			upnp.Logger.Log(2, "Successfully created UPnP at: "+controlUrl)
 		} else {
 			soapBodyError, _ := io.ReadAll(soapResponce.Body)
-			upnp.Logger.Log(3, "Error creating SOAP request for: "+controlUrl+" | Error code:"+strconv.Itoa(soapResponce.StatusCode)+" | Error message: "+string(soapBodyError))
+			upnp.Logger.Log(3, "Error creating UPnP for: "+controlUrl+" | Error code:"+strconv.Itoa(soapResponce.StatusCode)+" | Error message: "+string(soapBodyError))
 		}
 	}
 	return nil
@@ -326,10 +327,10 @@ func (upnp *UPnPServiceManager) RemoveUPnPPort(externalPort int, protocol string
 		//Check if removed successfully
 		if soapResponce.StatusCode == http.StatusOK {
 			upnp.mappedUrls.Delete(externalPort)
-			upnp.Logger.Log(2, "Successfully removed SOAP request at: "+controlUrl)
+			upnp.Logger.Log(2, "Successfully removed UPnP at: "+controlUrl)
 		} else {
 			soapBodyError, _ := io.ReadAll(soapResponce.Body)
-			upnp.Logger.Log(3, "Error removing SOAP request for: "+controlUrl+" | Error code:"+strconv.Itoa(soapResponce.StatusCode)+" | Error message: "+string(soapBodyError))
+			upnp.Logger.Log(3, "Error removing UPnP for: "+controlUrl+" | Error code:"+strconv.Itoa(soapResponce.StatusCode)+" | Error message: "+string(soapBodyError))
 		}
 	}
 	return nil
@@ -362,4 +363,67 @@ func GetThisComputerLocalIP() (string, error) {
 		}
 	}
 	return "", fmt.Errorf("no local IP found")
+}
+
+// Gets router public IP using SOAP
+func (upnp *UPnPServiceManager) GetRouterPublicIP() ([]string, error) {
+	if len(upnp.controlUrls) == 0 {
+		upnp.Logger.Log(3, "No UPnP control URLs found!")
+		return nil, errors.New("no control urls found")
+	}
+
+	//Create SOAP body
+	upnp.Logger.Log(1, "Getting router public IP via SOAP...")
+	soapAddPortBody := `<?xml version="1.0"?>
+	<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+		<s:Body>
+			<u:GetExternalIPAddress xmlns:u="urn:schemas-upnp-org:service:WANIPConnection:1"/>
+		</s:Body>
+	</s:Envelope>`
+
+	//Create POST request for SOAP
+	result := make([]string, 0)
+	for _, controlUrl := range upnp.controlUrls {
+		soapRequest, err := http.NewRequest("POST", controlUrl, bytes.NewBufferString(soapAddPortBody))
+		if err != nil {
+			upnp.Logger.Log(3, "Error creating SOAP request for: "+controlUrl+" | Error:"+err.Error())
+			continue
+		}
+
+		//Set headers
+		soapRequest.Header.Set("Content-Type", "text/xml")
+		soapRequest.Header.Set("SOAPAction", "\""+UPnPTargetService+"#GetExternalIPAddress\"")
+
+		//Send request
+		soapClient := &http.Client{Timeout: 5 * time.Second}
+		soapResponce, err := soapClient.Do(soapRequest)
+		if err != nil {
+			upnp.Logger.Log(3, "Error sending SOAP request for: "+controlUrl+" | Error:"+err.Error())
+			continue
+		}
+		defer soapResponce.Body.Close()
+
+		//Check if created successfully
+		if soapResponce.StatusCode == http.StatusOK {
+			soapBody, _ := io.ReadAll(soapResponce.Body)
+			soapBodyString := string(soapBody)
+			beginIndex := strings.Index(soapBodyString, "<NewExternalIPAddress>")
+			if beginIndex == -1 {
+				//No valid IP
+				upnp.Logger.Log(3, "Error finding IP in SOAP responce")
+				continue
+			}
+			endIndex := strings.Index(soapBodyString, "</NewExternalIPAddress>")
+
+			//Get IP
+			beginIndex += 22 // Offset of begin
+			ip := soapBodyString[beginIndex:endIndex]
+			result = append(result, ip)
+			upnp.Logger.Log(2, "Successfully got router public IP: "+ip+" at: "+controlUrl)
+		} else {
+			soapBodyError, _ := io.ReadAll(soapResponce.Body)
+			upnp.Logger.Log(3, "Error creating SOAP request for: "+controlUrl+" | Error code:"+strconv.Itoa(soapResponce.StatusCode)+" | Error message: "+string(soapBodyError))
+		}
+	}
+	return result, nil
 }

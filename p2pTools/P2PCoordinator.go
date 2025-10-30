@@ -15,7 +15,7 @@ var P2P_FRAMER_CONFIG = &udpTools.UDPFramerConfig{IsOrganised: true, OrganisedTi
 // Wait time in seconds for P2P puncholing to start
 const P2P_TIMEOUT_START = 5
 
-// Request new id for client, port value in data -> Returns frame with data of id
+// Request new id for client, port value in data -> Returns frame with id as id data as public IP
 const P2P_CMD_NEW_ID uint8 = 1
 
 // Requests for start of new connection between peers, in data there is targetId -> Starts connection setting -> Returns if connection was successfull in data: server/client/relay/error
@@ -84,7 +84,7 @@ func (p2p *P2PCoordinator) readFunc(conn *udpTools.UDPServerConn, data []byte, e
 				return
 			}
 			p2p.idsToConns.Set(id, &P2PCoordinatorConn{conn: conn, id: frame.Id, port: port})
-			conn.Send(webtools.PackWebtoolsFrame(P2P_CMD_NEW_ID, []byte(id), []byte(id)))
+			conn.Send(webtools.PackWebtoolsFrame(P2P_CMD_NEW_ID, []byte(id), []byte(conn.Address.String())))
 			p2p.udpServer.Logger.Log(1, "Connection at: "+conn.Address.String()+" has this new ID: "+id)
 			return
 		}

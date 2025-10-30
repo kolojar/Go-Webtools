@@ -3,6 +3,7 @@ package p2pTools
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"net"
 	"slices"
 	"strconv"
@@ -35,6 +36,7 @@ type P2PClientUDP struct {
 	readFunc                  P2PClientUDPReadFunc
 	port                      int
 	loggerPrefix              string
+	publicIP                  string
 
 	//Server for incomming conns
 	udpIncommingConnsSv *udpTools.UDPServer
@@ -52,6 +54,10 @@ func (p2p *P2PClientUDP) IsAlive() bool {
 		}
 	}
 	return p2p.udpIncommingConnsSv.IsAlive()
+}
+
+func (p2p *P2PClientUDP) GetPublicIP() string {
+	return p2p.publicIP
 }
 
 // Sets logger prefix
@@ -140,8 +146,9 @@ func (p2p *P2PClientUDP) readFuncCoordinator(_ *udpTools.UDPClient, sourceAddres
 		case P2P_CMD_NEW_ID:
 			{
 				//New Id
-				p2p.id = frame.Data
-				p2p.udpClientCoordinator.Logger.Log(2, "This client id is: "+string(p2p.id))
+				p2p.id = frame.Id
+				p2p.publicIP = string(frame.Data)
+				p2p.udpClientCoordinator.Logger.Log(2, "This client id is: "+string(p2p.id)+" and public IP: "+p2p.publicIP)
 				break
 			}
 		case P2P_CMD_START_PUNCHING:
@@ -304,7 +311,7 @@ func (p2p *P2PClientUDP) readFuncOutcommingClients(client *udpTools.UDPClient, s
 		case P2P_CMD_DATA:
 			{
 				if p2p.readFunc != nil {
-					p2p.readFunc(p2p, frame.Id, frame.Data, ended,client.Logger)
+					p2p.readFunc(p2p, frame.Id, frame.Data, ended, client.Logger)
 				}
 				break
 			}
@@ -330,7 +337,7 @@ func (p2p *P2PClientUDP) readFuncIncommingServer(conn *udpTools.UDPServerConn, d
 		case P2P_CMD_DATA:
 			{
 				if p2p.readFunc != nil {
-					p2p.readFunc(p2p, frame.Id, frame.Data, ended,p2p.udpIncommingConnsSv.Logger)
+					p2p.readFunc(p2p, frame.Id, frame.Data, ended, p2p.udpIncommingConnsSv.Logger)
 				}
 				break
 			}
@@ -433,4 +440,29 @@ func (p2p *P2PClientUDP) Stop() {
 		v.Key.Close()
 	}
 	p2p.udpIncommingConnsSv.Stop()
+}
+
+// Check if your connection is CG-NAT, you need to connect to coordinator first
+func (p2p *P2PClientUDP) CheckCGNAT() (bool, error) {
+	if p2p.upnpServiceManager == nil {
+		p2p.udpClientCoordinator.Logger.Log(3, "No UPnP manager found.")
+		return false, errors.New("no upnp manager active")
+	}
+
+	//Get UPnP public IP
+	ips, err := p2p.upnpServiceManager.GetRouterPublicIP()
+	if err != nil {
+		return false, err
+	}
+
+	//Run check
+	hasCGNAT := true
+	for _, ip := range ips {
+		if ip == p2p.publicIP {
+			hasCGNAT = false
+			break
+		}
+	}
+	p2p.udpClientCoordinator.Logger.Log(2, "CG-NAT status: "+strconv.FormatBool(hasCGNAT))
+	return hasCGNAT, nil
 }
