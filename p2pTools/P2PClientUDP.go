@@ -20,7 +20,7 @@ const P2P_CMD_PUNCH uint8 = 50
 // Used for sending data, id is sourceId, data is data
 const P2P_CMD_DATA uint8 = 51
 
-type P2PClientUDPReadFunc func(client *P2PClientUDP, sourceId []byte, data []byte, ended bool)
+type P2PClientUDPReadFunc func(client *P2PClientUDP, sourceId []byte, data []byte, ended bool, logger *webtools.ConsoleLogger)
 
 type P2PClientUDP struct {
 	//Coordinator
@@ -34,20 +34,41 @@ type P2PClientUDP struct {
 	allowRelay                webtools.SafeMap[string, bool]
 	readFunc                  P2PClientUDPReadFunc
 	port                      int
+	loggerPrefix              string
 
 	//Server for incomming conns
 	udpIncommingConnsSv *udpTools.UDPServer
 	udpIncommingConns   webtools.SafeMap[string, webtools.KeyValuePair[*udpTools.UDPServerConn, bool]]
 
 	//Clients for outcomming connections
+	udpFramer             *udpTools.UDPFramer
 	udpOutcommingConnsCls webtools.SafeMap[string, webtools.KeyValuePair[*udpTools.UDPClient, bool]]
+}
+
+func (p2p *P2PClientUDP) IsAlive() bool {
+	for _, val := range p2p.udpOutcommingConnsCls.GetValues() {
+		if val.Key.IsAlive() {
+			return true
+		}
+	}
+	return p2p.udpIncommingConnsSv.IsAlive()
+}
+
+// Sets logger prefix
+func (p2p *P2PClientUDP) SetLoggerPrefix(prefix string) {
+	p2p.loggerPrefix = prefix
+	p2p.udpClientCoordinator.Logger.Preprefix = prefix
+	p2p.udpIncommingConnsSv.Logger.Preprefix = prefix
+	for _, val := range p2p.udpOutcommingConnsCls.GetValues() {
+		val.Key.Logger.Preprefix = prefix
+	}
 }
 
 /*
 Creates new P2P Client for UDP but does not starts it
 Setup UPnP using SetupUPnP()
 */
-func NewP2PClientUDP(address string, portForIncommingConns int, readFunc P2PClientUDPReadFunc, reportTraffic bool) (*P2PClientUDP, error) {
+func NewP2PClientUDP(coordinatorAddress string, portForIncommingConns int, readFunc P2PClientUDPReadFunc, reportTraffic bool) (*P2PClientUDP, error) {
 	//New P2P
 	p2p := &P2PClientUDP{
 		id:                        nil,
@@ -63,7 +84,7 @@ func NewP2PClientUDP(address string, portForIncommingConns int, readFunc P2PClie
 
 	//New client for Coordinator
 	var err error
-	p2p.udpClientCoordinator, err = udpTools.NewUDPClient(address, p2p.readFuncCoordinator, reportTraffic)
+	p2p.udpClientCoordinator, err = udpTools.NewUDPClient(coordinatorAddress, p2p.readFuncCoordinator, reportTraffic)
 	if err != nil {
 		return nil, err
 	}
@@ -77,6 +98,17 @@ func NewP2PClientUDP(address string, portForIncommingConns int, readFunc P2PClie
 	}
 	p2p.udpIncommingConnsSv.Logger.Prefix = "P2PClientUDP - IncommingServer"
 	return p2p, nil
+}
+
+/*
+Setups UDP framer for whole client
+*/
+func (p2p *P2PClientUDP) SetupFraming(framer *udpTools.UDPFramer) {
+	p2p.udpFramer = framer
+	p2p.udpIncommingConnsSv.SetupFraming(framer)
+	for _, val := range p2p.udpOutcommingConnsCls.GetValues() {
+		val.Key.SetupFraming(framer)
+	}
 }
 
 // Setups UPnP for P2P Client
@@ -138,11 +170,13 @@ func (p2p *P2PClientUDP) readFuncCoordinator(_ *udpTools.UDPClient, sourceAddres
 					p2p.udpClientCoordinator.Logger.Log(3, "Error creating UDP client: "+err.Error())
 					return
 				}
+				client.Logger.Preprefix = p2p.loggerPrefix
 				client.Logger.Prefix = "P2PClientUDP - PeerClientUDP for id: " + string(frame.Id)
 				//p2p.clientIdsToConns.Set(args["targetId"], webtools.KeyValuePair[*udpTools.UDPClient, bool]{Key: client, Value: false})
 				//p2p.clientConnsToIds.Set(client, args["targetId"])
 
 				//Wait for time
+				client.SetupFraming(p2p.udpFramer)
 				p2p.udpOutcommingConnsCls.Set(string(frame.Id), webtools.KeyValuePair[*udpTools.UDPClient, bool]{Key: client, Value: false})
 				p2p.targetIdsConnectingStatus.Set(string(frame.Id), true)
 				p2p.udpClientCoordinator.Logger.Log(2, "Starting punching to: "+string(frame.Id)+" at: "+string(split[1]))
@@ -249,7 +283,7 @@ func (p2p *P2PClientUDP) readFuncCoordinator(_ *udpTools.UDPClient, sourceAddres
 			{
 				//Get relay data
 				if p2p.readFunc != nil {
-					p2p.readFunc(p2p, frame.Id, frame.Data, ended)
+					p2p.readFunc(p2p, frame.Id, frame.Data, ended, p2p.udpClientCoordinator.Logger)
 				}
 			}
 		}
@@ -270,7 +304,7 @@ func (p2p *P2PClientUDP) readFuncOutcommingClients(client *udpTools.UDPClient, s
 		case P2P_CMD_DATA:
 			{
 				if p2p.readFunc != nil {
-					p2p.readFunc(p2p, frame.Id, frame.Data, ended)
+					p2p.readFunc(p2p, frame.Id, frame.Data, ended,client.Logger)
 				}
 				break
 			}
@@ -296,7 +330,7 @@ func (p2p *P2PClientUDP) readFuncIncommingServer(conn *udpTools.UDPServerConn, d
 		case P2P_CMD_DATA:
 			{
 				if p2p.readFunc != nil {
-					p2p.readFunc(p2p, frame.Id, frame.Data, ended)
+					p2p.readFunc(p2p, frame.Id, frame.Data, ended,p2p.udpIncommingConnsSv.Logger)
 				}
 				break
 			}
@@ -336,15 +370,15 @@ func (p2p *P2PClientUDP) ConnectToCoordinator() bool {
 /*
 Connects to specified id,does not lock execution thread
 */
-func (p2p *P2PClientUDP) ConnectToPeer(targetId string) bool {
+func (p2p *P2PClientUDP) ConnectToPeer(targetId []byte) bool {
 	for p2p.isConnecting {
 		time.Sleep(100 * time.Millisecond)
 	}
 
 	//Send request to Coordinator
 	p2p.isConnecting = true
-	p2p.targetIdThisConnecting = []byte(targetId)
-	p2p.udpClientCoordinator.Send(webtools.PackWebtoolsFrame(P2P_CMD_CONNECT_TO_PEER, p2p.id, []byte(targetId)))
+	p2p.targetIdThisConnecting = targetId
+	p2p.udpClientCoordinator.Send(webtools.PackWebtoolsFrame(P2P_CMD_CONNECT_TO_PEER, p2p.id, targetId))
 
 	//Wait for connect
 	for p2p.isConnecting {
@@ -352,11 +386,11 @@ func (p2p *P2PClientUDP) ConnectToPeer(targetId string) bool {
 	}
 
 	//Return status
-	return p2p.udpIncommingConns.Get(targetId).Value || p2p.udpOutcommingConnsCls.Get(targetId).Value || p2p.allowRelay.Get(targetId)
+	return p2p.udpIncommingConns.Get(string(targetId)).Value || p2p.udpOutcommingConnsCls.Get(string(targetId)).Value || p2p.allowRelay.Get(string(targetId))
 }
 
 /*
-Sends data to target peer
+Sends data to target peer, returns if value was send
 */
 func (p2p *P2PClientUDP) Send(targetId []byte, data []byte) bool {
 	//Handle outcomming

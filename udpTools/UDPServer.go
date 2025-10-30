@@ -57,9 +57,13 @@ type UDPServer struct {
 	address       *net.UDPAddr
 	Logger        *webtools.ConsoleLogger
 	requestedStop bool
-	isRunning     bool
+	isAlive     bool
 	conns         webtools.SafeMap[string, *UDPServerConn]
 	udpFramer     *UDPFramer
+}
+
+func (udp *UDPServer) IsAlive() bool {
+	return udp.isAlive
 }
 
 func (udp *UDPServer) GetAddress() *net.UDPAddr {
@@ -92,7 +96,7 @@ Starts UDP Server, locks execution thread
 */
 func (udp *UDPServer) Start() {
 	//Check if already running
-	if udp.isRunning {
+	if udp.isAlive {
 		return
 	}
 
@@ -106,7 +110,7 @@ func (udp *UDPServer) Start() {
 		udp.Logger.Log(3, "Error listening to "+udp.address.String()+" with error: "+err.Error())
 		return
 	}
-	udp.isRunning = true
+	udp.isAlive = true
 	udp.Logger.Log(2, "Started listening on "+udp.address.String())
 
 	//Listener loop
@@ -117,7 +121,7 @@ func (udp *UDPServer) Start() {
 			processDataForUDP(addrFrom, data, ended, udp.readFuncLocal, udp.Logger, udp.udpFramer, true, udp.listener)
 		})
 	}
-	udp.isRunning = false
+	udp.isAlive = false
 }
 
 /*
@@ -218,7 +222,7 @@ func writeToUDP(isServer bool, listener *net.UDPConn, addr *net.UDPAddr, data []
 Stops UDP server
 */
 func (udp *UDPServer) Stop() {
-	if !udp.isRunning {
+	if !udp.isAlive {
 		return
 	}
 	//

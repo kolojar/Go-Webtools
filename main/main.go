@@ -207,7 +207,7 @@ func main() {
 			cl.SetupUPnP(upnp)
 			cl.ConnectToCoordinator()
 			data, _ := webtools.ReadLineFromConsole("Enter target id: ")
-			cl.ConnectToPeer(strings.ReplaceAll(string(data), "\n", ""))
+			cl.ConnectToPeer([]byte(strings.ReplaceAll(string(data), "\n", "")))
 			cl.Send([]byte(strings.ReplaceAll(string(data), "\n", "")), []byte("Hello"))
 			webtools.ReadLineFromConsole("wait")
 		}
@@ -217,7 +217,7 @@ func main() {
 			cl.SetupUPnP(upnp)
 			cl.ConnectToCoordinator()
 			data, _ := webtools.ReadLineFromConsole("Enter target id: ")
-			cl.ConnectToPeer(strings.ReplaceAll(string(data), "\n", ""))
+			cl.ConnectToPeer([]byte(strings.ReplaceAll(string(data), "\n", "")))
 			cl.Send([]byte(strings.ReplaceAll(string(data), "\n", "")), []byte("Hello"))
 			webtools.ReadLineFromConsole("wait")
 		}
@@ -245,11 +245,11 @@ func main() {
 	}
 }
 
-func p2pReadFunc(client *p2pTools.P2PClientUDP, sourceId []byte, data []byte, ended bool) {
+func p2pReadFunc(client *p2pTools.P2PClientUDP, sourceId []byte, data []byte, ended bool, _ *webtools.ConsoleLogger) {
 	client.Send(sourceId, data)
 }
 
-func p2pReadFunc2(client *p2pTools.P2PClientUDP, sourceId []byte, data []byte, ended bool) {
+func p2pReadFunc2(client *p2pTools.P2PClientUDP, sourceId []byte, data []byte, ended bool, _ *webtools.ConsoleLogger) {
 	fmt.Println(string(data))
 }
 

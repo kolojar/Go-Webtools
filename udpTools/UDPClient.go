@@ -84,7 +84,6 @@ func (udp *UDPClient) readFuncLocal(addrFrom *net.UDPAddr, data []byte, ended bo
 	if udp.readFunc != nil {
 		udp.readFunc(udp, addrFrom, data, ended)
 	}
-	return
 
 	//Sort if framed
 
