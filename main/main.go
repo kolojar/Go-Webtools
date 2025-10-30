@@ -123,7 +123,7 @@ func main() {
 	//	}
 	case "tpsu":
 		{
-			sv, _ := proxytools.NewTCPProxyServerUDP("127.0.0.1:5679", "127.0.0.1:7777", false)
+			sv, _ := proxytools.NewTCPProxyServerUDP("127.0.0.1:5681", "127.0.0.1:7777", false)
 			sv.Start()
 		}
 	case "tpcu":
