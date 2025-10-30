@@ -52,7 +52,7 @@ func main() {
 		}
 	case "uc":
 		{
-			client, _ := udptools.NewUDPClient("127.0.0.1:7777", readFuncUDPCl, true)
+			client, _ := udptools.NewUDPClient("127.0.0.1:17777", readFuncUDPCl, true)
 			client.SetupFraming(framer)
 			client.Connect()
 			for i := 0; i < 10; i++ {
@@ -193,6 +193,7 @@ func main() {
 		{
 			sv, _ := p2pTools.NewP2PCoordinator("0.0.0.0:1234", true, true)
 			sv.Start()
+			break
 		}
 	case "p2pcl":
 		{
@@ -203,6 +204,7 @@ func main() {
 		}
 	case "p2pcl2":
 		{
+			println("p2pCl2")
 			cl, _ := p2pTools.NewP2PClientUDP("127.0.0.1:1234", 5679, p2pReadFunc2, true)
 			cl.SetupUPnP(upnp)
 			cl.ConnectToCoordinator()
@@ -241,6 +243,20 @@ func main() {
 			upnp.RemoveUPnPPort(5679, "UDP")
 			//upnp.RemoveUPnPPort(5555, "TCP")
 			upnp.Shutdown()
+		}
+	case "p2ppsu":
+		{
+			proxy, _ := proxytools.NewP2PProxyServerUDP("127.0.0.1:1234", 5678, "127.0.0.1:7777", true)
+			proxy.Start()
+		}
+	case "p2ppcu":
+		{
+			data, _ := webtools.ReadLineFromConsole("Enter target id: ")
+			proxy, _ := proxytools.NewP2PProxyClientUDP("127.0.0.1:1234", 5679, []byte(strings.ReplaceAll(string(data), "\n", "")), "127.0.0.1:17777", true)
+			proxy.Connect()
+			for {
+				time.Sleep(100 * time.Millisecond)
+			}
 		}
 	}
 }
