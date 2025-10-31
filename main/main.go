@@ -241,6 +241,9 @@ func main() {
 			upnp.RemoveUPnPPort(5677, "UDP")
 			upnp.RemoveUPnPPort(5678, "UDP")
 			upnp.RemoveUPnPPort(5679, "UDP")
+			upnp.RemoveUPnPPort(5677, "TCP")
+			upnp.RemoveUPnPPort(5678, "TCP")
+			upnp.RemoveUPnPPort(5679, "TCP")
 			//upnp.RemoveUPnPPort(5555, "TCP")
 			upnp.Shutdown()
 		}
