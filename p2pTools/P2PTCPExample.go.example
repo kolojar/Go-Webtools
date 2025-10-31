@@ -1,0 +1,211 @@
+package main
+
+import (
+	"fmt"
+	"net"
+	"sync"
+	"time"
+)
+
+// --- SIMULACE KONSTANT ---
+const (
+	// Doba, po kterou se aktivně pokoušíme připojit
+	PUNCHING_DURATION = 5 * time.Second
+	// Jak často se pokoušíme vytvořit spojení
+	RETRY_INTERVAL = 100 * time.Millisecond
+	// Timeout pro každý jednotlivý pokus o připojení
+	DIAL_TIMEOUT = 500 * time.Millisecond
+)
+
+// TCPPuncher simuluje logiku klienta, který se pokouší o TCP dírování.
+type TCPPuncher struct {
+	// Lokální adresa, na které nasloucháme (např. 0.0.0.0:54321)
+	LocalListenAddr string
+	// Externí/veřejná adresa, na kterou se pokoušíme připojit (získaná od koordinátora)
+	TargetExternalAddr string
+	// Veřejná adresa, kterou zná router (pro zjištění mapování)
+	OwnExternalAddr string
+
+	Listener net.Listener
+	Logger   func(format string, a ...any)
+
+	sync.Mutex
+	Connection  net.Conn // Úspěšně navázané spojení
+	IsConnected bool
+}
+
+// NewTCPPuncher vytvoří novou instanci puncheru.
+func NewTCPPuncher(localPort int, targetIP, targetPort int, ownExternalIP string) *TCPPuncher {
+	return &TCPPuncher{
+		LocalListenAddr:    fmt.Sprintf(":%d", localPort),
+		TargetExternalAddr: fmt.Sprintf("%s:%d", targetIP, targetPort),
+		OwnExternalAddr:    fmt.Sprintf("%s:%d", ownExternalIP, localPort),
+		Logger: func(format string, a ...any) {
+			fmt.Printf(time.Now().Format("15:04:05.000")+" [PUNCHER] "+format+"\n", a...)
+		},
+	}
+}
+
+// startListener spustí TCP server na lokálním portu pro příjem příchozích spojení.
+func (p *TCPPuncher) startListener() error {
+	var err error
+	p.Listener, err = net.Listen("tcp", p.LocalListenAddr)
+	if err != nil {
+		return fmt.Errorf("chyba při spouštění listeneru na %s: %w", p.LocalListenAddr, err)
+	}
+	p.Logger("TCP Listener spuštěn na: %s", p.LocalListenAddr)
+
+	go func() {
+		for {
+			conn, err := p.Listener.Accept()
+			if err != nil {
+				// Listener byl pravděpodobně uzavřen
+				if !p.IsConnected {
+					p.Logger("Listener byl zastaven.")
+				}
+				return
+			}
+
+			p.Lock()
+			if !p.IsConnected {
+				// Přijali jsme příchozí spojení!
+				p.Connection = conn
+				p.IsConnected = true
+				p.Logger("✅ ÚSPĚCH! Přijato příchozí TCP spojení z: %s", conn.RemoteAddr())
+			} else {
+				// Už jsme připojeni, zavřeme duplicitní spojení
+				conn.Close()
+			}
+			p.Unlock()
+
+			if p.IsConnected {
+				// Jakmile se připojíme, zavřeme listener
+				p.Listener.Close()
+				return
+			}
+		}
+	}()
+	return nil
+}
+
+// aggressivePunchingLoop se agresivně pokouší o spojení a zároveň si díru otvírá.
+func (p *TCPPuncher) aggressivePunchingLoop() {
+	deadline := time.Now().Add(PUNCHING_DURATION)
+	p.Logger("Spuštěn agresivní TCP Punching Loop. Cíl: %s | Doba: %v", p.TargetExternalAddr, PUNCHING_DURATION)
+
+	for time.Now().Before(deadline) && !p.IsConnected {
+		// --- 1. Pokus o připojení k cíli (Outbound SYN) ---
+		go func() {
+			conn, err := net.DialTimeout("tcp", p.TargetExternalAddr, DIAL_TIMEOUT)
+			if err == nil {
+				// Úspěšné navázání odchozího spojení!
+				p.Lock()
+				if !p.IsConnected {
+					p.Connection = conn
+					p.IsConnected = true
+					p.Logger("✅ ÚSPĚCH! Navázáno odchozí TCP spojení s: %s", conn.RemoteAddr())
+				} else {
+					conn.Close()
+				}
+				p.Unlock()
+
+				if p.IsConnected && p.Listener != nil {
+					p.Listener.Close() // Zastavíme listener
+				}
+			}
+		}()
+
+		// --- 2. Pokus o připojení k sobě (Otevření díry v NAT) ---
+		// Tento pokus pošle SYN packet, který by měl otevřít mapování v NAT
+		go func() {
+			net.DialTimeout("tcp", p.OwnExternalAddr, DIAL_TIMEOUT)
+		}()
+
+		time.Sleep(RETRY_INTERVAL)
+	}
+}
+
+// Punch provede celý proces dírování.
+func (p *TCPPuncher) Punch() (net.Conn, error) {
+	// 1. Spustíme listener pro příjem příchozích spojení
+	if err := p.startListener(); err != nil {
+		return nil, err
+	}
+
+	// 2. Spustíme agresivní loop pro navázání odchozího spojení
+	p.aggressivePunchingLoop()
+
+	// 3. Počkáme, zda se připojení naváže (buď odchozí, nebo příchozí)
+	timeoutTimer := time.NewTimer(PUNCHING_DURATION + 500*time.Millisecond) // Trochu delší čas
+	defer timeoutTimer.Stop()
+
+	for {
+		if p.IsConnected {
+			p.Logger("Proces TCP Punchingu dokončen.")
+			return p.Connection, nil
+		}
+
+		select {
+		case <-timeoutTimer.C:
+			// Vypršel čas, zavřeme listener a ohlásíme chybu
+			p.Listener.Close()
+			p.Logger("❌ SELHÁNÍ. TCP Punching se nezdařil v daném časovém limitu.")
+			return nil, fmt.Errorf("tcp punching se nezdařil v čase %v", PUNCHING_DURATION)
+		default:
+			time.Sleep(100 * time.Millisecond)
+		}
+	}
+}
+
+// --- PŘÍKLAD POUŽITÍ (MAIN) ---
+
+func main() {
+	// Příklad použití (tyto hodnoty byste dostali od koordinátora)
+	// Předpokládejme, že:
+	// 1. Lokální port je 54321
+	// 2. Veřejná IP adresa tohoto peeru je 100.1.1.1
+	// 3. Cílový peer má veřejnou adresu 200.2.2.2:54321
+
+	// Nastavení pro "Peer A"
+	localPortA := 54321
+	ownPublicIPA := "100.1.1.1" // Veřejná IP adresa Peer A
+
+	// Nastavení pro "Peer B" (Cíl Peeru A)
+	targetPublicIPB := "200.2.2.2" // Veřejná IP adresa Peer B
+	targetPortB := 54321           // Port Peer B
+
+	// V reálné aplikaci byste spustili dva procesy:
+	// Peer A by volal:
+	// puncherA := NewTCPPuncher(localPortA, targetPublicIPB, targetPortB, ownPublicIPA)
+	// Peer B by volal:
+	// puncherB := NewTCPPuncher(localPortA, ownPublicIPA, localPortA, targetPublicIPB) // Cíle jsou prohozeny
+
+	// Zde pouze simulujeme jednoho peera, který se snaží připojit.
+
+	// --- SIMULACE (SPUŠTĚNÍ JEDNOHO PEERU) ---
+	p := NewTCPPuncher(localPortA, targetPublicIPB, targetPortB, ownPublicIPA)
+
+	p.Logger("Příprava na TCP Punching.")
+	p.Logger("Lokální naslouchací adresa: %s", p.LocalListenAddr)
+	p.Logger("Cílová externí adresa: %s", p.TargetExternalAddr)
+	p.Logger("Vlastní externí adresa pro otvírání díry: %s", p.OwnExternalAddr)
+
+	conn, err := p.Punch()
+
+	if err == nil {
+		fmt.Println("\n--- Spojení navázáno. Nyní můžeme odesílat data. ---")
+
+		// Příklad odeslání dat
+		_, err := conn.Write([]byte("Ahoj, pripojil jsem se pres TCP PUNCHING!"))
+		if err == nil {
+			p.Logger("Úspěšně odeslána zpráva.")
+		} else {
+			p.Logger("Chyba při odesílání: %v", err)
+		}
+
+		// V reálu by zde byla smyčka pro čtení a zápis
+		conn.Close()
+	} else {
+		p.Logger("Kritické selhání punchingu: %v", err)
+	}
+}

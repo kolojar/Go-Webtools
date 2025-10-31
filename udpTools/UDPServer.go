@@ -57,7 +57,7 @@ type UDPServer struct {
 	address       *net.UDPAddr
 	Logger        *webtools.ConsoleLogger
 	requestedStop bool
-	isAlive     bool
+	isAlive       bool
 	conns         webtools.SafeMap[string, *UDPServerConn]
 	udpFramer     *UDPFramer
 }
@@ -202,6 +202,10 @@ func writeToUDP(isServer bool, listener *net.UDPConn, addr *net.UDPAddr, data []
 	}
 	if data == nil {
 		logger.Log(1, "Invalid data, cancelling write.")
+		return
+	}
+	if listener == nil {
+		logger.Log(3, "Invalid listener.")
 		return
 	}
 

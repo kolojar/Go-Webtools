@@ -420,7 +420,11 @@ func (p2p *P2PClientUDP) Send(targetId []byte, data []byte) bool {
 	relay, ok := p2p.allowRelay.GetHas(string(targetId))
 	if ok && relay {
 		//Send using relay
-		p2p.udpClientCoordinator.Send(webtools.PackWebtoolsFrame(P2P_CMD_RELAY, p2p.id, append(append([]byte(targetId), webtools.WEBTOOLS_FRAME_SEPARATOR), data...)))
+		frameBuilder := make([]byte, 0)
+		frameBuilder = append(frameBuilder, targetId...)
+		frameBuilder = append(frameBuilder, webtools.WEBTOOLS_FRAME_SEPARATOR)
+		frameBuilder = append(frameBuilder, data...)
+		p2p.udpClientCoordinator.Send(webtools.PackWebtoolsFrame(P2P_CMD_RELAY, p2p.id, frameBuilder))
 		return true
 	}
 

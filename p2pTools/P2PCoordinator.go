@@ -181,7 +181,7 @@ func (p2p *P2PCoordinator) readFunc(conn *udpTools.UDPServerConn, data []byte, e
 				//Handle relay
 				var success bool = false
 				data := bytes.SplitN(frame.Data, []byte{webtools.WEBTOOLS_FRAME_SEPARATOR}, 2)
-				if len(data[0]) != 2 || data[0] == nil {
+				if len(data) != 2 || data[0] == nil {
 					p2p.udpServer.Logger.Log(3, "Invalid relay data.")
 					conn.Send(webtools.PackWebtoolsFrame(P2P_CMD_CANCEL_CLIENT, frame.Id, []byte("Invalid relay data.")))
 					return
@@ -204,7 +204,7 @@ func (p2p *P2PCoordinator) readFunc(conn *udpTools.UDPServerConn, data []byte, e
 				}
 
 				//Check second value
-				mapValue, ok = p2p.punchingConns.GetHas(string(frame.Data))
+				mapValue, ok = p2p.punchingConns.GetHas(string(data[0]))
 				if ok {
 					connSettings := mapValue.Get(string(frame.Id))
 					if connSettings.C {

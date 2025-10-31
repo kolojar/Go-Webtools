@@ -10,7 +10,7 @@
             "request": "launch",
             "mode": "auto",
             "program": "./main/main.go",
-            "args": ["p2pcl"]
+            "args": ["p2psv"]
         }
     ]
 }
