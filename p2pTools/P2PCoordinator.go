@@ -84,7 +84,7 @@ func (p2p *P2PCoordinator) readFunc(conn *udpTools.UDPServerConn, data []byte, e
 				return
 			}
 			p2p.idsToConns.Set(id, &P2PCoordinatorConn{conn: conn, id: frame.Id, port: port})
-			conn.Send(webtools.PackWebtoolsFrame(P2P_CMD_NEW_ID, []byte(id), []byte(conn.Address.String())))
+			conn.Send(webtools.PackWebtoolsFrame(P2P_CMD_NEW_ID, []byte(id), []byte(conn.Address.IP.String())))
 			p2p.udpServer.Logger.Log(1, "Connection at: "+conn.Address.String()+" has this new ID: "+id)
 			return
 		}
