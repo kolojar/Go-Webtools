@@ -4,7 +4,7 @@ import (
 	"net"
 	"webtools"
 	httptools "webtools/httpTools"
-	udptools "webtools/udp"
+	"webtools/udp"
 )
 
 /*
@@ -12,7 +12,7 @@ HTTPProxyServerUDP is server for proxied UDP traffic over HTTP
 */
 type HTTPProxyServerUDP struct {
 	idToClient       webtools.SafeMap[string, *HTTPProxyServerUDPConn]
-	clientToID       webtools.SafeMap[*udptools.Client, string]
+	clientToID       webtools.SafeMap[*udp.Client, string]
 	httpServer       *httptools.WebSocketServer
 	udpServerAddress string
 	reportTrafic     bool
@@ -22,7 +22,7 @@ type HTTPProxyServerUDP struct {
 HTTPProxyServerUDPConn is connection object of HTTPProxyServerUDP
 */
 type HTTPProxyServerUDPConn struct {
-	udpClient *udptools.Client
+	udpClient *udp.Client
 	id        []byte
 	source    *httptools.WebSocketServerConn
 	origin    *HTTPProxyServerUDP
@@ -58,7 +58,7 @@ func (cl *HTTPProxyServerUDPConn) Close(isInitiator bool) {
 NewHTTPProxyServerUDP creates new HTTP Proxy Server for UDP but does not starts it
 */
 func NewHTTPProxyServerUDP(httpProxyAddress string, udpServerAddress string, reportTraffic bool) *HTTPProxyServerUDP {
-	sv := &HTTPProxyServerUDP{udpServerAddress: udpServerAddress, clientToID: webtools.MakeSafeMap[*udptools.Client, string](), idToClient: webtools.MakeSafeMap[string, *HTTPProxyServerUDPConn](), reportTrafic: reportTraffic}
+	sv := &HTTPProxyServerUDP{udpServerAddress: udpServerAddress, clientToID: webtools.MakeSafeMap[*udp.Client, string](), idToClient: webtools.MakeSafeMap[string, *HTTPProxyServerUDPConn](), reportTrafic: reportTraffic}
 	sv.httpServer = httptools.NewHTTPWebSocketServer(httpProxyAddress, sv.handleWebSocketReadFunc, nil, "", reportTraffic)
 	sv.httpServer.Logger.Prefix = "HTTPProxyServerUDP - " + sv.httpServer.Logger.Prefix
 	return sv
@@ -97,7 +97,7 @@ func (sv *HTTPProxyServerUDP) handleWebSocketReadFunc(conn *httptools.WebSocketS
 			if frame.Operation == webtools.FrameTypeConnect {
 				//Create new connection
 				frame.ID = []byte(webtools.GenerateRandomID())
-				cl, err := udptools.NewClient(sv.udpServerAddress, sv.handleUDPReadFunc, sv.reportTrafic)
+				cl, err := udp.NewClient(sv.udpServerAddress, sv.handleUDPReadFunc, sv.reportTrafic)
 				cl.Logger.Prefix = "HTTPProxyServerUDP - " + cl.Logger.Prefix
 				if err != nil {
 					conn.Client.Logger.Log(3, "Could not create connection with id: "+string(frame.ID)+" to server.")
@@ -134,7 +134,7 @@ func (sv *HTTPProxyServerUDP) handleWebSocketReadFunc(conn *httptools.WebSocketS
 	}
 }
 
-func (sv *HTTPProxyServerUDP) handleUDPReadFunc(udp *udptools.Client, _ *net.UDPAddr, data []byte, ended bool) {
+func (sv *HTTPProxyServerUDP) handleUDPReadFunc(udp *udp.Client, _ *net.UDPAddr, data []byte, ended bool) {
 	//Get HTTP client
 	if sv.clientToID.Get(udp) == "" || sv.idToClient.Get(sv.clientToID.Get(udp)) == nil {
 		//Connection does not exists

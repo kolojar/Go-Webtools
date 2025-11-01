@@ -3,19 +3,19 @@ package proxy
 import (
 	"webtools"
 	httptools "webtools/httpTools"
-	udptools "webtools/udp"
+	"webtools/udp"
 )
 
 /*
 HTTPProxyClientUDP is client for proxied UDP traffic over HTTP
 */
 type HTTPProxyClientUDP struct {
-	clientToID         webtools.SafeMap[*udptools.ServerConn, string]
-	idToClient         webtools.SafeMap[string, *udptools.ServerConn]
-	udpServer          *udptools.Server
+	clientToID         webtools.SafeMap[*udp.ServerConn, string]
+	idToClient         webtools.SafeMap[string, *udp.ServerConn]
+	udpServer          *udp.Server
 	httpClient         *httptools.WebSocketClient
-	pendingConnections webtools.SafeMap[string, *udptools.ServerConn]
-	pendingConnsData   webtools.SafeMap[*udptools.ServerConn, [][]byte]
+	pendingConnections webtools.SafeMap[string, *udp.ServerConn]
+	pendingConnsData   webtools.SafeMap[*udp.ServerConn, [][]byte]
 }
 
 /*
@@ -29,14 +29,14 @@ func (cl *HTTPProxyClientUDP) IsAlive() bool {
 NewHTTPProxyClientUDP creates new HTTP Proxy Client for UDP but does not starts it, if you want to use default connection endpoint, add /websocket to end of address
 */
 func NewHTTPProxyClientUDP(httpProxyAddress string, tcpServerAddress string, reportTraffic bool) (*HTTPProxyClientUDP, error) {
-	cl := &HTTPProxyClientUDP{clientToID: webtools.MakeSafeMap[*udptools.ServerConn, string](), pendingConnections: webtools.MakeSafeMap[string, *udptools.ServerConn](), idToClient: webtools.MakeSafeMap[string, *udptools.ServerConn](), pendingConnsData: webtools.MakeSafeMap[*udptools.ServerConn, [][]byte]()}
+	cl := &HTTPProxyClientUDP{clientToID: webtools.MakeSafeMap[*udp.ServerConn, string](), pendingConnections: webtools.MakeSafeMap[string, *udp.ServerConn](), idToClient: webtools.MakeSafeMap[string, *udp.ServerConn](), pendingConnsData: webtools.MakeSafeMap[*udp.ServerConn, [][]byte]()}
 	var err error
 	cl.httpClient, err = httptools.NewWebSocketClient(httpProxyAddress, cl.handleWebTransportReadFunc, reportTraffic)
 	if err != nil {
 		return nil, err
 	}
 	cl.httpClient.Logger.Prefix = "HTTPProxyClientUDP - " + cl.httpClient.Logger.Prefix
-	cl.udpServer, err = udptools.NewServer(tcpServerAddress, cl.handleUDPReadFunc, reportTraffic)
+	cl.udpServer, err = udp.NewServer(tcpServerAddress, cl.handleUDPReadFunc, reportTraffic)
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +98,7 @@ func (cl *HTTPProxyClientUDP) handleWebTransportReadFunc(_ *httptools.WebSocketC
 	}
 }
 
-func (cl *HTTPProxyClientUDP) handleUDPReadFunc(udpConn *udptools.ServerConn, data []byte, ended bool) {
+func (cl *HTTPProxyClientUDP) handleUDPReadFunc(udpConn *udp.ServerConn, data []byte, ended bool) {
 	if cl.pendingConnsData.Get(udpConn) != nil {
 		// Already pending connection
 		cl.pendingConnsData.Set(udpConn, append(cl.pendingConnsData.Get(udpConn), data))
