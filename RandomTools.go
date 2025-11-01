@@ -37,3 +37,11 @@ func RemoveElement[T comparable](array []T, item T) []T {
 	}
 	return result
 }
+
+/*
+Server connection interface, removed because not used
+*/
+/*type IServerConn interface {
+	Send([]byte)
+	Close()
+}*/

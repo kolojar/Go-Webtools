@@ -1,4 +1,4 @@
-package tcpTools
+package tcp
 
 import (
 	"encoding/json"
@@ -6,47 +6,47 @@ import (
 	"webtools"
 )
 
-const TCP_MERGER_FRAME_TYPE_LIST_CONNECTIONS = uint8(4)
+const mergerFrameTypeListConnections = uint8(4)
 
 /*
-TCP Connection merger server object
+ConnectionMergerServer is server for merged connections, it join multiple connections into one
 */
-type TCPConnectionMergerServer struct {
-	tcpServer          *TCPServer
-	idToClient         webtools.SafeMap[string, *TCPConnectionMergerServerTCPConn]
-	clientToId         webtools.SafeMap[*TCPClientSimple, string]
+type ConnectionMergerServer struct {
+	tcpServer          *Server
+	idToClient         webtools.SafeMap[string, *ConnectionMergerServerTCPConn]
+	clientToID         webtools.SafeMap[*ClientSimple, string]
 	tcpServerAddresses []string
 	reportTrafic       bool
 }
 
 /*
-TCP Connection merger connection object
+ConnectionMergerServerTCPConn is connection object of ConnectionMergerServer
 */
-type TCPConnectionMergerServerTCPConn struct {
-	tcpClient *TCPClientSimple
+type ConnectionMergerServerTCPConn struct {
+	tcpClient *ClientSimple
 	id        []byte
-	source    *TCPServerConn
-	origin    *TCPConnectionMergerServer
+	source    *ServerConn
+	origin    *ConnectionMergerServer
 }
 
 /*
-Creates frame and sends it to remote TCP client
+SendToRemoteTCP creates frame and sends it to remote TCP client
 */
-func (cl *TCPConnectionMergerServerTCPConn) SendToRemoteTCP(operation uint8, data []byte) {
+func (cl *ConnectionMergerServerTCPConn) SendToRemoteTCP(operation uint8, data []byte) {
 	cl.source.Send(webtools.PackWebtoolsFrame(operation, cl.id, data))
 }
 
 /*
-Sends data to local TCP
+SendToLocalTCP sends data to local TCP
 */
-func (cl *TCPConnectionMergerServerTCPConn) SendToLocalTCP(data []byte) {
+func (cl *ConnectionMergerServerTCPConn) SendToLocalTCP(data []byte) {
 	cl.tcpClient.Send(data)
 }
 
 /*
-Closes connection to client
+Close closes connection to client
 */
-func (cl *TCPConnectionMergerServerTCPConn) Close(isInitiator bool) {
+func (cl *ConnectionMergerServerTCPConn) Close(isInitiator bool) {
 	if cl == nil || cl.tcpClient == nil {
 		return
 	}
@@ -55,16 +55,16 @@ func (cl *TCPConnectionMergerServerTCPConn) Close(isInitiator bool) {
 	if isInitiator {
 		cl.SendToRemoteTCP(webtools.WEBTOOLS_FRAME_TYPE_CLOSE, nil)
 	}
-	cl.origin.clientToId.Delete(cl.tcpClient)
+	cl.origin.clientToID.Delete(cl.tcpClient)
 }
 
 /*
-Creates new TCP Connection merger Server but does not starts it
+NewConnectionMergerServer creates new TCP Connection merger Server but does not starts it
 */
-func NewTCPConnectionMergerServer(tcpMergedAddress string, tcpServerAddresses []string, reportTraffic bool) (*TCPConnectionMergerServer, error) {
-	sv := &TCPConnectionMergerServer{tcpServerAddresses: tcpServerAddresses, clientToId: webtools.MakeSafeMap[*TCPClientSimple, string](), idToClient: webtools.MakeSafeMap[string, *TCPConnectionMergerServerTCPConn](), reportTrafic: reportTraffic}
+func NewConnectionMergerServer(tcpMergedAddress string, tcpServerAddresses []string, reportTraffic bool) (*ConnectionMergerServer, error) {
+	sv := &ConnectionMergerServer{tcpServerAddresses: tcpServerAddresses, clientToID: webtools.MakeSafeMap[*ClientSimple, string](), idToClient: webtools.MakeSafeMap[string, *ConnectionMergerServerTCPConn](), reportTrafic: reportTraffic}
 	var err error
-	sv.tcpServer, err = NewTCPServer(tcpMergedAddress, sv.handleMergedTCPReadFunc, reportTraffic, true)
+	sv.tcpServer, err = NewServer(tcpMergedAddress, sv.handleMergedTCPReadFunc, reportTraffic, true)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +72,7 @@ func NewTCPConnectionMergerServer(tcpMergedAddress string, tcpServerAddresses []
 	return sv, nil
 }
 
-func (sv *TCPConnectionMergerServer) handleMergedTCPReadFunc(conn *TCPServerConn, frame []byte, status uint8) {
+func (sv *ConnectionMergerServer) handleMergedTCPReadFunc(conn *ServerConn, frame []byte, status uint8) {
 	if status == webtools.TCP_DISCONNECT_STATUS {
 		//Close all connections with this HTTP WebTransport Conn
 		for _, d := range sv.idToClient.GetData() {
@@ -96,7 +96,7 @@ func (sv *TCPConnectionMergerServer) handleMergedTCPReadFunc(conn *TCPServerConn
 		}
 
 		//Sort connections
-		if sv.idToClient.Get(string(frame.Id)) == nil || frame.Operation == webtools.WEBTOOLS_FRAME_TYPE_CONNECT || frame.Operation == TCP_MERGER_FRAME_TYPE_LIST_CONNECTIONS {
+		if sv.idToClient.Get(string(frame.Id)) == nil || frame.Operation == webtools.WEBTOOLS_FRAME_TYPE_CONNECT || frame.Operation == mergerFrameTypeListConnections {
 			switch frame.Operation {
 			case webtools.WEBTOOLS_FRAME_TYPE_CONNECT:
 				//Get connection list id
@@ -107,7 +107,7 @@ func (sv *TCPConnectionMergerServer) handleMergedTCPReadFunc(conn *TCPServerConn
 				}
 
 				//Create new connection
-				cl, err := NewTCPClientSimple(sv.tcpServerAddresses[i], -1, false, sv.handleLocalTCPReadFunc, sv.reportTrafic)
+				cl, err := NewClientSimple(sv.tcpServerAddresses[i], -1, false, sv.handleLocalTCPReadFunc, sv.reportTrafic)
 				frame.Id = []byte(webtools.GenerateRandomId())
 				cl.GetLogger().Prefix = "TCPConnMergerServer - " + cl.GetLogger().Prefix
 				if err != nil {
@@ -115,18 +115,18 @@ func (sv *TCPConnectionMergerServer) handleMergedTCPReadFunc(conn *TCPServerConn
 					return
 				}
 				cl.Connect()
-				sv.idToClient.Set(string(frame.Id), &TCPConnectionMergerServerTCPConn{tcpClient: cl, id: frame.Id, source: conn, origin: sv})
-				sv.clientToId.Set(cl, string(frame.Id))
+				sv.idToClient.Set(string(frame.Id), &ConnectionMergerServerTCPConn{tcpClient: cl, id: frame.Id, source: conn, origin: sv})
+				sv.clientToID.Set(cl, string(frame.Id))
 				sv.idToClient.Get(string(frame.Id)).SendToRemoteTCP(webtools.WEBTOOLS_FRAME_TYPE_CONNECT, frame.Data)
 				return
-			case TCP_MERGER_FRAME_TYPE_LIST_CONNECTIONS:
+			case mergerFrameTypeListConnections:
 				//List available connections on server
 				addrs, err := json.Marshal(sv.tcpServerAddresses)
 				if err != nil {
 					conn.origin.Logger.Log(3, "Could not create connection list: "+err.Error())
 					return
 				}
-				conn.Send(webtools.PackWebtoolsFrame(TCP_MERGER_FRAME_TYPE_LIST_CONNECTIONS, []byte{0}, addrs))
+				conn.Send(webtools.PackWebtoolsFrame(mergerFrameTypeListConnections, []byte{0}, addrs))
 				return
 			default:
 				conn.origin.Logger.Log(3, "Could not find connection to id: "+string(frame.Id))
@@ -156,17 +156,17 @@ func (sv *TCPConnectionMergerServer) handleMergedTCPReadFunc(conn *TCPServerConn
 	}
 }
 
-func (sv *TCPConnectionMergerServer) handleLocalTCPReadFunc(tcp *TCPClientSimple, data []byte, status uint8) {
+func (sv *ConnectionMergerServer) handleLocalTCPReadFunc(tcp *ClientSimple, data []byte, status uint8) {
 	if status == webtools.TCP_CONNECT_STATUS {
 		return
 	}
 	//Get TCP remote client
-	if sv.clientToId.Get(tcp) == "" || sv.idToClient.Get(sv.clientToId.Get(tcp)) == nil {
+	if sv.clientToID.Get(tcp) == "" || sv.idToClient.Get(sv.clientToID.Get(tcp)) == nil {
 		//Connection does not exists
 		tcp.GetLogger().Log(3, "Connection connected to: "+tcp.GetConn().RemoteAddr().String()+" not found")
 		return
 	}
-	id := sv.clientToId.Get(tcp)
+	id := sv.clientToID.Get(tcp)
 	cl := sv.idToClient.Get(id)
 
 	//End other connection
@@ -179,15 +179,15 @@ func (sv *TCPConnectionMergerServer) handleLocalTCPReadFunc(tcp *TCPClientSimple
 }
 
 /*
-Starts TCP Connection merger Server. Locks execution thread
+Start starts TCP Connection merger Server. Locks execution thread
 */
-func (sv *TCPConnectionMergerServer) Start() {
+func (sv *ConnectionMergerServer) Start() {
 	sv.tcpServer.Start()
 }
 
 /*
-Stops TCP Connection merger Server
+Stop stops TCP Connection merger Server
 */
-func (sv *TCPConnectionMergerServer) Stop() {
+func (sv *ConnectionMergerServer) Stop() {
 	sv.tcpServer.Stop()
 }

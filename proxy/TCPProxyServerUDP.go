@@ -3,7 +3,7 @@ package proxy
 import (
 	"net"
 	"webtools"
-	tcptools "webtools/tcpTools"
+	tcptools "webtools/tcp"
 	udptools "webtools/udpTools"
 )
 
@@ -13,7 +13,7 @@ TCPProxyServerUDP is server for proxied UDP traffic over TCP
 type TCPProxyServerUDP struct {
 	idToClient       webtools.SafeMap[string, *TCPProxyServerUDPConn]
 	clientToID       webtools.SafeMap[*udptools.UDPClient, string]
-	tcpServer        *tcptools.TCPServer
+	tcpServer        *tcptools.Server
 	tcpServerAddress string
 	reportTrafic     bool
 }
@@ -24,7 +24,7 @@ TCPProxyServerUDPConn is connection object of TCPProxyServerUDP
 type TCPProxyServerUDPConn struct {
 	udpClient *udptools.UDPClient
 	id        []byte
-	source    *tcptools.TCPServerConn
+	source    *tcptools.ServerConn
 	origin    *TCPProxyServerUDP
 }
 
@@ -63,7 +63,7 @@ NewTCPProxyServerUDP creates new TCP Proxy Server for UDP but does not starts it
 func NewTCPProxyServerUDP(tcpProxyAddress string, udpServerAddress string, reportTraffic bool) (*TCPProxyServerUDP, error) {
 	sv := &TCPProxyServerUDP{tcpServerAddress: udpServerAddress, clientToID: webtools.MakeSafeMap[*udptools.UDPClient, string](), idToClient: webtools.MakeSafeMap[string, *TCPProxyServerUDPConn](), reportTrafic: reportTraffic}
 	var err error
-	sv.tcpServer, err = tcptools.NewTCPServer(tcpProxyAddress, sv.handleTCPReadFunc, reportTraffic, true)
+	sv.tcpServer, err = tcptools.NewServer(tcpProxyAddress, sv.handleTCPReadFunc, reportTraffic, true)
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +71,7 @@ func NewTCPProxyServerUDP(tcpProxyAddress string, udpServerAddress string, repor
 	return sv, nil
 }
 
-func (sv *TCPProxyServerUDP) handleTCPReadFunc(conn *tcptools.TCPServerConn, frame []byte, status uint8) {
+func (sv *TCPProxyServerUDP) handleTCPReadFunc(conn *tcptools.ServerConn, frame []byte, status uint8) {
 	if status == webtools.TCP_DISCONNECT_STATUS {
 		//Close all connections with this HTTP WebTransport Conn
 		for _, d := range sv.idToClient.GetData() {

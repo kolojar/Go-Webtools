@@ -10,7 +10,7 @@ import (
 	"webtools"
 	httptools "webtools/httpTools"
 	proxytools "webtools/proxy"
-	tcptools "webtools/tcpTools"
+	tcptools "webtools/tcp"
 	"webtools/udpTools"
 	udptools "webtools/udpTools"
 )
@@ -21,14 +21,14 @@ func main() {
 	switch os.Args[1] {
 	case "ts":
 		{
-			server, _ := tcptools.NewTCPServer("127.0.0.1:7777", readFuncTCPSv, true, true)
+			server, _ := tcptools.NewServer("127.0.0.1:7777", readFuncTCPSv, true, true)
 			server.SetupEncryption(true, []byte("1234"))
 			server.Start()
 			break
 		}
 	case "tc":
 		{
-			client, _ := tcptools.NewTCPClientSimple("127.0.0.1:7777", 0, false, readFuncTCPCl, true)
+			client, _ := tcptools.NewClientSimple("127.0.0.1:7777", 0, false, readFuncTCPCl, true)
 			client.SetupEncryption(true, []byte("1234"))
 			client.Connect()
 			for i := 0; i < 100; i++ {
@@ -136,12 +136,12 @@ func main() {
 		}
 	case "tcms":
 		{
-			sv, _ := tcptools.NewTCPConnectionMergerServer("127.0.0.1:8882", []string{"127.0.0.1:5679", "127.0.0.1:7777", "127.0.0.1:8888"}, true)
+			sv, _ := tcptools.NewConnectionMergerServer("127.0.0.1:8882", []string{"127.0.0.1:5679", "127.0.0.1:7777", "127.0.0.1:8888"}, true)
 			sv.Start()
 		}
 	case "tcmc":
 		{
-			cl, _ := tcptools.NewTCPConnectionMergerClient("127.0.0.1:8882", "127.0.0.1", map[string]string{"127.0.0.1:5679": "5681", "127.0.0.1:7777": "17777", "127.0.0.1:8888": "8888"}, true)
+			cl, _ := tcptools.NewConnectionMergerClient("127.0.0.1:8882", "127.0.0.1", map[string]string{"127.0.0.1:5679": "5681", "127.0.0.1:7777": "17777", "127.0.0.1:8888": "8888"}, true)
 			cl.Connect()
 			for cl.IsAlive() {
 				time.Sleep(1 * time.Second)
@@ -190,13 +190,13 @@ func main() {
 
 var rc int = 0
 
-func readFuncTCPSv(conn *tcptools.TCPServerConn, data []byte, status uint8) {
+func readFuncTCPSv(conn *tcptools.ServerConn, data []byte, status uint8) {
 	if status == webtools.TCP_READ_DATA_STATUS {
 		conn.Send(data)
 	}
 }
 
-func readFuncTCPCl(conn *tcptools.TCPClientSimple, data []byte, status uint8) {
+func readFuncTCPCl(conn *tcptools.ClientSimple, data []byte, status uint8) {
 	//conn.Send(data)
 	//if !ended {
 	//	//conn.Stop()

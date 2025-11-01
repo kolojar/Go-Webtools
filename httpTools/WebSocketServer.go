@@ -11,7 +11,7 @@ import (
 	"slices"
 	"strings"
 	"webtools"
-	tcptools "webtools/tcpTools"
+	tcptools "webtools/tcp"
 )
 
 const webSocketGuid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
@@ -44,7 +44,7 @@ HTTP WebSocket server connection object
 */
 type WebSocketServerConn struct {
 	origin    *WebSocketServer
-	Client    *tcptools.TCPClientUniversal
+	Client    *tcptools.ClientUniversal
 	IsBinary  bool
 	firstRead bool
 	urlParams map[string]string
@@ -97,7 +97,7 @@ HTTP WebSocket server for JavaScript with standards
 type WebSocketServer struct {
 	httpServer                *HTTPServer
 	Logger                    *webtools.ConsoleLogger
-	conns                     webtools.SafeMap[*tcptools.TCPClientUniversal, *WebSocketServerConn]
+	conns                     webtools.SafeMap[*tcptools.ClientUniversal, *WebSocketServerConn]
 	onAccessFunc              HTTPAccessFunc
 	websocketURLsAndReadFuncs webtools.SafeMap[string, WebSocketServerReadFunc]
 	reportTraffic             bool
@@ -117,7 +117,7 @@ This readFunc is asociated with "/websocket" url
 func NewHTTPWebSocketServer(address string, readFunc WebSocketServerReadFunc, onAccessFunc HTTPAccessFunc, rootPath string, reportTraffic bool) *WebSocketServer {
 	wsUrlAndFuncs := webtools.MakeSafeMap[string, WebSocketServerReadFunc]()
 	wsUrlAndFuncs.Set("/websocket", readFunc)
-	sv := &WebSocketServer{Logger: webtools.NewConsoleLoggerForTraffic("HTTP-WSServer", reportTraffic), reportTraffic: reportTraffic, conns: webtools.MakeSafeMap[*tcptools.TCPClientUniversal, *WebSocketServerConn](), onAccessFunc: onAccessFunc, websocketURLsAndReadFuncs: wsUrlAndFuncs}
+	sv := &WebSocketServer{Logger: webtools.NewConsoleLoggerForTraffic("HTTP-WSServer", reportTraffic), reportTraffic: reportTraffic, conns: webtools.MakeSafeMap[*tcptools.ClientUniversal, *WebSocketServerConn](), onAccessFunc: onAccessFunc, websocketURLsAndReadFuncs: wsUrlAndFuncs}
 	sv.httpServer = NewHTTPServer(address, sv.handleHTTPAccess, rootPath, false)
 	sv.httpServer.Logger = sv.Logger
 	return sv
@@ -188,7 +188,7 @@ func (sv *WebSocketServer) handleHTTPAccess(_ *HTTPServer, w http.ResponseWriter
 		cl := tcptools.NewTCPClientUniversalFromConnection(conn.(*net.TCPConn), sv.reportTraffic)
 		cl.Logger = sv.Logger
 		cl.HandlerFuncs = append(cl.HandlerFuncs,
-			tcptools.TCPClientUniversalHanderFuncs{
+			tcptools.ClientUniversalHanderFuncs{
 				UseCount:               -1,
 				ReadHandler:            HandleWebSocketFrameRead,
 				ReadFunc:               sv.readFuncLocal,
@@ -210,7 +210,7 @@ func (sv *WebSocketServer) handleHTTPAccess(_ *HTTPServer, w http.ResponseWriter
 	return false
 }
 
-func HandleWebSocketFrameRead(cl *tcptools.TCPClientUniversal, limit int, logger *webtools.ConsoleLogger, readFunc tcptools.TCPClientUniversalOnReadFuncIntenal) (bool, error) {
+func HandleWebSocketFrameRead(cl *tcptools.ClientUniversal, limit int, logger *webtools.ConsoleLogger, readFunc tcptools.ClientUniversalOnReadFuncIntenal) (bool, error) {
 	for i := 0; i < limit || limit < 0; i++ {
 		//Read header of frame
 		header := make([]byte, 2)
@@ -347,7 +347,7 @@ func PackWebSocketFrame(payload []byte, opcode uint8, logger *webtools.ConsoleLo
 	return frame
 }
 
-func WriteToWebSocketFrameHandler(cl *tcptools.TCPClientUniversal, data []byte, otherData map[string]any) error {
+func WriteToWebSocketFrameHandler(cl *tcptools.ClientUniversal, data []byte, otherData map[string]any) error {
 	//Get opcode
 	opcode := otherData["opcode"]
 	if opcode == nil || opcode == "" {
@@ -360,7 +360,7 @@ func WriteToWebSocketFrameHandler(cl *tcptools.TCPClientUniversal, data []byte, 
 	return tcptools.WriteToTCPHandler(cl, PackWebSocketFrame(data, opcode.(uint8), cl.Logger), otherData)
 }
 
-func (sv *WebSocketServer) readFuncLocal(cl *tcptools.TCPClientUniversal, data []byte, status uint8, otherData map[string]any) {
+func (sv *WebSocketServer) readFuncLocal(cl *tcptools.ClientUniversal, data []byte, status uint8, otherData map[string]any) {
 	if status != webtools.TCP_READ_DATA_STATUS && status != webtools.TCP_DISCONNECT_STATUS && status != webtools.TCP_CONNECT_STATUS {
 		//Non data requests
 		return

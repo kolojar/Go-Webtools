@@ -3,14 +3,14 @@ package universalHttpTcpTools
 import (
 	"net"
 	httptools "webtools/httpTools"
-	tcptools "webtools/tcpTools"
+	tcptools "webtools/tcp"
 )
 
 /*
 Simple and universal server connection
 */
 type UniversalHttpTcpServerConn struct {
-	tcpConn *tcptools.TCPServerConn
+	tcpConn *tcptools.ServerConn
 	wsConn  *httptools.WebSocketServerConn
 }
 
@@ -50,7 +50,7 @@ type UniversalHttpTcpServerReadFunc func(conn *UniversalHttpTcpServerConn, data 
 Provides universal API for selecting TCP or/and HTTP WebSocket app hosting
 */
 type UniversalHttpTcpServer struct {
-	tcpServer     *tcptools.TCPServer
+	tcpServer     *tcptools.Server
 	readFunc      UniversalHttpTcpServerReadFunc
 	httpServer    *httptools.WebSocketServer
 	reportTraffic bool
@@ -64,7 +64,7 @@ func NewUniversalHttpTcpServer(readFunc UniversalHttpTcpServerReadFunc, reportTr
 // Configures usage of TCP on this server
 func (sv *UniversalHttpTcpServer) ConfigureTCP(address string, isFramed bool) error {
 	var err error
-	sv.tcpServer, err = tcptools.NewTCPServer(address, sv.readFuncTcp, sv.reportTraffic, isFramed)
+	sv.tcpServer, err = tcptools.NewServer(address, sv.readFuncTcp, sv.reportTraffic, isFramed)
 	sv.tcpServer.Logger.Prefix = "Universal - " + sv.tcpServer.Logger.Prefix
 	return err
 }
@@ -75,7 +75,7 @@ func (sv *UniversalHttpTcpServer) ConfigureWS(address string) {
 	sv.httpServer.Logger.Prefix = "Universal - " + sv.httpServer.Logger.Prefix
 }
 
-func (sv *UniversalHttpTcpServer) readFuncTcp(conn *tcptools.TCPServerConn, data []byte, status uint8) {
+func (sv *UniversalHttpTcpServer) readFuncTcp(conn *tcptools.ServerConn, data []byte, status uint8) {
 	if sv.readFunc != nil {
 		sv.readFunc(&UniversalHttpTcpServerConn{tcpConn: conn, wsConn: nil}, data, status, true)
 	}
