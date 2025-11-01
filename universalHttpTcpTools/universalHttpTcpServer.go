@@ -2,7 +2,7 @@ package universalHttpTcpTools
 
 import (
 	"net"
-	httptools "webtools/httpTools"
+	"webtools/httptools"
 	tcptools "webtools/tcpTools"
 )
 

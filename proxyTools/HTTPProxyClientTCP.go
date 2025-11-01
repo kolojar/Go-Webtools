@@ -2,7 +2,7 @@ package proxyTools
 
 import (
 	"webtools"
-	httptools "webtools/httpTools"
+	"webtools/httptools"
 	tcptools "webtools/tcpTools"
 )
 

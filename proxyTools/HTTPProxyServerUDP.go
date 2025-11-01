@@ -3,7 +3,7 @@ package proxyTools
 import (
 	"net"
 	"webtools"
-	httptools "webtools/httpTools"
+	"webtools/httptools"
 	udptools "webtools/udpTools"
 )
 

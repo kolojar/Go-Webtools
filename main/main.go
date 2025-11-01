@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 	"webtools"
-	httptools "webtools/httpTools"
+	"webtools/httptools"
 	proxytools "webtools/proxyTools"
 	tcptools "webtools/tcpTools"
 	"webtools/udpTools"
