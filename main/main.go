@@ -1,3 +1,6 @@
+/*
+Package main provides example usages
+*/
 package main
 
 import (
@@ -8,27 +11,26 @@ import (
 	"strings"
 	"time"
 	"webtools"
-	"webtools/httptools"
-	proxytools "webtools/proxyTools"
-	tcptools "webtools/tcpTools"
-	"webtools/udpTools"
-	udptools "webtools/udpTools"
+	httptools "webtools/httpTools"
+	"webtools/proxy"
+	"webtools/tcp"
+	"webtools/udp"
 )
 
 func main() {
 	fmt.Println("Hello world")
-	framer := udpTools.NewUDPFramerSimple(50, 5, true, 50)
+	framer := udp.NewUDPFramerSimple(50, 5, true, 50)
 	switch os.Args[1] {
 	case "ts":
 		{
-			server, _ := tcptools.NewTCPServer("127.0.0.1:7777", readFuncTCPSv, true, true)
+			server, _ := tcp.NewServer("127.0.0.1:7777", readFuncTCPSv, true, true)
 			server.SetupEncryption(true, []byte("1234"))
 			server.Start()
 			break
 		}
 	case "tc":
 		{
-			client, _ := tcptools.NewTCPClientSimple("127.0.0.1:7777", 0, false, readFuncTCPCl, true)
+			client, _ := tcp.NewClientSimple("127.0.0.1:7777", 0, false, readFuncTCPCl, true)
 			client.SetupEncryption(true, []byte("1234"))
 			client.Connect()
 			for i := 0; i < 100; i++ {
@@ -41,14 +43,14 @@ func main() {
 		}
 	case "us":
 		{
-			server, _ := udptools.NewUDPServer("127.0.0.1:7777", readFuncUDPSv, true)
+			server, _ := udp.NewServer("127.0.0.1:7777", readFuncUDPSv, true)
 			server.SetupFraming(framer)
 			server.Start()
 			break
 		}
 	case "uc":
 		{
-			client, _ := udptools.NewUDPClient("127.0.0.1:7777", readFuncUDPCl, true)
+			client, _ := udp.NewClient("127.0.0.1:7777", readFuncUDPCl, true)
 			client.SetupFraming(framer)
 			client.Connect()
 			for i := 0; i < 10; i++ {
@@ -85,12 +87,12 @@ func main() {
 	//	}
 	case "hpst":
 		{
-			sv := proxytools.NewHTTPProxyServerTCP("127.0.0.1:8880", "127.0.0.1:7777", true)
+			sv := proxy.NewHTTPProxyServerTCP("127.0.0.1:8880", "127.0.0.1:7777", true)
 			sv.Start()
 		}
 	case "hpct":
 		{
-			cl, err := proxytools.NewHTTPProxyClientTCP("127.0.0.1:8880/websocket", "127.0.0.1:17777", true)
+			cl, err := proxy.NewHTTPProxyClientTCP("127.0.0.1:8880/websocket", "127.0.0.1:17777", true)
 			if err != nil {
 				fmt.Println(err.Error())
 				return
@@ -119,12 +121,12 @@ func main() {
 	//	}
 	case "tpsu":
 		{
-			sv, _ := proxytools.NewTCPProxyServerUDP("127.0.0.1:5679", "127.0.0.1:7777", false)
+			sv, _ := proxy.NewTCPProxyServerUDP("127.0.0.1:5679", "127.0.0.1:7777", false)
 			sv.Start()
 		}
 	case "tpcu":
 		{
-			cl, err := proxytools.NewTCPProxyClientUDP("127.0.0.1:5681", "127.0.0.1:17777", false)
+			cl, err := proxy.NewTCPProxyClientUDP("127.0.0.1:5681", "127.0.0.1:17777", false)
 			if err != nil {
 				fmt.Println(err)
 				return
@@ -136,12 +138,12 @@ func main() {
 		}
 	case "tcms":
 		{
-			sv, _ := tcptools.NewTCPConnectionMergerServer("127.0.0.1:8882", []string{"127.0.0.1:5679", "127.0.0.1:7777", "127.0.0.1:8888"}, true)
+			sv, _ := tcp.NewConnectionMergerServer("127.0.0.1:8882", []string{"127.0.0.1:5679", "127.0.0.1:7777", "127.0.0.1:8888"}, true)
 			sv.Start()
 		}
 	case "tcmc":
 		{
-			cl, _ := tcptools.NewTCPConnectionMergerClient("127.0.0.1:8882", "127.0.0.1", map[string]string{"127.0.0.1:5679": "5681", "127.0.0.1:7777": "17777", "127.0.0.1:8888": "8888"}, true)
+			cl, _ := tcp.NewConnectionMergerClient("127.0.0.1:8882", "127.0.0.1", map[string]string{"127.0.0.1:5679": "5681", "127.0.0.1:7777": "17777", "127.0.0.1:8888": "8888"}, true)
 			cl.Connect()
 			for cl.IsAlive() {
 				time.Sleep(1 * time.Second)
@@ -149,12 +151,12 @@ func main() {
 		}
 	case "hpst2":
 		{
-			sv := proxytools.NewHTTPProxyServerTCP("127.0.0.1:9013", "127.0.0.1:9012", true)
+			sv := proxy.NewHTTPProxyServerTCP("127.0.0.1:9013", "127.0.0.1:9012", true)
 			sv.Start()
 		}
 	case "hpct2":
 		{
-			cl, _ := proxytools.NewHTTPProxyClientTCP("127.0.0.1:9013", "127.0.0.1:9014", true)
+			cl, _ := proxy.NewHTTPProxyClientTCP("127.0.0.1:9013", "127.0.0.1:9014", true)
 			cl.Connect()
 			for cl.IsAlive() {
 				time.Sleep(1 * time.Second)
@@ -182,21 +184,21 @@ func main() {
 		}
 	case "ub":
 		{
-			ub, _ := udpTools.NewUDPBridge("127.0.0.1:7777", "127.0.0.1:17777", true)
+			ub, _ := udp.NewBridge("127.0.0.1:7777", "127.0.0.1:17777", true)
 			ub.Start()
 		}
 	}
 }
 
-var rc int = 0
+var rc = 0
 
-func readFuncTCPSv(conn *tcptools.TCPServerConn, data []byte, status uint8) {
-	if status == webtools.TCP_READ_DATA_STATUS {
+func readFuncTCPSv(conn *tcp.ServerConn, data []byte, status uint8) {
+	if status == webtools.ReadDataStatus {
 		conn.Send(data)
 	}
 }
 
-func readFuncTCPCl(conn *tcptools.TCPClientSimple, data []byte, status uint8) {
+func readFuncTCPCl(_ *tcp.ClientSimple, data []byte, _ uint8) {
 	//conn.Send(data)
 	//if !ended {
 	//	//conn.Stop()
@@ -205,13 +207,13 @@ func readFuncTCPCl(conn *tcptools.TCPClientSimple, data []byte, status uint8) {
 	rc += len(strings.Split(string(data), "|")) - 1
 }
 
-func readFuncUDPSv(conn *udptools.UDPServerConn, data []byte, ended bool) {
+func readFuncUDPSv(conn *udp.ServerConn, data []byte, ended bool) {
 	if !ended {
 		conn.Send(data)
 	}
 }
 
-func readFuncUDPCl(conn *udptools.UDPClient, sourceAddress *net.UDPAddr, data []byte, ended bool) {
+func readFuncUDPCl(_ *udp.Client, _ *net.UDPAddr, data []byte, _ bool) {
 	//conn.Send(data)
 	//if !ended {
 	//	conn.Stop()
@@ -234,14 +236,14 @@ func readFuncUDPCl(conn *udptools.UDPClient, sourceAddress *net.UDPAddr, data []
 //	}
 //}
 
-func readFuncHTTPWsSv(conn *httptools.WebSocketServerConn, data []byte, status uint8, isBinary bool) {
+func readFuncHTTPWsSv(conn *httptools.WebSocketServerConn, data []byte, status uint8, _ bool) {
 	if status > 1 {
 		conn.Send(data)
 	}
 }
 
-func readFuncHTTPWsCl(conn *httptools.WebSocketClient, data []byte, status uint8, isBinary bool) {
-	if status == webtools.TCP_READ_DATA_STATUS {
+func readFuncHTTPWsCl(conn *httptools.WebSocketClient, _ []byte, status uint8, _ bool) {
+	if status == webtools.ReadDataStatus {
 		conn.Stop()
 	}
 }

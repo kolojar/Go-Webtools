@@ -10,14 +10,14 @@ const ALPHABET_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 const NUMBER_LETTERS = "0123456789"
 
 /*
-Generates random Id based on random and current time
+GenerateRandomID generates random Id based on random and current time
 */
-func GenerateRandomId() string {
+func GenerateRandomID() string {
 	return strconv.FormatUint(rand.Uint64(), 36) + "-" + strconv.FormatInt(time.Now().UnixNano(), 36)
 }
 
 /*
-Generates random string
+GenerateRandomString generates random string
 */
 func GenerateRandomString(lenght int) string {
 	letters := NUMBER_LETTERS + ALPHABET_LETTERS
@@ -29,7 +29,7 @@ func GenerateRandomString(lenght int) string {
 }
 
 /*
-Removes element from slice
+RemoveElement removes element from slice
 */
 func RemoveElement[T comparable](array []T, item T) []T {
 	result := make([]T, 0)
@@ -40,3 +40,11 @@ func RemoveElement[T comparable](array []T, item T) []T {
 	}
 	return result
 }
+
+/*
+Server connection interface, removed because not used
+*/
+/*type IServerConn interface {
+	Send([]byte)
+	Close()
+}*/

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 	"webtools"
-	tcptools "webtools/tcpTools"
+	tcptools "webtools/tcp"
 )
 
 /*
@@ -70,7 +70,7 @@ Bool = isBinary
 type WebSocketClientReadFunc func(client *WebSocketClient, data []byte, status uint8, isBinary bool)
 
 type WebSocketClient struct {
-	tcpClient      *tcptools.TCPClientUniversal
+	tcpClient      *tcptools.ClientUniversal
 	Logger         *webtools.ConsoleLogger
 	readFunc       WebSocketClientReadFunc
 	awaitingReady  bool
@@ -97,7 +97,7 @@ func NewWebSocketClient(address string, readFunc WebSocketClientReadFunc, report
 	cl.tcpClient, err = tcptools.NewTCPClientUniversal(tcpAddress, reportTraffic)
 	cl.tcpClient.Logger = cl.Logger
 	cl.tcpClient.HandlerFuncs = append(cl.tcpClient.HandlerFuncs,
-		tcptools.TCPClientUniversalHanderFuncs{
+		tcptools.ClientUniversalHanderFuncs{
 			UseCount:               1,
 			ReadHandler:            tcptools.HandleTCPRead,
 			ReadFunc:               cl.readFuncLocalRaw,
@@ -105,7 +105,7 @@ func NewWebSocketClient(address string, readFunc WebSocketClientReadFunc, report
 			CanOneWriteAfterSwitch: false,
 		})
 	cl.tcpClient.HandlerFuncs = append(cl.tcpClient.HandlerFuncs,
-		tcptools.TCPClientUniversalHanderFuncs{
+		tcptools.ClientUniversalHanderFuncs{
 			UseCount:               -1,
 			ReadHandler:            HandleWebSocketFrameRead,
 			ReadFunc:               cl.readFuncLocalWS,
@@ -172,8 +172,8 @@ func (cl *WebSocketClient) Send(data []byte, opcode uint8) {
 /*
 Local readFunc for local TCP client
 */
-func (cl *WebSocketClient) readFuncLocalRaw(_ *tcptools.TCPClientUniversal, data []byte, status uint8, otherData map[string]any) {
-	if status == webtools.TCP_READ_DATA_STATUS && cl.awaitingReady {
+func (cl *WebSocketClient) readFuncLocalRaw(_ *tcptools.ClientUniversal, data []byte, status uint8, otherData map[string]any) {
+	if status == webtools.ReadDataStatus && cl.awaitingReady {
 		//First request
 		if !strings.Contains(string(data), "HTTP/1.1 101 Switching Protocols") {
 			//Invalid switch
@@ -188,7 +188,7 @@ func (cl *WebSocketClient) readFuncLocalRaw(_ *tcptools.TCPClientUniversal, data
 		cl.awaitingReady = false
 		return
 	} else {
-		if status != webtools.TCP_READ_DATA_STATUS {
+		if status != webtools.ReadDataStatus {
 			return
 		}
 		//Other requests
@@ -202,7 +202,7 @@ func (cl *WebSocketClient) readFuncLocalRaw(_ *tcptools.TCPClientUniversal, data
 /*
 Local readFunc for local TCP client with WebSocket frame
 */
-func (cl *WebSocketClient) readFuncLocalWS(_ *tcptools.TCPClientUniversal, data []byte, status uint8, otherData map[string]any) {
+func (cl *WebSocketClient) readFuncLocalWS(_ *tcptools.ClientUniversal, data []byte, status uint8, otherData map[string]any) {
 	//Get opcode
 	isBinaryRaw := otherData["isBinary"]
 	if isBinaryRaw == nil || isBinaryRaw == "" {

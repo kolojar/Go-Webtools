@@ -1,3 +1,6 @@
+/*
+Package encryption provides encryption tools for symmetric and asymmetric encryption. Can encrypt and store passwords too.
+*/
 package encryption
 
 import (
@@ -16,24 +19,27 @@ import (
 	"webtools"
 )
 
-// TIMEOUT_LIMIT_OF_SIGNATURE_IN_MINUTES tells how long will the signature be valid
-const TIMEOUT_LIMIT_OF_SIGNATURE_IN_MINUTES = 5
+// timeoutLimitOfSignatureInMinutes tells how long will the signature be valid
+const timeoutLimitOfSignatureInMinutes = 5
 
 /*
-Asymmectric encryption support using OAEP
+Asymmetric provides asymmetric encryption support using OAEP
 */
-type AsymmetricEncryption struct {
+type Asymmetric struct {
 	privateKey        *rsa.PrivateKey
 	encryptStoredKeys bool
 	password          []byte
 }
 
-func (enc *AsymmetricEncryption) GetPublicKey() *rsa.PublicKey {
+/*
+GetPublicKey gets public key of assymetric encryption
+*/
+func (enc *Asymmetric) GetPublicKey() *rsa.PublicKey {
 	return &enc.privateKey.PublicKey
 }
 
 /*
-Asymmectric signed data, signature in Base64 format
+AsymmetricSignedData is signature in Base64 format with signed data
 */
 type AsymmetricSignedData struct {
 	Data      []byte
@@ -42,10 +48,16 @@ type AsymmetricSignedData struct {
 	Expires   time.Time
 }
 
-func (data *AsymmetricSignedData) Json() ([]byte, error) {
+/*
+JSON creates json from this signed data
+*/
+func (data *AsymmetricSignedData) JSON() ([]byte, error) {
 	return json.Marshal(data)
 }
 
+/*
+ParseAsymmetricSignedData parses JSON to AsymmetricSignedData
+*/
 func ParseAsymmetricSignedData(jsonData []byte) (*AsymmetricSignedData, error) {
 	var result *AsymmetricSignedData
 	err := json.Unmarshal(jsonData, result)
@@ -53,12 +65,12 @@ func ParseAsymmetricSignedData(jsonData []byte) (*AsymmetricSignedData, error) {
 }
 
 /*
-* Creates new Asymmetric Encryption structure, should be used only in this class
- */
-func newAsymmetricEncryptionStruct(encryptStoredKeys bool) (*AsymmetricEncryption, error) {
+Creates new Asymmetric Encryption structure, should be used only in this class
+*/
+func newAsymmetricEncryptionStruct(encryptStoredKeys bool) (*Asymmetric, error) {
 	if !encryptStoredKeys {
 		// No encryption
-		return &AsymmetricEncryption{password: nil}, nil
+		return &Asymmetric{password: nil}, nil
 	}
 
 	// Get password
@@ -68,13 +80,13 @@ func newAsymmetricEncryptionStruct(encryptStoredKeys bool) (*AsymmetricEncryptio
 	}
 
 	// Create struct
-	return &AsymmetricEncryption{password: pass}, nil
+	return &Asymmetric{password: pass}, nil
 }
 
 /*
-Creates new Asymmetric Encryption with new private and public key
+NewAsymmetricEncryption Creates new Asymmetric Encryption with new private and public key
 */
-func NewAsymmetricEncryption(encryptStoredKeys bool) (*AsymmetricEncryption, error) {
+func NewAsymmetricEncryption(encryptStoredKeys bool) (*Asymmetric, error) {
 	// Get struct
 	enc, err := newAsymmetricEncryptionStruct(encryptStoredKeys)
 	if err != nil {
@@ -89,6 +101,9 @@ func NewAsymmetricEncryption(encryptStoredKeys bool) (*AsymmetricEncryption, err
 	return enc, nil
 }
 
+/*
+ParsePublicKey parses public key encoded with PEM and stored in x509.PKIX format
+*/
 func ParsePublicKey(publicKeyData []byte) (*rsa.PublicKey, error) {
 	// Decode public key PEM
 	pemPublicBlock, _ := pem.Decode(publicKeyData)
@@ -104,6 +119,9 @@ func ParsePublicKey(publicKeyData []byte) (*rsa.PublicKey, error) {
 	return publicKey.(*rsa.PublicKey), nil
 }
 
+/*
+ParsePrivateKey parses private key encoded with PEM and stored in x509.PKCS8 format
+*/
 func ParsePrivateKey(privateKeyData []byte) (*rsa.PrivateKey, error) {
 	// Parse private key PEM
 	pemPrivateBlock, _ := pem.Decode(privateKeyData)
@@ -120,9 +138,9 @@ func ParsePrivateKey(privateKeyData []byte) (*rsa.PrivateKey, error) {
 }
 
 /*
-Loads private and public key for Asymmetric Encryption
+LoadAsymmetricEncryption loads private and public key for Asymmetric encryption
 */
-func LoadAsymmetricEncryption(encryptStoredKeys bool, privateKeyPath string, publicKeyPath string) (*AsymmetricEncryption, error) {
+func LoadAsymmetricEncryption(encryptStoredKeys bool, privateKeyPath string, publicKeyPath string) (*Asymmetric, error) {
 	// Get struct
 	enc, err := newAsymmetricEncryptionStruct(encryptStoredKeys)
 	if err != nil {
@@ -173,46 +191,46 @@ func LoadAsymmetricEncryption(encryptStoredKeys bool, privateKeyPath string, pub
 }
 
 /*
-Encrypts data using destination Public Key
+EncryptWithLabel encrypts data using destination Public Key
 Label is used for providing context for data, must be same in decryption
 */
-func (enc *AsymmetricEncryption) EncryptWithLabel(data []byte, label []byte, destinationPublicKey *rsa.PublicKey) ([]byte, error) {
+func (enc *Asymmetric) EncryptWithLabel(data []byte, label []byte, destinationPublicKey *rsa.PublicKey) ([]byte, error) {
 	// Encrypt
 	hash := sha256.New()
 	return rsa.EncryptOAEP(hash, rand.Reader, destinationPublicKey, data, label)
 }
 
 /*
-Encrypts data using destination Public Key
+Encrypt encrypts data using destination Public Key
 */
-func (enc *AsymmetricEncryption) Encrypt(data []byte, destinationPublicKey *rsa.PublicKey) ([]byte, error) {
+func (enc *Asymmetric) Encrypt(data []byte, destinationPublicKey *rsa.PublicKey) ([]byte, error) {
 	return enc.EncryptWithLabel(data, []byte(""), destinationPublicKey)
 }
 
 /*
-Decrypts data using local Private Key
+DecryptWithLabel decrypts data using local Private Key
 Label is used for providing context for data, must be same in encryption
 */
-func (enc *AsymmetricEncryption) DecryptWithLabel(data []byte, label []byte) ([]byte, error) {
+func (enc *Asymmetric) DecryptWithLabel(data []byte, label []byte) ([]byte, error) {
 	// Decrypt
 	hash := sha256.New()
 	return rsa.DecryptOAEP(hash, rand.Reader, enc.privateKey, data, label)
 }
 
 /*
-Decrypts data using local Private Key
+Decrypt decrypts data using local Private Key
 */
-func (enc *AsymmetricEncryption) Decrypt(data []byte) ([]byte, error) {
+func (enc *Asymmetric) Decrypt(data []byte) ([]byte, error) {
 	return enc.DecryptWithLabel(data, []byte(""))
 }
 
 /*
-Signs data using local Private Key
+Sign signs data using local Private Key
 */
-func (enc *AsymmetricEncryption) Sign(data []byte) (*AsymmetricSignedData, error) {
+func (enc *Asymmetric) Sign(data []byte) (*AsymmetricSignedData, error) {
 	// Make expiration
 	timestamp := time.Now().UTC()
-	expires := timestamp.Add(time.Minute * TIMEOUT_LIMIT_OF_SIGNATURE_IN_MINUTES)
+	expires := timestamp.Add(time.Minute * timeoutLimitOfSignatureInMinutes)
 
 	// Create hash
 	dataForHasher := make([]byte, 0)
@@ -232,9 +250,9 @@ func (enc *AsymmetricEncryption) Sign(data []byte) (*AsymmetricSignedData, error
 }
 
 /*
-Signs data using local Private Key directly to JSON format
+SignToJSON signs data using local Private Key directly to JSON format
 */
-func (enc *AsymmetricEncryption) SignToJson(data []byte) ([]byte, error) {
+func (enc *Asymmetric) SignToJSON(data []byte) ([]byte, error) {
 	//Sign
 	signed, err := enc.Sign(data)
 	if err != nil {
@@ -242,14 +260,14 @@ func (enc *AsymmetricEncryption) SignToJson(data []byte) ([]byte, error) {
 	}
 
 	//Json
-	return signed.Json()
+	return signed.JSON()
 }
 
 /*
-Verifies data using source Public Key
+Verify cerifies data using source Public Key
 Returns original data if verification was successfull (nil error)
 */
-func (enc *AsymmetricEncryption) Verify(signedData *AsymmetricSignedData, sourcePublicKey *rsa.PublicKey) ([]byte, error) {
+func (enc *Asymmetric) Verify(signedData *AsymmetricSignedData, sourcePublicKey *rsa.PublicKey) ([]byte, error) {
 	// Get signature
 	signature, err := base64.StdEncoding.DecodeString(signedData.Signature)
 	if err != nil {
@@ -275,12 +293,12 @@ func (enc *AsymmetricEncryption) Verify(signedData *AsymmetricSignedData, source
 }
 
 /*
-Verifies data using source Public Key from JSON
+VerifyFromJSON verifies data using source Public Key from JSON
 Returns original data if verification was successfull (nil error)
 */
-func (enc *AsymmetricEncryption) VerifyFromJson(signedDataJson []byte, sourcePublicKey *rsa.PublicKey) ([]byte, error) {
+func (enc *Asymmetric) VerifyFromJSON(signedDataJSON []byte, sourcePublicKey *rsa.PublicKey) ([]byte, error) {
 	//Decode JSON
-	signed, err := ParseAsymmetricSignedData(signedDataJson)
+	signed, err := ParseAsymmetricSignedData(signedDataJSON)
 	if err != nil {
 		return nil, err
 	}
@@ -289,6 +307,9 @@ func (enc *AsymmetricEncryption) VerifyFromJson(signedDataJson []byte, sourcePub
 	return enc.Verify(signed, sourcePublicKey)
 }
 
+/*
+EncodePublicKey encodes public key in 509.PKIX format and using PEM encoding
+*/
 func EncodePublicKey(publicKey *rsa.PublicKey) ([]byte, error) {
 	// Encode public key
 	pemPublicBlock, err := x509.MarshalPKIXPublicKey(publicKey)
@@ -300,6 +321,9 @@ func EncodePublicKey(publicKey *rsa.PublicKey) ([]byte, error) {
 	return pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: pemPublicBlock}), nil
 }
 
+/*
+EncodePrivateKey encodes private key in x509.PKCS8 format and using PEM encoding
+*/
 func EncodePrivateKey(privateKey *rsa.PrivateKey) ([]byte, error) {
 	// Encode private key
 	pemPrivateBlock, err := x509.MarshalPKCS8PrivateKey(privateKey)
@@ -314,7 +338,7 @@ func EncodePrivateKey(privateKey *rsa.PrivateKey) ([]byte, error) {
 /*
 SaveAsymmetricEncryption saves private and public key for Asymmetric Encryption
 */
-func (enc *AsymmetricEncryption) SaveAsymmetricEncryption(privateKeyPath string, publicKeyPath string) error {
+func (enc *Asymmetric) SaveAsymmetricEncryption(privateKeyPath string, publicKeyPath string) error {
 	//Encode public key data
 	publicKeyData, err := EncodePublicKey(&enc.privateKey.PublicKey)
 	if err != nil {
@@ -349,10 +373,16 @@ func (enc *AsymmetricEncryption) SaveAsymmetricEncryption(privateKeyPath string,
 	return os.WriteFile(privateKeyPath, privateKeyDataEnc, 0600)
 }
 
-func (enc *AsymmetricEncryption) EncodePublicKey() ([]byte, error) {
+/*
+EncodePublicKey encodes public key using EncodePublicKey function
+*/
+func (enc *Asymmetric) EncodePublicKey() ([]byte, error) {
 	return EncodePublicKey(&enc.privateKey.PublicKey)
 }
 
-func (enc *AsymmetricEncryption) EncodePrivateKey() ([]byte, error) {
+/*
+EncodePrivateKey encodes private key using EncodePrivateKey function
+*/
+func (enc *Asymmetric) EncodePrivateKey() ([]byte, error) {
 	return EncodePrivateKey(enc.privateKey)
 }
