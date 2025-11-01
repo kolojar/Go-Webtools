@@ -213,13 +213,18 @@ func (p2p *P2PClientUDP) readFuncCoordinator(_ *udpTools.UDPClient, sourceAddres
 				//Start punching
 				for i := 0; i < P2P_PUNCH_RETRY_COUNT; i++ {
 					clientUDP.Logger.Log(1, "Connecting to target ID: "+string(frame.Id)+" attempt: "+strconv.Itoa(i+1)+"/"+strconv.Itoa(P2P_PUNCH_RETRY_COUNT))
-					//DEBUG: err = clientUDP.Connect()
+					err = clientUDP.Connect()
 					if err == nil {
 						clientUDP.Send(webtools.PackWebtoolsFrame(P2P_CMD_PUNCH, p2p.id, frame.Id))
 					} else {
 						clientUDP.Logger.Log(3, "Error connecting UDP to target IP: "+string(split[1])+" with error: "+err.Error())
 					}
 					go func() {
+						if p2p.tcpOutcommingConnsCls.Get(string(frame.Id)).Key != nil {
+							clientUDP.Logger.Log(0, "TCP already found.")
+							return
+						}
+
 						clientUDP.Logger.Log(0, "Dialing TCP...")
 						tcpConn, err := net.DialTimeout("tcp", string(split[1]), 100*time.Millisecond)
 						if err == nil {
@@ -227,10 +232,11 @@ func (p2p *P2PClientUDP) readFuncCoordinator(_ *udpTools.UDPClient, sourceAddres
 							clientTCP := tcpTools.NewTCPClientSimpleFromConnection(tcpConn.(*net.TCPConn), 0, false, p2p.readFuncOutcommingClientsTCP, p2p.reportTraffic)
 							clientTCP.GetLogger().Preprefix = p2p.loggerPrefix
 							clientTCP.GetLogger().Prefix = "P2PClientUDP - PeerClientTCP for id: " + string(frame.Id)
-							clientTCP.Connect()
-							clientTCP.Send(webtools.PackWebtoolsFrame(P2P_CMD_PUNCH, p2p.id, frame.Id))
-							p2p.tcpOutcommingConnsCls.Set(string(frame.Id), webtools.KeyValuePair[*tcpTools.TCPClientSimple, bool]{Key: clientTCP, Value: false})
-							p2p.udpClientCoordinator.Send(webtools.PackWebtoolsFrame(P2P_CMD_CONNECT_STATUS_TCP, frame.Id, frame.Data))
+							if clientTCP.Connect() {
+								clientTCP.Send(webtools.PackWebtoolsFrame(P2P_CMD_PUNCH, p2p.id, frame.Id))
+								p2p.tcpOutcommingConnsCls.Set(string(frame.Id), webtools.KeyValuePair[*tcpTools.TCPClientSimple, bool]{Key: clientTCP, Value: false})
+								p2p.udpClientCoordinator.Send(webtools.PackWebtoolsFrame(P2P_CMD_CONNECT_STATUS_TCP, frame.Id, frame.Data))
+							}
 
 						} else {
 							clientUDP.Logger.Log(3, "Error connecting TCP to target IP: "+string(split[1])+" with error: "+err.Error())
