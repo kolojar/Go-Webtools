@@ -27,14 +27,17 @@ const P2P_CMD_CANCEL_CLIENT uint8 = 3
 // Informs clients to start punchholding - id is targetId, data it startTime;ipAddress
 const P2P_CMD_START_PUNCHING uint8 = 4
 
-// Informs server about success connection - is is sourceId, data is targetId -> Sends info about id and it connection status as data - server / client
-const P2P_CMD_CONNECT_STATUS uint8 = 5
+// Informs server about success connection of UDP - is is sourceId, data is targetId -> Sends info about id and it connection status as data - server / client
+const P2P_CMD_CONNECT_STATUS_UDP uint8 = 5
 
 // Informs client about connection done, sends id and in data if relay is available
 const P2P_CMD_CONNECT_DONE uint8 = 6
 
 // Request of send relay - id is source id, data is targetId;data -> Sends to other peer in format: id - sourceId, data - data
 const P2P_CMD_RELAY uint8 = 7
+
+// Informs server about success connection of TCP - is is sourceId, data is targetId -> Sends info about id and it connection status as data - server / client
+const P2P_CMD_CONNECT_STATUS_TCP uint8 = 8
 
 type P2PCoordinatorConn struct {
 	conn *udpTools.UDPServerConn
@@ -43,10 +46,11 @@ type P2PCoordinatorConn struct {
 }
 
 type P2PCoordinator struct {
-	udpServer     *udpTools.UDPServer
-	idsToConns    webtools.SafeMap[string, *P2PCoordinatorConn]
-	punchingConns webtools.SafeMap[string, webtools.SafeMap[string, webtools.ThreeValuePair[bool, bool, bool]]]
-	AllowRelay    bool
+	udpServer        *udpTools.UDPServer
+	idsToConns       webtools.SafeMap[string, *P2PCoordinatorConn]
+	punchingConnsUDP webtools.SafeMap[string, webtools.SafeMap[string, webtools.ThreeValuePair[bool, bool, bool]]]
+	punchingConnsTCP webtools.SafeMap[string, webtools.SafeMap[string, webtools.ThreeValuePair[bool, bool, bool]]]
+	AllowRelay       bool
 }
 
 /*
@@ -55,9 +59,10 @@ Creates new P2P Coordinator server but does not start it
 func NewP2PCoordinator(address string, allowRelay bool, reportTraffic bool) (*P2PCoordinator, error) {
 	//New coordinator
 	p2p := &P2PCoordinator{
-		idsToConns:    webtools.MakeSafeMap[string, *P2PCoordinatorConn](),
-		punchingConns: webtools.MakeSafeMap[string, webtools.SafeMap[string, webtools.ThreeValuePair[bool, bool, bool]]](),
-		AllowRelay:    allowRelay,
+		idsToConns:       webtools.MakeSafeMap[string, *P2PCoordinatorConn](),
+		punchingConnsUDP: webtools.MakeSafeMap[string, webtools.SafeMap[string, webtools.ThreeValuePair[bool, bool, bool]]](),
+		punchingConnsTCP: webtools.MakeSafeMap[string, webtools.SafeMap[string, webtools.ThreeValuePair[bool, bool, bool]]](),
+		AllowRelay:       allowRelay,
 	}
 
 	//New UDP server
@@ -114,13 +119,14 @@ func (p2p *P2PCoordinator) readFunc(conn *udpTools.UDPServerConn, data []byte, e
 
 				//Make entry in punchingConns
 				var mapValue webtools.SafeMap[string, webtools.ThreeValuePair[bool, bool, bool]]
-				if p2p.punchingConns.Has(string(frame.Id)) {
-					mapValue = p2p.punchingConns.Get(string(frame.Id))
+				if p2p.punchingConnsUDP.Has(string(frame.Id)) {
+					mapValue = p2p.punchingConnsUDP.Get(string(frame.Id))
 				} else {
 					mapValue = webtools.MakeSafeMap[string, webtools.ThreeValuePair[bool, bool, bool]]()
 				}
 				mapValue.Set(string(frame.Data), webtools.ThreeValuePair[bool, bool, bool]{A: false, B: false, C: false})
-				p2p.punchingConns.Set(string(frame.Id), mapValue)
+				p2p.punchingConnsUDP.Set(string(frame.Id), mapValue)
+				p2p.punchingConnsTCP.Set(string(frame.Id), mapValue)
 				//connId := webtools.GenerateRandomId()
 
 				//Send to clients
@@ -132,23 +138,41 @@ func (p2p *P2PCoordinator) readFunc(conn *udpTools.UDPServerConn, data []byte, e
 				go func() {
 					time.Sleep(2 * time.Second * P2P_TIMEOUT_START)
 
-					//Send results
-					mapValue = p2p.punchingConns.Get(string(frame.Id))
+					//Send results UDP
+					mapValue = p2p.punchingConnsUDP.Get(string(frame.Id))
 					connSettings := mapValue.Get(string(frame.Data))
 					if connSettings.A {
-						conn.Send(webtools.PackWebtoolsFrame(P2P_CMD_CONNECT_STATUS, frame.Data, []byte("client")))
-						target.conn.Send(webtools.PackWebtoolsFrame(P2P_CMD_CONNECT_STATUS, frame.Id, []byte("server")))
+						conn.Send(webtools.PackWebtoolsFrame(P2P_CMD_CONNECT_STATUS_UDP, frame.Data, []byte("client")))
+						target.conn.Send(webtools.PackWebtoolsFrame(P2P_CMD_CONNECT_STATUS_UDP, frame.Id, []byte("server")))
 						p2p.udpServer.Logger.Log(1, "Punching between: "+string(frame.Id)+" and: "+string(frame.Data)+" was successfull.")
 					}
 					if connSettings.B {
-						conn.Send(webtools.PackWebtoolsFrame(P2P_CMD_CONNECT_STATUS, frame.Data, []byte("server")))
-						target.conn.Send(webtools.PackWebtoolsFrame(P2P_CMD_CONNECT_STATUS, frame.Id, []byte("client")))
+						conn.Send(webtools.PackWebtoolsFrame(P2P_CMD_CONNECT_STATUS_UDP, frame.Data, []byte("server")))
+						target.conn.Send(webtools.PackWebtoolsFrame(P2P_CMD_CONNECT_STATUS_UDP, frame.Id, []byte("client")))
 						p2p.udpServer.Logger.Log(1, "Punching between: "+string(frame.Id)+" and: "+string(frame.Data)+" was successfull.")
 					}
 					connSettings.C = p2p.AllowRelay
 					mapValue.Set(string(frame.Data), connSettings)
-					p2p.punchingConns.Set(string(frame.Id), mapValue)
+					p2p.punchingConnsUDP.Set(string(frame.Id), mapValue)
 
+					//Send results TCP
+					mapValue = p2p.punchingConnsTCP.Get(string(frame.Id))
+					connSettings = mapValue.Get(string(frame.Data))
+					if connSettings.A {
+						conn.Send(webtools.PackWebtoolsFrame(P2P_CMD_CONNECT_STATUS_TCP, frame.Data, []byte("client")))
+						target.conn.Send(webtools.PackWebtoolsFrame(P2P_CMD_CONNECT_STATUS_TCP, frame.Id, []byte("server")))
+						p2p.udpServer.Logger.Log(1, "Punching between: "+string(frame.Id)+" and: "+string(frame.Data)+" was successfull.")
+					}
+					if connSettings.B {
+						conn.Send(webtools.PackWebtoolsFrame(P2P_CMD_CONNECT_STATUS_TCP, frame.Data, []byte("server")))
+						target.conn.Send(webtools.PackWebtoolsFrame(P2P_CMD_CONNECT_STATUS_TCP, frame.Id, []byte("client")))
+						p2p.udpServer.Logger.Log(1, "Punching between: "+string(frame.Id)+" and: "+string(frame.Data)+" was successfull.")
+					}
+					connSettings.C = p2p.AllowRelay
+					mapValue.Set(string(frame.Data), connSettings)
+					p2p.punchingConnsTCP.Set(string(frame.Id), mapValue)
+
+					//Finish results
 					time.Sleep(500 * time.Millisecond)
 					p2p.udpServer.Logger.Log(2, "Punching between: "+string(frame.Id)+" and: "+string(frame.Data)+" is done.")
 					conn.Send(webtools.PackWebtoolsFrame(P2P_CMD_CONNECT_DONE, frame.Data, []byte(strconv.FormatBool(p2p.AllowRelay))))
@@ -157,7 +181,7 @@ func (p2p *P2PCoordinator) readFunc(conn *udpTools.UDPServerConn, data []byte, e
 				}()
 				break
 			}
-		case P2P_CMD_CONNECT_STATUS:
+		case P2P_CMD_CONNECT_STATUS_UDP:
 			{
 				//Set connect status
 				success := false
@@ -194,7 +218,7 @@ func (p2p *P2PCoordinator) readFunc(conn *udpTools.UDPServerConn, data []byte, e
 				}
 
 				//Check first type
-				mapValue, ok := p2p.punchingConns.GetHas(string(frame.Id))
+				mapValue, ok := p2p.punchingConnsUDP.GetHas(string(frame.Id))
 				if ok {
 					connSettings := mapValue.Get(string(data[0]))
 					if connSettings.C {
@@ -204,7 +228,7 @@ func (p2p *P2PCoordinator) readFunc(conn *udpTools.UDPServerConn, data []byte, e
 				}
 
 				//Check second value
-				mapValue, ok = p2p.punchingConns.GetHas(string(data[0]))
+				mapValue, ok = p2p.punchingConnsUDP.GetHas(string(data[0]))
 				if ok {
 					connSettings := mapValue.Get(string(frame.Id))
 					if connSettings.C {
@@ -228,11 +252,11 @@ func (p2p *P2PCoordinator) readFunc(conn *udpTools.UDPServerConn, data []byte, e
 
 func (p2p *P2PCoordinator) handleConnectStatus(sourceId string, targetId string, gotInverted bool) bool {
 	//Check if peers are punching
-	if !p2p.punchingConns.Has(sourceId) {
+	if !p2p.punchingConnsUDP.Has(sourceId) {
 		//No id on server
 		return false
 	}
-	sourceMap := p2p.punchingConns.Get(sourceId)
+	sourceMap := p2p.punchingConnsUDP.Get(sourceId)
 	if !sourceMap.Has(targetId) {
 		//No id on server
 		return false
@@ -246,7 +270,7 @@ func (p2p *P2PCoordinator) handleConnectStatus(sourceId string, targetId string,
 		targetMap.A = true
 	}
 	sourceMap.Set(targetId, targetMap)
-	p2p.punchingConns.Set(sourceId, sourceMap)
+	p2p.punchingConnsUDP.Set(sourceId, sourceMap)
 	return true
 }
 
