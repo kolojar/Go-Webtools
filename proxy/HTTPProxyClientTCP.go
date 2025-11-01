@@ -49,12 +49,12 @@ func NewHTTPProxyClientTCP(httpProxyAddress string, tcpServerAddress string, rep
 
 func (cl *HTTPProxyClientTCP) handleWebTransportReadFunc(_ *httptools.WebSocketClient, frame []byte, status uint8, isBinary bool) {
 	_ = isBinary //Get rid of unneded property
-	if status == webtools.TCP_DISCONNECT_STATUS {
+	if status == webtools.DisconnectStatus {
 		// Close all connections
 		cl.tcpServer.Stop()
 		return
 	}
-	if status != webtools.TCP_READ_DATA_STATUS {
+	if status != webtools.ReadDataStatus {
 		return
 	}
 
@@ -65,7 +65,7 @@ func (cl *HTTPProxyClientTCP) handleWebTransportReadFunc(_ *httptools.WebSocketC
 		}
 
 		switch frame.Operation {
-		case webtools.WEBTOOLS_FRAME_TYPE_CONNECT:
+		case webtools.FrameTypeConnect:
 			{
 				// Confirmed connection
 				conn := cl.pendingConnections.Get(string(frame.Data))
@@ -74,35 +74,35 @@ func (cl *HTTPProxyClientTCP) handleWebTransportReadFunc(_ *httptools.WebSocketC
 					return
 				}
 				cl.pendingConnections.Delete(string(frame.Data))
-				cl.clientToID.Set(conn, string(frame.Id))
-				cl.idToClient.Set(string(frame.Id), conn)
-				cl.httpClient.Logger.Log(1, "Prepared new connection with temporary id: "+string(frame.Data)+" for connection connected to: "+conn.GetConn().RemoteAddr().String()+" connected locally to: "+conn.GetConn().LocalAddr().String()+" with new id: "+string(frame.Id))
+				cl.clientToID.Set(conn, string(frame.ID))
+				cl.idToClient.Set(string(frame.ID), conn)
+				cl.httpClient.Logger.Log(1, "Prepared new connection with temporary id: "+string(frame.Data)+" for connection connected to: "+conn.GetConn().RemoteAddr().String()+" connected locally to: "+conn.GetConn().LocalAddr().String()+" with new id: "+string(frame.ID))
 
 				// Process pending data
 				for len(cl.pendingConnsData.Get(conn)) > 0 {
 					// Resend data
-					cl.httpClient.Send(webtools.PackWebtoolsFrame(webtools.WEBTOOLS_FRAME_TYPE_DATA, frame.Id, cl.pendingConnsData.Get(conn)[0]), 2)
+					cl.httpClient.Send(webtools.PackWebtoolsFrame(webtools.FrameTypeData, frame.ID, cl.pendingConnsData.Get(conn)[0]), 2)
 					cl.pendingConnsData.Set(conn, cl.pendingConnsData.Get(conn)[1:])
 				}
 				cl.pendingConnsData.Delete(conn)
 				return
 			}
-		case webtools.WEBTOOLS_FRAME_TYPE_CLOSE:
+		case webtools.FrameTypeClose:
 			{
 				// Close connection
-				cl.idToClient.Get(string(frame.Id)).Close()
+				cl.idToClient.Get(string(frame.ID)).Close()
 			}
-		case webtools.WEBTOOLS_FRAME_TYPE_DATA:
+		case webtools.FrameTypeData:
 			{
 				// Resend data
-				cl.idToClient.Get(string(frame.Id)).Send(frame.Data)
+				cl.idToClient.Get(string(frame.ID)).Send(frame.Data)
 			}
 		}
 	}
 }
 
 func (cl *HTTPProxyClientTCP) handleTCPReadFunc(tcpConn *tcptools.ServerConn, data []byte, status uint8) {
-	if status == webtools.TCP_CONNECT_STATUS {
+	if status == webtools.ConnectStatus {
 		return
 	}
 	if cl.pendingConnsData.Get(tcpConn) != nil {
@@ -114,21 +114,21 @@ func (cl *HTTPProxyClientTCP) handleTCPReadFunc(tcpConn *tcptools.ServerConn, da
 	id := cl.clientToID.Get(tcpConn)
 	if id == "" {
 		// No connection found, request new
-		tempID := webtools.GenerateRandomId()
+		tempID := webtools.GenerateRandomID()
 		cl.pendingConnections.Set(tempID, tcpConn)
 		cl.httpClient.Logger.Log(1, "Preparing new connection with temporary id: "+tempID+" for connection connected to: "+tcpConn.GetConn().RemoteAddr().String()+" connected locally to: "+tcpConn.GetConn().LocalAddr().String())
-		cl.httpClient.Send(webtools.PackWebtoolsFrame(webtools.WEBTOOLS_FRAME_TYPE_CONNECT, []byte("0"), []byte(tempID)), 2)
+		cl.httpClient.Send(webtools.PackWebtoolsFrame(webtools.FrameTypeConnect, []byte("0"), []byte(tempID)), 2)
 		cl.pendingConnsData.Set(tcpConn, append(make([][]byte, 0), data))
 		return
 	}
 
-	if status == webtools.TCP_DISCONNECT_STATUS {
+	if status == webtools.DisconnectStatus {
 		// Connection ennded
-		cl.httpClient.Send(webtools.PackWebtoolsFrame(webtools.WEBTOOLS_FRAME_TYPE_CLOSE, []byte(id), nil), 2)
+		cl.httpClient.Send(webtools.PackWebtoolsFrame(webtools.FrameTypeClose, []byte(id), nil), 2)
 		return
 	}
 	// Send data
-	cl.httpClient.Send(webtools.PackWebtoolsFrame(webtools.WEBTOOLS_FRAME_TYPE_DATA, []byte(id), data), 2)
+	cl.httpClient.Send(webtools.PackWebtoolsFrame(webtools.FrameTypeData, []byte(id), data), 2)
 }
 
 /*

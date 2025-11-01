@@ -51,7 +51,7 @@ func (cl *HTTPProxyServerTCPConn) Close(isInitiator bool) {
 	cl.tcpClient.Stop()
 	cl.origin.idToClient.Delete(string(cl.id))
 	if isInitiator {
-		cl.SendToHTTP(webtools.WEBTOOLS_FRAME_TYPE_CLOSE, nil)
+		cl.SendToHTTP(webtools.FrameTypeClose, nil)
 	}
 	cl.origin.clientToID.Delete(cl.tcpClient)
 }
@@ -68,11 +68,11 @@ func NewHTTPProxyServerTCP(httpProxyAddress string, tcpServerAddress string, rep
 
 func (sv *HTTPProxyServerTCP) handleWebSocketReadFunc(conn *httptools.WebSocketServerConn, frame []byte, status uint8, isBinary bool) {
 	_ = isBinary //Get rid of unneded property
-	if status == webtools.TCP_CONNECT_STATUS {
+	if status == webtools.ConnectStatus {
 		conn.IsBinary = true
 		return
 	}
-	if status == webtools.TCP_DISCONNECT_STATUS {
+	if status == webtools.DisconnectStatus {
 		//Close all connections with this HTTP WebTransport Conn
 		for _, d := range sv.idToClient.GetData() {
 			if d.Value == nil {
@@ -84,7 +84,7 @@ func (sv *HTTPProxyServerTCP) handleWebSocketReadFunc(conn *httptools.WebSocketS
 		}
 		return
 	}
-	if status != webtools.TCP_READ_DATA_STATUS {
+	if status != webtools.ReadDataStatus {
 		return
 	}
 
@@ -95,39 +95,39 @@ func (sv *HTTPProxyServerTCP) handleWebSocketReadFunc(conn *httptools.WebSocketS
 		}
 
 		//Sort connections
-		if sv.idToClient.Get(string(frame.Id)) == nil {
-			if frame.Operation == webtools.WEBTOOLS_FRAME_TYPE_CONNECT {
+		if sv.idToClient.Get(string(frame.ID)) == nil {
+			if frame.Operation == webtools.FrameTypeConnect {
 				//Create new connection
-				frame.Id = []byte(webtools.GenerateRandomId())
+				frame.ID = []byte(webtools.GenerateRandomID())
 				cl, err := tcptools.NewClientSimple(sv.tcpServerAddress, -1, false, sv.handleTCPReadFunc, sv.reportTrafic)
 				cl.GetLogger().Prefix = "HTTPProxyServerTCP - " + cl.GetLogger().Prefix
 				if err != nil {
-					conn.Client.Logger.Log(3, "Could not create connection with id: "+string(frame.Id)+" to server.")
+					conn.Client.Logger.Log(3, "Could not create connection with id: "+string(frame.ID)+" to server.")
 					return
 				}
 				cl.Connect()
-				sv.idToClient.Set(string(frame.Id), &HTTPProxyServerTCPConn{tcpClient: cl, id: frame.Id, source: conn, origin: sv})
-				sv.clientToID.Set(cl, string(frame.Id))
-				sv.idToClient.Get(string(frame.Id)).SendToHTTP(webtools.WEBTOOLS_FRAME_TYPE_CONNECT, frame.Data)
+				sv.idToClient.Set(string(frame.ID), &HTTPProxyServerTCPConn{tcpClient: cl, id: frame.ID, source: conn, origin: sv})
+				sv.clientToID.Set(cl, string(frame.ID))
+				sv.idToClient.Get(string(frame.ID)).SendToHTTP(webtools.FrameTypeConnect, frame.Data)
 				return
 			}
-			conn.Client.Logger.Log(3, "Could not find connection to id: "+string(frame.Id))
+			conn.Client.Logger.Log(3, "Could not find connection to id: "+string(frame.ID))
 			return
 		}
-		cl := sv.idToClient.Get(string(frame.Id))
+		cl := sv.idToClient.Get(string(frame.ID))
 		if !cl.tcpClient.IsAlive() {
-			conn.Client.Logger.Log(3, "Connection with id: "+string(frame.Id)+" connected to: "+conn.GetConn().RemoteAddr().String()+" connected locally to: "+conn.GetConn().LocalAddr().String()+" closed")
+			conn.Client.Logger.Log(3, "Connection with id: "+string(frame.ID)+" connected to: "+conn.GetConn().RemoteAddr().String()+" connected locally to: "+conn.GetConn().LocalAddr().String()+" closed")
 			return
 		}
 
 		//Sort operations
 		switch frame.Operation {
-		case webtools.WEBTOOLS_FRAME_TYPE_CLOSE:
+		case webtools.FrameTypeClose:
 			{
 				//Close connection
 				cl.Close(false)
 			}
-		case webtools.WEBTOOLS_FRAME_TYPE_DATA:
+		case webtools.FrameTypeData:
 			{
 				//Send to TCP
 				cl.SendToTCP(frame.Data)
@@ -137,7 +137,7 @@ func (sv *HTTPProxyServerTCP) handleWebSocketReadFunc(conn *httptools.WebSocketS
 }
 
 func (sv *HTTPProxyServerTCP) handleTCPReadFunc(tcp *tcptools.ClientSimple, data []byte, status uint8) {
-	if status == webtools.TCP_CONNECT_STATUS {
+	if status == webtools.ConnectStatus {
 		return
 	}
 
@@ -151,12 +151,12 @@ func (sv *HTTPProxyServerTCP) handleTCPReadFunc(tcp *tcptools.ClientSimple, data
 	cl := sv.idToClient.Get(id)
 
 	//End other connection
-	if status == webtools.TCP_DISCONNECT_STATUS {
+	if status == webtools.DisconnectStatus {
 		cl.Close(true)
 	}
 
 	//Send to client
-	cl.SendToHTTP(webtools.WEBTOOLS_FRAME_TYPE_DATA, data)
+	cl.SendToHTTP(webtools.FrameTypeData, data)
 }
 
 /*

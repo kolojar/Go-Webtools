@@ -173,7 +173,7 @@ func (cl *WebSocketClient) Send(data []byte, opcode uint8) {
 Local readFunc for local TCP client
 */
 func (cl *WebSocketClient) readFuncLocalRaw(_ *tcptools.ClientUniversal, data []byte, status uint8, otherData map[string]any) {
-	if status == webtools.TCP_READ_DATA_STATUS && cl.awaitingReady {
+	if status == webtools.ReadDataStatus && cl.awaitingReady {
 		//First request
 		if !strings.Contains(string(data), "HTTP/1.1 101 Switching Protocols") {
 			//Invalid switch
@@ -188,7 +188,7 @@ func (cl *WebSocketClient) readFuncLocalRaw(_ *tcptools.ClientUniversal, data []
 		cl.awaitingReady = false
 		return
 	} else {
-		if status != webtools.TCP_READ_DATA_STATUS {
+		if status != webtools.ReadDataStatus {
 			return
 		}
 		//Other requests

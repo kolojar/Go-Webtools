@@ -53,7 +53,7 @@ func (cl *ConnectionMergerServerTCPConn) Close(isInitiator bool) {
 	cl.tcpClient.Stop()
 	cl.origin.idToClient.Delete(string(cl.id))
 	if isInitiator {
-		cl.SendToRemoteTCP(webtools.WEBTOOLS_FRAME_TYPE_CLOSE, nil)
+		cl.SendToRemoteTCP(webtools.FrameTypeClose, nil)
 	}
 	cl.origin.clientToID.Delete(cl.tcpClient)
 }
@@ -73,7 +73,7 @@ func NewConnectionMergerServer(tcpMergedAddress string, tcpServerAddresses []str
 }
 
 func (sv *ConnectionMergerServer) handleMergedTCPReadFunc(conn *ServerConn, frame []byte, status uint8) {
-	if status == webtools.TCP_DISCONNECT_STATUS {
+	if status == webtools.DisconnectStatus {
 		//Close all connections with this HTTP WebTransport Conn
 		for _, d := range sv.idToClient.GetData() {
 			if d.Value == nil {
@@ -85,7 +85,7 @@ func (sv *ConnectionMergerServer) handleMergedTCPReadFunc(conn *ServerConn, fram
 		}
 		return
 	}
-	if status != webtools.TCP_READ_DATA_STATUS {
+	if status != webtools.ReadDataStatus {
 		return
 	}
 
@@ -96,28 +96,28 @@ func (sv *ConnectionMergerServer) handleMergedTCPReadFunc(conn *ServerConn, fram
 		}
 
 		//Sort connections
-		if sv.idToClient.Get(string(frame.Id)) == nil || frame.Operation == webtools.WEBTOOLS_FRAME_TYPE_CONNECT || frame.Operation == mergerFrameTypeListConnections {
+		if sv.idToClient.Get(string(frame.ID)) == nil || frame.Operation == webtools.FrameTypeConnect || frame.Operation == mergerFrameTypeListConnections {
 			switch frame.Operation {
-			case webtools.WEBTOOLS_FRAME_TYPE_CONNECT:
+			case webtools.FrameTypeConnect:
 				//Get connection list id
-				i, err2 := strconv.Atoi(string(frame.Id))
+				i, err2 := strconv.Atoi(string(frame.ID))
 				if err2 != nil {
-					conn.origin.Logger.Log(3, "Could not find server list connection with id: "+string(frame.Id)+". Error: "+err2.Error())
+					conn.origin.Logger.Log(3, "Could not find server list connection with id: "+string(frame.ID)+". Error: "+err2.Error())
 					return
 				}
 
 				//Create new connection
 				cl, err := NewClientSimple(sv.tcpServerAddresses[i], -1, false, sv.handleLocalTCPReadFunc, sv.reportTrafic)
-				frame.Id = []byte(webtools.GenerateRandomId())
+				frame.ID = []byte(webtools.GenerateRandomID())
 				cl.GetLogger().Prefix = "TCPConnMergerServer - " + cl.GetLogger().Prefix
 				if err != nil {
-					conn.origin.Logger.Log(3, "Could not create connection with id: "+string(frame.Id)+" to server. Error: "+err.Error())
+					conn.origin.Logger.Log(3, "Could not create connection with id: "+string(frame.ID)+" to server. Error: "+err.Error())
 					return
 				}
 				cl.Connect()
-				sv.idToClient.Set(string(frame.Id), &ConnectionMergerServerTCPConn{tcpClient: cl, id: frame.Id, source: conn, origin: sv})
-				sv.clientToID.Set(cl, string(frame.Id))
-				sv.idToClient.Get(string(frame.Id)).SendToRemoteTCP(webtools.WEBTOOLS_FRAME_TYPE_CONNECT, frame.Data)
+				sv.idToClient.Set(string(frame.ID), &ConnectionMergerServerTCPConn{tcpClient: cl, id: frame.ID, source: conn, origin: sv})
+				sv.clientToID.Set(cl, string(frame.ID))
+				sv.idToClient.Get(string(frame.ID)).SendToRemoteTCP(webtools.FrameTypeConnect, frame.Data)
 				return
 			case mergerFrameTypeListConnections:
 				//List available connections on server
@@ -129,25 +129,25 @@ func (sv *ConnectionMergerServer) handleMergedTCPReadFunc(conn *ServerConn, fram
 				conn.Send(webtools.PackWebtoolsFrame(mergerFrameTypeListConnections, []byte{0}, addrs))
 				return
 			default:
-				conn.origin.Logger.Log(3, "Could not find connection to id: "+string(frame.Id))
+				conn.origin.Logger.Log(3, "Could not find connection to id: "+string(frame.ID))
 				return
 			}
 		}
 
-		cl := sv.idToClient.Get(string(frame.Id))
+		cl := sv.idToClient.Get(string(frame.ID))
 		if !cl.tcpClient.IsAlive() {
-			conn.origin.Logger.Log(3, "Connection with id: "+string(frame.Id)+" connected to: "+conn.GetConn().RemoteAddr().String()+" connected locally to: "+conn.GetConn().LocalAddr().String()+" closed")
+			conn.origin.Logger.Log(3, "Connection with id: "+string(frame.ID)+" connected to: "+conn.GetConn().RemoteAddr().String()+" connected locally to: "+conn.GetConn().LocalAddr().String()+" closed")
 			return
 		}
 
 		//Sort operations
 		switch frame.Operation {
-		case webtools.WEBTOOLS_FRAME_TYPE_CLOSE:
+		case webtools.FrameTypeClose:
 			{
 				//Close connection
 				cl.Close(false)
 			}
-		case webtools.WEBTOOLS_FRAME_TYPE_DATA:
+		case webtools.FrameTypeData:
 			{
 				//Send to TCP
 				cl.SendToLocalTCP(frame.Data)
@@ -157,7 +157,7 @@ func (sv *ConnectionMergerServer) handleMergedTCPReadFunc(conn *ServerConn, fram
 }
 
 func (sv *ConnectionMergerServer) handleLocalTCPReadFunc(tcp *ClientSimple, data []byte, status uint8) {
-	if status == webtools.TCP_CONNECT_STATUS {
+	if status == webtools.ConnectStatus {
 		return
 	}
 	//Get TCP remote client
@@ -170,12 +170,12 @@ func (sv *ConnectionMergerServer) handleLocalTCPReadFunc(tcp *ClientSimple, data
 	cl := sv.idToClient.Get(id)
 
 	//End other connection
-	if status == webtools.TCP_DISCONNECT_STATUS {
+	if status == webtools.DisconnectStatus {
 		cl.Close(true)
 	}
 
 	//Send to client
-	cl.SendToRemoteTCP(webtools.WEBTOOLS_FRAME_TYPE_DATA, data)
+	cl.SendToRemoteTCP(webtools.FrameTypeData, data)
 }
 
 /*

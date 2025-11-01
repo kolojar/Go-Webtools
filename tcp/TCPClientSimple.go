@@ -128,7 +128,7 @@ Implements this function: type TCPClientUniversalReadHandlerFunc func(conn *net.
 */
 func HandleTCPRead(cl *ClientUniversal, limit int, _ *webtools.ConsoleLogger, readFunc ClientUniversalOnReadFuncIntenal) (bool, error) {
 	for i := 0; i < limit || limit < 0; i++ {
-		buffer := make([]byte, webtools.BUFFER_SIZE)
+		buffer := make([]byte, webtools.BufferSize)
 		n, err := cl.GetConn().Read(buffer)
 		if err != nil {
 			// Exit on errors

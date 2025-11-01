@@ -4,7 +4,7 @@ import (
 	"net"
 	"webtools"
 	tcptools "webtools/tcp"
-	udptools "webtools/udpTools"
+	udptools "webtools/udp"
 )
 
 /*
@@ -12,7 +12,7 @@ TCPProxyServerUDP is server for proxied UDP traffic over TCP
 */
 type TCPProxyServerUDP struct {
 	idToClient       webtools.SafeMap[string, *TCPProxyServerUDPConn]
-	clientToID       webtools.SafeMap[*udptools.UDPClient, string]
+	clientToID       webtools.SafeMap[*udptools.Client, string]
 	tcpServer        *tcptools.Server
 	tcpServerAddress string
 	reportTrafic     bool
@@ -22,7 +22,7 @@ type TCPProxyServerUDP struct {
 TCPProxyServerUDPConn is connection object of TCPProxyServerUDP
 */
 type TCPProxyServerUDPConn struct {
-	udpClient *udptools.UDPClient
+	udpClient *udptools.Client
 	id        []byte
 	source    *tcptools.ServerConn
 	origin    *TCPProxyServerUDP
@@ -52,7 +52,7 @@ func (cl *TCPProxyServerUDPConn) Close(isInitiator bool) {
 	cl.udpClient.Stop()
 	cl.origin.idToClient.Delete(string(cl.id))
 	if isInitiator {
-		cl.SendToTCP(webtools.WEBTOOLS_FRAME_TYPE_CLOSE, nil)
+		cl.SendToTCP(webtools.FrameTypeClose, nil)
 	}
 	cl.origin.clientToID.Delete(cl.udpClient)
 }
@@ -61,7 +61,7 @@ func (cl *TCPProxyServerUDPConn) Close(isInitiator bool) {
 NewTCPProxyServerUDP creates new TCP Proxy Server for UDP but does not starts it
 */
 func NewTCPProxyServerUDP(tcpProxyAddress string, udpServerAddress string, reportTraffic bool) (*TCPProxyServerUDP, error) {
-	sv := &TCPProxyServerUDP{tcpServerAddress: udpServerAddress, clientToID: webtools.MakeSafeMap[*udptools.UDPClient, string](), idToClient: webtools.MakeSafeMap[string, *TCPProxyServerUDPConn](), reportTrafic: reportTraffic}
+	sv := &TCPProxyServerUDP{tcpServerAddress: udpServerAddress, clientToID: webtools.MakeSafeMap[*udptools.Client, string](), idToClient: webtools.MakeSafeMap[string, *TCPProxyServerUDPConn](), reportTrafic: reportTraffic}
 	var err error
 	sv.tcpServer, err = tcptools.NewServer(tcpProxyAddress, sv.handleTCPReadFunc, reportTraffic, true)
 	if err != nil {
@@ -72,7 +72,7 @@ func NewTCPProxyServerUDP(tcpProxyAddress string, udpServerAddress string, repor
 }
 
 func (sv *TCPProxyServerUDP) handleTCPReadFunc(conn *tcptools.ServerConn, frame []byte, status uint8) {
-	if status == webtools.TCP_DISCONNECT_STATUS {
+	if status == webtools.DisconnectStatus {
 		//Close all connections with this HTTP WebTransport Conn
 		for _, d := range sv.idToClient.GetData() {
 			if d.Value == nil {
@@ -84,7 +84,7 @@ func (sv *TCPProxyServerUDP) handleTCPReadFunc(conn *tcptools.ServerConn, frame 
 		}
 		return
 	}
-	if status != webtools.TCP_READ_DATA_STATUS {
+	if status != webtools.ReadDataStatus {
 		return
 	}
 
@@ -95,39 +95,39 @@ func (sv *TCPProxyServerUDP) handleTCPReadFunc(conn *tcptools.ServerConn, frame 
 		}
 
 		//Sort connections
-		if sv.idToClient.Get(string(frame.Id)) == nil {
-			if frame.Operation == webtools.WEBTOOLS_FRAME_TYPE_CONNECT {
+		if sv.idToClient.Get(string(frame.ID)) == nil {
+			if frame.Operation == webtools.FrameTypeConnect {
 				//Create new connection
-				frame.Id = []byte(webtools.GenerateRandomId())
-				cl, err := udptools.NewUDPClient(sv.tcpServerAddress, sv.handleUDPReadFunc, sv.reportTrafic)
+				frame.ID = []byte(webtools.GenerateRandomID())
+				cl, err := udptools.NewClient(sv.tcpServerAddress, sv.handleUDPReadFunc, sv.reportTrafic)
 				cl.Logger.Prefix = "TCPProxyServerUDP - " + cl.Logger.Prefix
 				if err != nil {
-					conn.Client.GetLogger().Log(3, "Could not create connection with id: "+string(frame.Id)+" to server.")
+					conn.Client.GetLogger().Log(3, "Could not create connection with id: "+string(frame.ID)+" to server.")
 					return
 				}
 				cl.Connect()
-				sv.idToClient.Set(string(frame.Id), &TCPProxyServerUDPConn{udpClient: cl, id: frame.Id, source: conn, origin: sv})
-				sv.clientToID.Set(cl, string(frame.Id))
-				sv.idToClient.Get(string(frame.Id)).SendToTCP(webtools.WEBTOOLS_FRAME_TYPE_CONNECT, frame.Data)
+				sv.idToClient.Set(string(frame.ID), &TCPProxyServerUDPConn{udpClient: cl, id: frame.ID, source: conn, origin: sv})
+				sv.clientToID.Set(cl, string(frame.ID))
+				sv.idToClient.Get(string(frame.ID)).SendToTCP(webtools.FrameTypeConnect, frame.Data)
 				return
 			}
-			conn.Client.GetLogger().Log(3, "Could not find connection to id: "+string(frame.Id))
+			conn.Client.GetLogger().Log(3, "Could not find connection to id: "+string(frame.ID))
 			return
 		}
-		cl := sv.idToClient.Get(string(frame.Id))
+		cl := sv.idToClient.Get(string(frame.ID))
 		if !cl.udpClient.IsAlive() {
-			conn.Client.GetLogger().Log(3, "Connection with id: "+string(frame.Id)+" connected to: "+conn.GetConn().RemoteAddr().String()+" connected locally to: "+conn.GetConn().LocalAddr().String()+" closed")
+			conn.Client.GetLogger().Log(3, "Connection with id: "+string(frame.ID)+" connected to: "+conn.GetConn().RemoteAddr().String()+" connected locally to: "+conn.GetConn().LocalAddr().String()+" closed")
 			return
 		}
 
 		//Sort operations
 		switch frame.Operation {
-		case webtools.WEBTOOLS_FRAME_TYPE_CLOSE:
+		case webtools.FrameTypeClose:
 			{
 				//Close connection
 				cl.Close(false)
 			}
-		case webtools.WEBTOOLS_FRAME_TYPE_DATA:
+		case webtools.FrameTypeData:
 			{
 				//Send to UDP
 				cl.SendToUDP(frame.Data)
@@ -136,7 +136,7 @@ func (sv *TCPProxyServerUDP) handleTCPReadFunc(conn *tcptools.ServerConn, frame 
 	}
 }
 
-func (sv *TCPProxyServerUDP) handleUDPReadFunc(udp *udptools.UDPClient, _ *net.UDPAddr, data []byte, ended bool) {
+func (sv *TCPProxyServerUDP) handleUDPReadFunc(udp *udptools.Client, _ *net.UDPAddr, data []byte, ended bool) {
 	//Get TCP client
 	if sv.clientToID.Get(udp) == "" || sv.idToClient.Get(sv.clientToID.Get(udp)) == nil {
 		//Connection does not exists
@@ -152,7 +152,7 @@ func (sv *TCPProxyServerUDP) handleUDPReadFunc(udp *udptools.UDPClient, _ *net.U
 	}
 
 	//Send to client
-	cl.SendToTCP(webtools.WEBTOOLS_FRAME_TYPE_DATA, data)
+	cl.SendToTCP(webtools.FrameTypeData, data)
 }
 
 /*

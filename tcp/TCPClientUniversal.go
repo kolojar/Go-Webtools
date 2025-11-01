@@ -166,7 +166,7 @@ func (cl *ClientUniversal) readNextFunc() {
 		cl.currentHandlers = newHandler
 		if firstValid {
 			firstValid = false
-			cl.currentHandlers.ReadFunc(cl, nil, webtools.TCP_CONNECT_STATUS, nil)
+			cl.currentHandlers.ReadFunc(cl, nil, webtools.ConnectStatus, nil)
 		}
 
 		// Handle reading
@@ -182,14 +182,14 @@ func (cl *ClientUniversal) readNextFunc() {
 		}
 
 		// Inform about reached limit
-		cl.currentHandlers.ReadFunc(cl, nil, webtools.TCP_FINISHED_READ_FUNC_STATUS, nil)
+		cl.currentHandlers.ReadFunc(cl, nil, webtools.FinishedReadFuncStatus, nil)
 		cl.Logger.Log(1, "Switching read function")
 	}
 
 	// Finished all readers
 	cl.Logger.Log(2, "Disconneted from: "+cl.conn.RemoteAddr().String()+" connected locally to: "+cl.conn.LocalAddr().String())
 	if cl.currentHandlers.ReadFunc != nil {
-		cl.currentHandlers.ReadFunc(cl, nil, webtools.TCP_DISCONNECT_STATUS, nil)
+		cl.currentHandlers.ReadFunc(cl, nil, webtools.DisconnectStatus, nil)
 	}
 	defer cl.conn.Close()
 	cl.isAlive = false
@@ -211,7 +211,7 @@ func (cl *ClientUniversal) localReadFunc(data []byte, otherData map[string]any) 
 	// Read
 	cl.Logger.Log(0, "Reading from: "+cl.conn.RemoteAddr().String()+" connected locally to: "+cl.conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data)+" | Other data: "+webtools.MapToString(otherData))
 	if cl.currentHandlers.ReadFunc != nil {
-		cl.currentHandlers.ReadFunc(cl, data, webtools.TCP_READ_DATA_STATUS, otherData)
+		cl.currentHandlers.ReadFunc(cl, data, webtools.ReadDataStatus, otherData)
 	}
 }
 

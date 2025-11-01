@@ -7,14 +7,14 @@ import (
 )
 
 /*
-Generates random Id based on random and current time
+GenerateRandomID generates random Id based on random and current time
 */
-func GenerateRandomId() string {
+func GenerateRandomID() string {
 	return strconv.FormatUint(rand.Uint64(), 36) + "-" + strconv.FormatInt(time.Now().UnixNano(), 36)
 }
 
 /*
-Generates random string
+GenerateRandomString generates random string
 */
 func GenerateRandomString(lenght int) string {
 	const letters = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
@@ -26,7 +26,7 @@ func GenerateRandomString(lenght int) string {
 }
 
 /*
-Removes element from slice
+RemoveElement removes element from slice
 */
 func RemoveElement[T comparable](array []T, item T) []T {
 	result := make([]T, 0)

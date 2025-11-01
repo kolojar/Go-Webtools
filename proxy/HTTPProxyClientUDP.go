@@ -3,19 +3,19 @@ package proxy
 import (
 	"webtools"
 	httptools "webtools/httpTools"
-	udptools "webtools/udpTools"
+	udptools "webtools/udp"
 )
 
 /*
 HTTPProxyClientUDP is client for proxied UDP traffic over HTTP
 */
 type HTTPProxyClientUDP struct {
-	clientToID         webtools.SafeMap[*udptools.UDPServerConn, string]
-	idToClient         webtools.SafeMap[string, *udptools.UDPServerConn]
-	udpServer          *udptools.UDPServer
+	clientToID         webtools.SafeMap[*udptools.ServerConn, string]
+	idToClient         webtools.SafeMap[string, *udptools.ServerConn]
+	udpServer          *udptools.Server
 	httpClient         *httptools.WebSocketClient
-	pendingConnections webtools.SafeMap[string, *udptools.UDPServerConn]
-	pendingConnsData   webtools.SafeMap[*udptools.UDPServerConn, [][]byte]
+	pendingConnections webtools.SafeMap[string, *udptools.ServerConn]
+	pendingConnsData   webtools.SafeMap[*udptools.ServerConn, [][]byte]
 }
 
 /*
@@ -29,14 +29,14 @@ func (cl *HTTPProxyClientUDP) IsAlive() bool {
 NewHTTPProxyClientUDP creates new HTTP Proxy Client for UDP but does not starts it, if you want to use default connection endpoint, add /websocket to end of address
 */
 func NewHTTPProxyClientUDP(httpProxyAddress string, tcpServerAddress string, reportTraffic bool) (*HTTPProxyClientUDP, error) {
-	cl := &HTTPProxyClientUDP{clientToID: webtools.MakeSafeMap[*udptools.UDPServerConn, string](), pendingConnections: webtools.MakeSafeMap[string, *udptools.UDPServerConn](), idToClient: webtools.MakeSafeMap[string, *udptools.UDPServerConn](), pendingConnsData: webtools.MakeSafeMap[*udptools.UDPServerConn, [][]byte]()}
+	cl := &HTTPProxyClientUDP{clientToID: webtools.MakeSafeMap[*udptools.ServerConn, string](), pendingConnections: webtools.MakeSafeMap[string, *udptools.ServerConn](), idToClient: webtools.MakeSafeMap[string, *udptools.ServerConn](), pendingConnsData: webtools.MakeSafeMap[*udptools.ServerConn, [][]byte]()}
 	var err error
 	cl.httpClient, err = httptools.NewWebSocketClient(httpProxyAddress, cl.handleWebTransportReadFunc, reportTraffic)
 	if err != nil {
 		return nil, err
 	}
 	cl.httpClient.Logger.Prefix = "HTTPProxyClientUDP - " + cl.httpClient.Logger.Prefix
-	cl.udpServer, err = udptools.NewUDPServer(tcpServerAddress, cl.handleUDPReadFunc, reportTraffic)
+	cl.udpServer, err = udptools.NewServer(tcpServerAddress, cl.handleUDPReadFunc, reportTraffic)
 	if err != nil {
 		return nil, err
 	}
@@ -46,12 +46,12 @@ func NewHTTPProxyClientUDP(httpProxyAddress string, tcpServerAddress string, rep
 
 func (cl *HTTPProxyClientUDP) handleWebTransportReadFunc(_ *httptools.WebSocketClient, frame []byte, status uint8, isBinary bool) {
 	_ = isBinary //Get rid of unneded property
-	if status == webtools.TCP_DISCONNECT_STATUS {
+	if status == webtools.DisconnectStatus {
 		// Close all connections
 		cl.udpServer.Stop()
 		return
 	}
-	if status != webtools.TCP_READ_DATA_STATUS {
+	if status != webtools.ReadDataStatus {
 		return
 	}
 
@@ -62,7 +62,7 @@ func (cl *HTTPProxyClientUDP) handleWebTransportReadFunc(_ *httptools.WebSocketC
 		}
 
 		switch frame.Operation {
-		case webtools.WEBTOOLS_FRAME_TYPE_CONNECT:
+		case webtools.FrameTypeConnect:
 			{
 				// Confirmed connection
 				conn := cl.pendingConnections.Get(string(frame.Data))
@@ -71,34 +71,34 @@ func (cl *HTTPProxyClientUDP) handleWebTransportReadFunc(_ *httptools.WebSocketC
 					return
 				}
 				cl.pendingConnections.Delete(string(frame.Data))
-				cl.clientToID.Set(conn, string(frame.Id))
-				cl.idToClient.Set(string(frame.Id), conn)
-				cl.httpClient.Logger.Log(1, "Prepared new connection with temporary id: "+string(frame.Data)+" for connection connected to: "+conn.Address.String()+" with new id: "+string(frame.Id))
+				cl.clientToID.Set(conn, string(frame.ID))
+				cl.idToClient.Set(string(frame.ID), conn)
+				cl.httpClient.Logger.Log(1, "Prepared new connection with temporary id: "+string(frame.Data)+" for connection connected to: "+conn.Address.String()+" with new id: "+string(frame.ID))
 
 				// Process pending data
 				for len(cl.pendingConnsData.Get(conn)) > 0 {
 					// Resend data
-					cl.httpClient.Send(webtools.PackWebtoolsFrame(webtools.WEBTOOLS_FRAME_TYPE_DATA, frame.Id, cl.pendingConnsData.Get(conn)[0]), 2)
+					cl.httpClient.Send(webtools.PackWebtoolsFrame(webtools.FrameTypeData, frame.ID, cl.pendingConnsData.Get(conn)[0]), 2)
 					cl.pendingConnsData.Set(conn, cl.pendingConnsData.Get(conn)[1:])
 				}
 				cl.pendingConnsData.Delete(conn)
 				return
 			}
-		case webtools.WEBTOOLS_FRAME_TYPE_CLOSE:
+		case webtools.FrameTypeClose:
 			{
 				// Close connection
-				cl.idToClient.Get(string(frame.Id)).Close()
+				cl.idToClient.Get(string(frame.ID)).Close()
 			}
-		case webtools.WEBTOOLS_FRAME_TYPE_DATA:
+		case webtools.FrameTypeData:
 			{
 				// Resend data
-				cl.idToClient.Get(string(frame.Id)).Send(frame.Data)
+				cl.idToClient.Get(string(frame.ID)).Send(frame.Data)
 			}
 		}
 	}
 }
 
-func (cl *HTTPProxyClientUDP) handleUDPReadFunc(udpConn *udptools.UDPServerConn, data []byte, ended bool) {
+func (cl *HTTPProxyClientUDP) handleUDPReadFunc(udpConn *udptools.ServerConn, data []byte, ended bool) {
 	if cl.pendingConnsData.Get(udpConn) != nil {
 		// Already pending connection
 		cl.pendingConnsData.Set(udpConn, append(cl.pendingConnsData.Get(udpConn), data))
@@ -107,21 +107,21 @@ func (cl *HTTPProxyClientUDP) handleUDPReadFunc(udpConn *udptools.UDPServerConn,
 	id := cl.clientToID.Get(udpConn)
 	if id == "" {
 		// No connection found, request new
-		tempID := webtools.GenerateRandomId()
+		tempID := webtools.GenerateRandomID()
 		cl.pendingConnections.Set(tempID, udpConn)
 		cl.httpClient.Logger.Log(1, "Preparing new connection with temporary id: "+tempID+" for connection connected to: "+udpConn.Address.String())
-		cl.httpClient.Send(webtools.PackWebtoolsFrame(webtools.WEBTOOLS_FRAME_TYPE_CONNECT, []byte("0"), []byte(tempID)), 2)
+		cl.httpClient.Send(webtools.PackWebtoolsFrame(webtools.FrameTypeConnect, []byte("0"), []byte(tempID)), 2)
 		cl.pendingConnsData.Set(udpConn, append(make([][]byte, 0), data))
 		return
 	}
 
 	if ended {
 		// Connection ennded
-		cl.httpClient.Send(webtools.PackWebtoolsFrame(webtools.WEBTOOLS_FRAME_TYPE_CLOSE, []byte(id), nil), 2)
+		cl.httpClient.Send(webtools.PackWebtoolsFrame(webtools.FrameTypeClose, []byte(id), nil), 2)
 		return
 	}
 	// Send data
-	cl.httpClient.Send(webtools.PackWebtoolsFrame(webtools.WEBTOOLS_FRAME_TYPE_DATA, []byte(id), data), 2)
+	cl.httpClient.Send(webtools.PackWebtoolsFrame(webtools.FrameTypeData, []byte(id), data), 2)
 }
 
 /*

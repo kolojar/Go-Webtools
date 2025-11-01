@@ -11,13 +11,13 @@ import (
 	httptools "webtools/httpTools"
 	proxytools "webtools/proxy"
 	tcptools "webtools/tcp"
-	"webtools/udpTools"
-	udptools "webtools/udpTools"
+	"webtools/udp"
+	udptools "webtools/udp"
 )
 
 func main() {
 	fmt.Println("Hello world")
-	framer := udpTools.NewUDPFramerSimple(50, 5, true, 50)
+	framer := udp.NewUDPFramerSimple(50, 5, true, 50)
 	switch os.Args[1] {
 	case "ts":
 		{
@@ -41,14 +41,14 @@ func main() {
 		}
 	case "us":
 		{
-			server, _ := udptools.NewUDPServer("127.0.0.1:7777", readFuncUDPSv, true)
+			server, _ := udptools.NewServer("127.0.0.1:7777", readFuncUDPSv, true)
 			server.SetupFraming(framer)
 			server.Start()
 			break
 		}
 	case "uc":
 		{
-			client, _ := udptools.NewUDPClient("127.0.0.1:7777", readFuncUDPCl, true)
+			client, _ := udptools.NewClient("127.0.0.1:7777", readFuncUDPCl, true)
 			client.SetupFraming(framer)
 			client.Connect()
 			for i := 0; i < 10; i++ {
@@ -182,7 +182,7 @@ func main() {
 		}
 	case "ub":
 		{
-			ub, _ := udpTools.NewUDPBridge("127.0.0.1:7777", "127.0.0.1:17777", true)
+			ub, _ := udp.NewBridge("127.0.0.1:7777", "127.0.0.1:17777", true)
 			ub.Start()
 		}
 	}
@@ -191,7 +191,7 @@ func main() {
 var rc int = 0
 
 func readFuncTCPSv(conn *tcptools.ServerConn, data []byte, status uint8) {
-	if status == webtools.TCP_READ_DATA_STATUS {
+	if status == webtools.ReadDataStatus {
 		conn.Send(data)
 	}
 }
@@ -205,13 +205,13 @@ func readFuncTCPCl(conn *tcptools.ClientSimple, data []byte, status uint8) {
 	rc += len(strings.Split(string(data), "|")) - 1
 }
 
-func readFuncUDPSv(conn *udptools.UDPServerConn, data []byte, ended bool) {
+func readFuncUDPSv(conn *udptools.ServerConn, data []byte, ended bool) {
 	if !ended {
 		conn.Send(data)
 	}
 }
 
-func readFuncUDPCl(conn *udptools.UDPClient, sourceAddress *net.UDPAddr, data []byte, ended bool) {
+func readFuncUDPCl(conn *udptools.Client, sourceAddress *net.UDPAddr, data []byte, ended bool) {
 	//conn.Send(data)
 	//if !ended {
 	//	conn.Stop()
@@ -241,7 +241,7 @@ func readFuncHTTPWsSv(conn *httptools.WebSocketServerConn, data []byte, status u
 }
 
 func readFuncHTTPWsCl(conn *httptools.WebSocketClient, data []byte, status uint8, isBinary bool) {
-	if status == webtools.TCP_READ_DATA_STATUS {
+	if status == webtools.ReadDataStatus {
 		conn.Stop()
 	}
 }

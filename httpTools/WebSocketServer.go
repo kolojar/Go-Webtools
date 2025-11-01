@@ -361,7 +361,7 @@ func WriteToWebSocketFrameHandler(cl *tcptools.ClientUniversal, data []byte, oth
 }
 
 func (sv *WebSocketServer) readFuncLocal(cl *tcptools.ClientUniversal, data []byte, status uint8, otherData map[string]any) {
-	if status != webtools.TCP_READ_DATA_STATUS && status != webtools.TCP_DISCONNECT_STATUS && status != webtools.TCP_CONNECT_STATUS {
+	if status != webtools.ReadDataStatus && status != webtools.DisconnectStatus && status != webtools.ConnectStatus {
 		//Non data requests
 		return
 	}
@@ -375,7 +375,7 @@ func (sv *WebSocketServer) readFuncLocal(cl *tcptools.ClientUniversal, data []by
 
 	//Get read
 	readFunc := sv.websocketURLsAndReadFuncs.Get(httpConn.sourceURL)
-	if status == webtools.TCP_CONNECT_STATUS || status == webtools.TCP_DISCONNECT_STATUS {
+	if status == webtools.ConnectStatus || status == webtools.DisconnectStatus {
 		if readFunc != nil {
 			readFunc(httpConn, data, status, httpConn.IsBinary)
 		}

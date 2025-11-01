@@ -154,7 +154,7 @@ func (sv *Server) readFuncLocal(client *ClientSimple, data []byte, status uint8)
 		tcpConn = &ServerConn{origin: sv, Client: client}
 		sv.conns.Set(client, tcpConn)
 	}
-	if status == webtools.TCP_DISCONNECT_STATUS {
+	if status == webtools.DisconnectStatus {
 		sv.conns.Delete(client)
 	}
 	sv.Logger.Log(0, "Count of connections: "+strconv.Itoa(sv.conns.Len()))

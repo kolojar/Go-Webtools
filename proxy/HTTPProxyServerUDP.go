@@ -4,7 +4,7 @@ import (
 	"net"
 	"webtools"
 	httptools "webtools/httpTools"
-	udptools "webtools/udpTools"
+	udptools "webtools/udp"
 )
 
 /*
@@ -12,7 +12,7 @@ HTTPProxyServerUDP is server for proxied UDP traffic over HTTP
 */
 type HTTPProxyServerUDP struct {
 	idToClient       webtools.SafeMap[string, *HTTPProxyServerUDPConn]
-	clientToID       webtools.SafeMap[*udptools.UDPClient, string]
+	clientToID       webtools.SafeMap[*udptools.Client, string]
 	httpServer       *httptools.WebSocketServer
 	udpServerAddress string
 	reportTrafic     bool
@@ -22,7 +22,7 @@ type HTTPProxyServerUDP struct {
 HTTPProxyServerUDPConn is connection object of HTTPProxyServerUDP
 */
 type HTTPProxyServerUDPConn struct {
-	udpClient *udptools.UDPClient
+	udpClient *udptools.Client
 	id        []byte
 	source    *httptools.WebSocketServerConn
 	origin    *HTTPProxyServerUDP
@@ -49,7 +49,7 @@ func (cl *HTTPProxyServerUDPConn) Close(isInitiator bool) {
 	cl.udpClient.Stop()
 	cl.origin.idToClient.Delete(string(cl.id))
 	if isInitiator {
-		cl.SendToHTTP(webtools.WEBTOOLS_FRAME_TYPE_CLOSE, nil)
+		cl.SendToHTTP(webtools.FrameTypeClose, nil)
 	}
 	cl.origin.clientToID.Delete(cl.udpClient)
 }
@@ -58,7 +58,7 @@ func (cl *HTTPProxyServerUDPConn) Close(isInitiator bool) {
 NewHTTPProxyServerUDP creates new HTTP Proxy Server for UDP but does not starts it
 */
 func NewHTTPProxyServerUDP(httpProxyAddress string, udpServerAddress string, reportTraffic bool) *HTTPProxyServerUDP {
-	sv := &HTTPProxyServerUDP{udpServerAddress: udpServerAddress, clientToID: webtools.MakeSafeMap[*udptools.UDPClient, string](), idToClient: webtools.MakeSafeMap[string, *HTTPProxyServerUDPConn](), reportTrafic: reportTraffic}
+	sv := &HTTPProxyServerUDP{udpServerAddress: udpServerAddress, clientToID: webtools.MakeSafeMap[*udptools.Client, string](), idToClient: webtools.MakeSafeMap[string, *HTTPProxyServerUDPConn](), reportTrafic: reportTraffic}
 	sv.httpServer = httptools.NewHTTPWebSocketServer(httpProxyAddress, sv.handleWebSocketReadFunc, nil, "", reportTraffic)
 	sv.httpServer.Logger.Prefix = "HTTPProxyServerUDP - " + sv.httpServer.Logger.Prefix
 	return sv
@@ -66,11 +66,11 @@ func NewHTTPProxyServerUDP(httpProxyAddress string, udpServerAddress string, rep
 
 func (sv *HTTPProxyServerUDP) handleWebSocketReadFunc(conn *httptools.WebSocketServerConn, frame []byte, status uint8, isBinary bool) {
 	_ = isBinary //Get rid of unneded property
-	if status == webtools.TCP_CONNECT_STATUS {
+	if status == webtools.ConnectStatus {
 		conn.IsBinary = true
 		return
 	}
-	if status == webtools.TCP_DISCONNECT_STATUS {
+	if status == webtools.DisconnectStatus {
 		//Close all connections with this HTTP WebTransport Conn
 		for _, v := range sv.idToClient.GetValues() {
 			if v == nil {
@@ -82,7 +82,7 @@ func (sv *HTTPProxyServerUDP) handleWebSocketReadFunc(conn *httptools.WebSocketS
 		}
 		return
 	}
-	if status != webtools.TCP_READ_DATA_STATUS {
+	if status != webtools.ReadDataStatus {
 		return
 	}
 
@@ -93,39 +93,39 @@ func (sv *HTTPProxyServerUDP) handleWebSocketReadFunc(conn *httptools.WebSocketS
 		}
 
 		//Sort connections
-		if sv.idToClient.Get(string(frame.Id)) == nil {
-			if frame.Operation == webtools.WEBTOOLS_FRAME_TYPE_CONNECT {
+		if sv.idToClient.Get(string(frame.ID)) == nil {
+			if frame.Operation == webtools.FrameTypeConnect {
 				//Create new connection
-				frame.Id = []byte(webtools.GenerateRandomId())
-				cl, err := udptools.NewUDPClient(sv.udpServerAddress, sv.handleUDPReadFunc, sv.reportTrafic)
+				frame.ID = []byte(webtools.GenerateRandomID())
+				cl, err := udptools.NewClient(sv.udpServerAddress, sv.handleUDPReadFunc, sv.reportTrafic)
 				cl.Logger.Prefix = "HTTPProxyServerUDP - " + cl.Logger.Prefix
 				if err != nil {
-					conn.Client.Logger.Log(3, "Could not create connection with id: "+string(frame.Id)+" to server.")
+					conn.Client.Logger.Log(3, "Could not create connection with id: "+string(frame.ID)+" to server.")
 					return
 				}
 				cl.Connect()
-				sv.idToClient.Set(string(frame.Id), &HTTPProxyServerUDPConn{udpClient: cl, id: frame.Id, source: conn, origin: sv})
-				sv.clientToID.Set(cl, string(frame.Id))
-				sv.idToClient.Get(string(frame.Id)).SendToHTTP(webtools.WEBTOOLS_FRAME_TYPE_CONNECT, frame.Data)
+				sv.idToClient.Set(string(frame.ID), &HTTPProxyServerUDPConn{udpClient: cl, id: frame.ID, source: conn, origin: sv})
+				sv.clientToID.Set(cl, string(frame.ID))
+				sv.idToClient.Get(string(frame.ID)).SendToHTTP(webtools.FrameTypeConnect, frame.Data)
 				return
 			}
-			conn.Client.Logger.Log(3, "Could not find connection to id: "+string(frame.Id))
+			conn.Client.Logger.Log(3, "Could not find connection to id: "+string(frame.ID))
 			return
 		}
-		cl := sv.idToClient.Get(string(frame.Id))
+		cl := sv.idToClient.Get(string(frame.ID))
 		if !cl.udpClient.IsAlive() {
-			conn.Client.Logger.Log(3, "Connection with id: "+string(frame.Id)+" connected to: "+conn.GetConn().RemoteAddr().String()+" connected locally to: "+conn.GetConn().LocalAddr().String()+" closed")
+			conn.Client.Logger.Log(3, "Connection with id: "+string(frame.ID)+" connected to: "+conn.GetConn().RemoteAddr().String()+" connected locally to: "+conn.GetConn().LocalAddr().String()+" closed")
 			return
 		}
 
 		//Sort operations
 		switch frame.Operation {
-		case webtools.WEBTOOLS_FRAME_TYPE_CLOSE:
+		case webtools.FrameTypeClose:
 			{
 				//Close connection
 				cl.Close(false)
 			}
-		case webtools.WEBTOOLS_FRAME_TYPE_DATA:
+		case webtools.FrameTypeData:
 			{
 				//Send to UDP
 				cl.SendToUDP(frame.Data)
@@ -134,7 +134,7 @@ func (sv *HTTPProxyServerUDP) handleWebSocketReadFunc(conn *httptools.WebSocketS
 	}
 }
 
-func (sv *HTTPProxyServerUDP) handleUDPReadFunc(udp *udptools.UDPClient, _ *net.UDPAddr, data []byte, ended bool) {
+func (sv *HTTPProxyServerUDP) handleUDPReadFunc(udp *udptools.Client, _ *net.UDPAddr, data []byte, ended bool) {
 	//Get HTTP client
 	if sv.clientToID.Get(udp) == "" || sv.idToClient.Get(sv.clientToID.Get(udp)) == nil {
 		//Connection does not exists
@@ -150,7 +150,7 @@ func (sv *HTTPProxyServerUDP) handleUDPReadFunc(udp *udptools.UDPClient, _ *net.
 	}
 
 	//Send to client
-	cl.SendToHTTP(webtools.WEBTOOLS_FRAME_TYPE_DATA, data)
+	cl.SendToHTTP(webtools.FrameTypeData, data)
 }
 
 /*
