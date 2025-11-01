@@ -1,4 +1,4 @@
-package httptools
+package http
 
 import (
 	"encoding/base64"
@@ -9,15 +9,15 @@ import (
 )
 
 /*
-Returns address for TCP and path to HTTP request
+WebSocketGetAddressAndTarget returns address for TCP and path to HTTP request
 */
-func HTTPWebSocketGetAddressAndTarget(completeURL string) (string, string) {
+func WebSocketGetAddressAndTarget(completeURL string) (string, string) {
 	//Separate protocol and URL
-	splitUrl := strings.SplitN(completeURL, "://", 2)
+	splitURL := strings.SplitN(completeURL, "://", 2)
 	protocol := ""
-	url := splitUrl[len(splitUrl)-1]
-	if len(splitUrl) > 1 {
-		protocol = splitUrl[0]
+	url := splitURL[len(splitURL)-1]
+	if len(splitURL) > 1 {
+		protocol = splitURL[0]
 	}
 
 	//Separate Web address and path
@@ -62,13 +62,13 @@ func HTTPWebSocketGetAddressAndTarget(completeURL string) (string, string) {
 }
 
 /*
-Standardized type of function
-*WebSocketClient = Client
-Uint8 = status
-Bool = isBinary
+WebSocketClientReadFunc is function definition for reading data from WebSocketClient
 */
 type WebSocketClientReadFunc func(client *WebSocketClient, data []byte, status uint8, isBinary bool)
 
+/*
+WebSocketClient is WebSocket client struct
+*/
 type WebSocketClient struct {
 	tcpClient      *tcptools.ClientUniversal
 	Logger         *webtools.ConsoleLogger
@@ -81,19 +81,22 @@ type WebSocketClient struct {
 	webSocketKey   string
 }
 
+/*
+IsAlive gets if server is alive
+*/
 func (cl *WebSocketClient) IsAlive() bool {
 	return cl.tcpClient.IsAlive()
 }
 
 /*
-Creates new HTTP WebSocket Client but does not connects it, if you want to use default connection endpoint, add /websocket to end of address
+NewWebSocketClient creates new HTTP WebSocket Client but does not connects it, if you want to use default connection endpoint, add /websocket to end of address
 */
 func NewWebSocketClient(address string, readFunc WebSocketClientReadFunc, reportTraffic bool) (*WebSocketClient, error) {
 	//Create client
 	cl := &WebSocketClient{Logger: webtools.NewConsoleLoggerForTraffic("HTTP-WSClient", reportTraffic), readFunc: readFunc, address: address}
 	var err error
 	var tcpAddress string
-	tcpAddress, cl.pathForHTTP = HTTPWebSocketGetAddressAndTarget(address)
+	tcpAddress, cl.pathForHTTP = WebSocketGetAddressAndTarget(address)
 	cl.tcpClient, err = tcptools.NewTCPClientUniversal(tcpAddress, reportTraffic)
 	cl.tcpClient.Logger = cl.Logger
 	cl.tcpClient.HandlerFuncs = append(cl.tcpClient.HandlerFuncs,
@@ -120,7 +123,7 @@ func NewWebSocketClient(address string, readFunc WebSocketClientReadFunc, report
 }
 
 /*
-Connects to HTTP server and start reading loop, does not locks execution thread
+Connect connects to HTTP server and start reading loop, does not locks execution thread
 */
 func (cl *WebSocketClient) Connect() {
 	if cl.tcpClient.IsAlive() {
@@ -163,7 +166,7 @@ func (cl *WebSocketClient) Connect() {
 }
 
 /*
-Sends data to server
+Send sends data to server
 */
 func (cl *WebSocketClient) Send(data []byte, opcode uint8) {
 	cl.tcpClient.Send(data, map[string]any{"opcode": opcode})
@@ -172,7 +175,7 @@ func (cl *WebSocketClient) Send(data []byte, opcode uint8) {
 /*
 Local readFunc for local TCP client
 */
-func (cl *WebSocketClient) readFuncLocalRaw(_ *tcptools.ClientUniversal, data []byte, status uint8, otherData map[string]any) {
+func (cl *WebSocketClient) readFuncLocalRaw(_ *tcptools.ClientUniversal, data []byte, status uint8, _ map[string]any) {
 	if status == webtools.ReadDataStatus && cl.awaitingReady {
 		//First request
 		if !strings.Contains(string(data), "HTTP/1.1 101 Switching Protocols") {
@@ -187,15 +190,15 @@ func (cl *WebSocketClient) readFuncLocalRaw(_ *tcptools.ClientUniversal, data []
 		cl.awaitingStatus = strings.Contains(string(data), "Sec-Websocket-Accept: "+wsKey)
 		cl.awaitingReady = false
 		return
-	} else {
-		if status != webtools.ReadDataStatus {
-			return
-		}
-		//Other requests
-		cl.Logger.Log(3, "Invalid read func called for other requests! Ignoring but inform author of this error.")
-		if cl.readFunc != nil {
-			cl.readFunc(cl, nil, status, false)
-		}
+	}
+
+	//Other requests
+	if status != webtools.ReadDataStatus {
+		return
+	}
+	cl.Logger.Log(3, "Invalid read func called for other requests! Ignoring but inform author of this error.")
+	if cl.readFunc != nil {
+		cl.readFunc(cl, nil, status, false)
 	}
 }
 
@@ -219,8 +222,8 @@ func (cl *WebSocketClient) readFuncLocalWS(_ *tcptools.ClientUniversal, data []b
 }
 
 /*
-Stops HTTP WebSocket client
+Stop stops HTTP WebSocket client
 */
-func (ws *WebSocketClient) Stop() {
-	ws.tcpClient.Stop()
+func (cl *WebSocketClient) Stop() {
+	cl.tcpClient.Stop()
 }

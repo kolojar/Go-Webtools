@@ -2,7 +2,7 @@ package proxy
 
 import (
 	"webtools"
-	httptools "webtools/httpTools"
+	"webtools/http"
 	"webtools/udp"
 )
 
@@ -13,7 +13,7 @@ type HTTPProxyClientUDP struct {
 	clientToID         webtools.SafeMap[*udp.ServerConn, string]
 	idToClient         webtools.SafeMap[string, *udp.ServerConn]
 	udpServer          *udp.Server
-	httpClient         *httptools.WebSocketClient
+	httpClient         *http.WebSocketClient
 	pendingConnections webtools.SafeMap[string, *udp.ServerConn]
 	pendingConnsData   webtools.SafeMap[*udp.ServerConn, [][]byte]
 }
@@ -31,7 +31,7 @@ NewHTTPProxyClientUDP creates new HTTP Proxy Client for UDP but does not starts 
 func NewHTTPProxyClientUDP(httpProxyAddress string, tcpServerAddress string, reportTraffic bool) (*HTTPProxyClientUDP, error) {
 	cl := &HTTPProxyClientUDP{clientToID: webtools.MakeSafeMap[*udp.ServerConn, string](), pendingConnections: webtools.MakeSafeMap[string, *udp.ServerConn](), idToClient: webtools.MakeSafeMap[string, *udp.ServerConn](), pendingConnsData: webtools.MakeSafeMap[*udp.ServerConn, [][]byte]()}
 	var err error
-	cl.httpClient, err = httptools.NewWebSocketClient(httpProxyAddress, cl.handleWebTransportReadFunc, reportTraffic)
+	cl.httpClient, err = http.NewWebSocketClient(httpProxyAddress, cl.handleWebTransportReadFunc, reportTraffic)
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +44,7 @@ func NewHTTPProxyClientUDP(httpProxyAddress string, tcpServerAddress string, rep
 	return cl, nil
 }
 
-func (cl *HTTPProxyClientUDP) handleWebTransportReadFunc(_ *httptools.WebSocketClient, frame []byte, status uint8, isBinary bool) {
+func (cl *HTTPProxyClientUDP) handleWebTransportReadFunc(_ *http.WebSocketClient, frame []byte, status uint8, isBinary bool) {
 	_ = isBinary //Get rid of unneded property
 	if status == webtools.DisconnectStatus {
 		// Close all connections

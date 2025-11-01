@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 	"webtools"
-	httptools "webtools/httpTools"
+	"webtools/http"
 	"webtools/proxy"
 	"webtools/tcp"
 	"webtools/udp"
@@ -66,7 +66,7 @@ func main() {
 		}
 	case "hs":
 		{
-			sv := httptools.NewHTTPServer("0.0.0.0:7777", nil, "../encryption/", false)
+			sv := http.NewServer("0.0.0.0:7777", nil, "../encryption/", false)
 			sv.HostPaths["/test"] = "../test"
 			sv.UseDirectoryListing = true
 			sv.Start()
@@ -164,13 +164,13 @@ func main() {
 		}
 	case "wss":
 		{
-			sv := httptools.NewHTTPWebSocketServer("127.0.0.1:1234", readFuncHTTPWsSv, nil, "", true)
+			sv := http.NewWebSocketServer("127.0.0.1:1234", readFuncHTTPWsSv, nil, "", true)
 			sv.GetHTTPServer().HostPaths["/test"] = "./test"
 			sv.Start()
 		}
 	case "wsc":
 		{
-			cl, err := httptools.NewWebSocketClient("127.0.0.1:1234/websocket", readFuncHTTPWsCl, true)
+			cl, err := http.NewWebSocketClient("127.0.0.1:1234/websocket", readFuncHTTPWsCl, true)
 			if err != nil {
 				fmt.Println(err.Error())
 				return
@@ -236,13 +236,13 @@ func readFuncUDPCl(_ *udp.Client, _ *net.UDPAddr, data []byte, _ bool) {
 //	}
 //}
 
-func readFuncHTTPWsSv(conn *httptools.WebSocketServerConn, data []byte, status uint8, _ bool) {
+func readFuncHTTPWsSv(conn *http.WebSocketServerConn, data []byte, status uint8, _ bool) {
 	if status > 1 {
 		conn.Send(data)
 	}
 }
 
-func readFuncHTTPWsCl(conn *httptools.WebSocketClient, _ []byte, status uint8, _ bool) {
+func readFuncHTTPWsCl(conn *http.WebSocketClient, _ []byte, status uint8, _ bool) {
 	if status == webtools.ReadDataStatus {
 		conn.Stop()
 	}
