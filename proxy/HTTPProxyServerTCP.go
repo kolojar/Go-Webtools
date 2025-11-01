@@ -1,4 +1,4 @@
-package proxyTools
+package proxy
 
 import (
 	"webtools"
@@ -7,18 +7,18 @@ import (
 )
 
 /*
-HTTP Proxy server for TCP object
+HTTPProxyServerTCP is server for proxied TCP traffic over HTTP
 */
 type HTTPProxyServerTCP struct {
 	idToClient       webtools.SafeMap[string, *HTTPProxyServerTCPConn]
-	clientToId       webtools.SafeMap[*tcptools.TCPClientSimple, string]
+	clientToID       webtools.SafeMap[*tcptools.TCPClientSimple, string]
 	httpServer       *httptools.WebSocketServer
 	tcpServerAddress string
 	reportTrafic     bool
 }
 
 /*
-HTTP Proxy server for TCP connection object
+HTTPProxyServerTCPConn is connection object of HTTPProxyServerTCP
 */
 type HTTPProxyServerTCPConn struct {
 	tcpClient *tcptools.TCPClientSimple
@@ -28,21 +28,21 @@ type HTTPProxyServerTCPConn struct {
 }
 
 /*
-Creates frame and sends it to HTTP
+SendToHTTP creates frame and sends it to HTTP
 */
 func (cl *HTTPProxyServerTCPConn) SendToHTTP(operation uint8, data []byte) {
 	cl.source.Send(webtools.PackWebtoolsFrame(operation, cl.id, data))
 }
 
 /*
-Creates frame and sends it to TCP
+SendToTCP sends data to TCP
 */
 func (cl *HTTPProxyServerTCPConn) SendToTCP(data []byte) {
 	cl.tcpClient.Send(data)
 }
 
 /*
-Closes connection to client
+Close closes connection to client
 */
 func (cl *HTTPProxyServerTCPConn) Close(isInitiator bool) {
 	if cl == nil || cl.tcpClient == nil {
@@ -53,20 +53,21 @@ func (cl *HTTPProxyServerTCPConn) Close(isInitiator bool) {
 	if isInitiator {
 		cl.SendToHTTP(webtools.WEBTOOLS_FRAME_TYPE_CLOSE, nil)
 	}
-	cl.origin.clientToId.Delete(cl.tcpClient)
+	cl.origin.clientToID.Delete(cl.tcpClient)
 }
 
 /*
-Creates new HTTP Proxy Server for TCP but does not starts it
+NewHTTPProxyServerTCP creates new HTTP Proxy Server for TCP but does not starts it
 */
 func NewHTTPProxyServerTCP(httpProxyAddress string, tcpServerAddress string, reportTraffic bool) *HTTPProxyServerTCP {
-	sv := &HTTPProxyServerTCP{tcpServerAddress: tcpServerAddress, clientToId: webtools.MakeSafeMap[*tcptools.TCPClientSimple, string](), idToClient: webtools.MakeSafeMap[string, *HTTPProxyServerTCPConn](), reportTrafic: reportTraffic}
+	sv := &HTTPProxyServerTCP{tcpServerAddress: tcpServerAddress, clientToID: webtools.MakeSafeMap[*tcptools.TCPClientSimple, string](), idToClient: webtools.MakeSafeMap[string, *HTTPProxyServerTCPConn](), reportTrafic: reportTraffic}
 	sv.httpServer = httptools.NewHTTPWebSocketServer(httpProxyAddress, sv.handleWebSocketReadFunc, nil, "", reportTraffic)
 	sv.httpServer.Logger.Prefix = "HTTPProxyServerTCP - " + sv.httpServer.Logger.Prefix
 	return sv
 }
 
 func (sv *HTTPProxyServerTCP) handleWebSocketReadFunc(conn *httptools.WebSocketServerConn, frame []byte, status uint8, isBinary bool) {
+	_ = isBinary //Get rid of unneded property
 	if status == webtools.TCP_CONNECT_STATUS {
 		conn.IsBinary = true
 		return
@@ -106,13 +107,12 @@ func (sv *HTTPProxyServerTCP) handleWebSocketReadFunc(conn *httptools.WebSocketS
 				}
 				cl.Connect()
 				sv.idToClient.Set(string(frame.Id), &HTTPProxyServerTCPConn{tcpClient: cl, id: frame.Id, source: conn, origin: sv})
-				sv.clientToId.Set(cl, string(frame.Id))
+				sv.clientToID.Set(cl, string(frame.Id))
 				sv.idToClient.Get(string(frame.Id)).SendToHTTP(webtools.WEBTOOLS_FRAME_TYPE_CONNECT, frame.Data)
 				return
-			} else {
-				conn.Client.Logger.Log(3, "Could not find connection to id: "+string(frame.Id))
-				return
 			}
+			conn.Client.Logger.Log(3, "Could not find connection to id: "+string(frame.Id))
+			return
 		}
 		cl := sv.idToClient.Get(string(frame.Id))
 		if !cl.tcpClient.IsAlive() {
@@ -142,12 +142,12 @@ func (sv *HTTPProxyServerTCP) handleTCPReadFunc(tcp *tcptools.TCPClientSimple, d
 	}
 
 	//Get HTTP client
-	if sv.clientToId.Get(tcp) == "" || sv.idToClient.Get(sv.clientToId.Get(tcp)) == nil {
+	if sv.clientToID.Get(tcp) == "" || sv.idToClient.Get(sv.clientToID.Get(tcp)) == nil {
 		//Connection does not exists
 		tcp.GetLogger().Log(3, "Connection connected to: "+tcp.GetConn().RemoteAddr().String()+" not found")
 		return
 	}
-	id := sv.clientToId.Get(tcp)
+	id := sv.clientToID.Get(tcp)
 	cl := sv.idToClient.Get(id)
 
 	//End other connection
@@ -160,22 +160,29 @@ func (sv *HTTPProxyServerTCP) handleTCPReadFunc(tcp *tcptools.TCPClientSimple, d
 }
 
 /*
-Starts HTTP Proxy Server for TCP. Locks execution thread
+Start starts HTTP Proxy Server for TCP. Locks execution thread
 */
 func (sv *HTTPProxyServerTCP) Start() {
 	sv.httpServer.Start()
 }
 
 /*
-Stops HTTP Proxy Server for TCP
+Stop stops HTTP Proxy Server for TCP
 */
 func (sv *HTTPProxyServerTCP) Stop() {
 	sv.httpServer.Stop()
 }
 
+/*
+IsAlive gets if server is alive
+*/
 func (sv *HTTPProxyServerTCP) IsAlive() bool {
 	return sv.httpServer.IsAlive()
 }
+
+/*
+GetAddress gets address of server
+*/
 func (sv *HTTPProxyServerTCP) GetAddress() string {
 	return sv.httpServer.GetAddress()
 }

@@ -9,7 +9,7 @@ import (
 	"time"
 	"webtools"
 	httptools "webtools/httpTools"
-	proxytools "webtools/proxyTools"
+	proxytools "webtools/proxy"
 	tcptools "webtools/tcpTools"
 	"webtools/udpTools"
 	udptools "webtools/udpTools"

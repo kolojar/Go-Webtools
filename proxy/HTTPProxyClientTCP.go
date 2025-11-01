@@ -1,4 +1,7 @@
-package proxyTools
+/*
+Package proxy provides tools for proxying lots of kinds of traffic using other protocols.
+*/
+package proxy
 
 import (
 	"webtools"
@@ -7,10 +10,10 @@ import (
 )
 
 /*
-HTTP Proxy client for TCP object
+HTTPProxyClientTCP is client for proxied TCP traffic over HTTP
 */
 type HTTPProxyClientTCP struct {
-	clientToId         webtools.SafeMap[*tcptools.TCPServerConn, string]
+	clientToID         webtools.SafeMap[*tcptools.TCPServerConn, string]
 	idToClient         webtools.SafeMap[string, *tcptools.TCPServerConn]
 	tcpServer          *tcptools.TCPServer
 	httpClient         *httptools.WebSocketClient
@@ -18,15 +21,18 @@ type HTTPProxyClientTCP struct {
 	pendingConnsData   webtools.SafeMap[*tcptools.TCPServerConn, [][]byte]
 }
 
+/*
+IsAlive gets if client is alive
+*/
 func (cl *HTTPProxyClientTCP) IsAlive() bool {
 	return cl.httpClient.IsAlive()
 }
 
 /*
-Creates new HTTP Proxy Client for TCP but does not starts it, if you want to use default connection endpoint, add /webtransport to end of address
+NewHTTPProxyClientTCP creates new HTTP Proxy Client for TCP but does not starts it, if you want to use default connection endpoint, add /websocket to end of address
 */
 func NewHTTPProxyClientTCP(httpProxyAddress string, tcpServerAddress string, reportTraffic bool) (*HTTPProxyClientTCP, error) {
-	cl := &HTTPProxyClientTCP{clientToId: webtools.MakeSafeMap[*tcptools.TCPServerConn, string](), pendingConnections: webtools.MakeSafeMap[string, *tcptools.TCPServerConn](), idToClient: webtools.MakeSafeMap[string, *tcptools.TCPServerConn](), pendingConnsData: webtools.MakeSafeMap[*tcptools.TCPServerConn, [][]byte]()}
+	cl := &HTTPProxyClientTCP{clientToID: webtools.MakeSafeMap[*tcptools.TCPServerConn, string](), pendingConnections: webtools.MakeSafeMap[string, *tcptools.TCPServerConn](), idToClient: webtools.MakeSafeMap[string, *tcptools.TCPServerConn](), pendingConnsData: webtools.MakeSafeMap[*tcptools.TCPServerConn, [][]byte]()}
 	var err error
 	cl.httpClient, err = httptools.NewWebSocketClient(httpProxyAddress, cl.handleWebTransportReadFunc, reportTraffic)
 	if err != nil {
@@ -42,6 +48,7 @@ func NewHTTPProxyClientTCP(httpProxyAddress string, tcpServerAddress string, rep
 }
 
 func (cl *HTTPProxyClientTCP) handleWebTransportReadFunc(_ *httptools.WebSocketClient, frame []byte, status uint8, isBinary bool) {
+	_ = isBinary //Get rid of unneded property
 	if status == webtools.TCP_DISCONNECT_STATUS {
 		// Close all connections
 		cl.tcpServer.Stop()
@@ -67,7 +74,7 @@ func (cl *HTTPProxyClientTCP) handleWebTransportReadFunc(_ *httptools.WebSocketC
 					return
 				}
 				cl.pendingConnections.Delete(string(frame.Data))
-				cl.clientToId.Set(conn, string(frame.Id))
+				cl.clientToID.Set(conn, string(frame.Id))
 				cl.idToClient.Set(string(frame.Id), conn)
 				cl.httpClient.Logger.Log(1, "Prepared new connection with temporary id: "+string(frame.Data)+" for connection connected to: "+conn.GetConn().RemoteAddr().String()+" connected locally to: "+conn.GetConn().LocalAddr().String()+" with new id: "+string(frame.Id))
 
@@ -104,13 +111,13 @@ func (cl *HTTPProxyClientTCP) handleTCPReadFunc(tcpConn *tcptools.TCPServerConn,
 		return
 	}
 
-	id := cl.clientToId.Get(tcpConn)
+	id := cl.clientToID.Get(tcpConn)
 	if id == "" {
 		// No connection found, request new
-		tempId := webtools.GenerateRandomId()
-		cl.pendingConnections.Set(tempId, tcpConn)
-		cl.httpClient.Logger.Log(1, "Preparing new connection with temporary id: "+tempId+" for connection connected to: "+tcpConn.GetConn().RemoteAddr().String()+" connected locally to: "+tcpConn.GetConn().LocalAddr().String())
-		cl.httpClient.Send(webtools.PackWebtoolsFrame(webtools.WEBTOOLS_FRAME_TYPE_CONNECT, []byte("0"), []byte(tempId)), 2)
+		tempID := webtools.GenerateRandomId()
+		cl.pendingConnections.Set(tempID, tcpConn)
+		cl.httpClient.Logger.Log(1, "Preparing new connection with temporary id: "+tempID+" for connection connected to: "+tcpConn.GetConn().RemoteAddr().String()+" connected locally to: "+tcpConn.GetConn().LocalAddr().String())
+		cl.httpClient.Send(webtools.PackWebtoolsFrame(webtools.WEBTOOLS_FRAME_TYPE_CONNECT, []byte("0"), []byte(tempID)), 2)
 		cl.pendingConnsData.Set(tcpConn, append(make([][]byte, 0), data))
 		return
 	}
@@ -125,7 +132,7 @@ func (cl *HTTPProxyClientTCP) handleTCPReadFunc(tcpConn *tcptools.TCPServerConn,
 }
 
 /*
-Connects to HTTP Proxy server and start reading loop, does not locks execution thread
+Connect connects to HTTP Proxy server and start reading loop, does not locks execution thread
 */
 func (cl *HTTPProxyClientTCP) Connect() {
 	go cl.tcpServer.Start()
@@ -133,7 +140,7 @@ func (cl *HTTPProxyClientTCP) Connect() {
 }
 
 /*
-Connects to HTTP Proxy server and start reading loop, does not locks execution thread
+Stop stops the client
 */
 func (cl *HTTPProxyClientTCP) Stop() {
 	cl.httpClient.Stop()

@@ -1,4 +1,4 @@
-package proxyTools
+package proxy
 
 import (
 	"webtools"
@@ -7,10 +7,10 @@ import (
 )
 
 /*
-TCP Proxy client for UDP object
+TCPProxyClientUDP is client for proxied UDP traffic over TCP
 */
 type TCPProxyClientUDP struct {
-	clientToId         webtools.SafeMap[*udptools.UDPServerConn, string]
+	clientToID         webtools.SafeMap[*udptools.UDPServerConn, string]
 	idToClient         webtools.SafeMap[string, *udptools.UDPServerConn]
 	udpServer          *udptools.UDPServer
 	tcpClient          *tcptools.TCPClientSimple
@@ -18,15 +18,18 @@ type TCPProxyClientUDP struct {
 	pendingConnsData   webtools.SafeMap[*udptools.UDPServerConn, [][]byte]
 }
 
+/*
+IsAlive gets if server is alive
+*/
 func (cl *TCPProxyClientUDP) IsAlive() bool {
 	return cl.tcpClient.IsAlive()
 }
 
 /*
-Creates new TCP Proxy Client for UDP but does not starts it
+NewTCPProxyClientUDP creates new TCP Proxy Client for UDP but does not starts it
 */
 func NewTCPProxyClientUDP(tcpProxyAddress string, udpServerAddress string, reportTraffic bool) (*TCPProxyClientUDP, error) {
-	cl := &TCPProxyClientUDP{clientToId: webtools.MakeSafeMap[*udptools.UDPServerConn, string](), pendingConnections: webtools.MakeSafeMap[string, *udptools.UDPServerConn](), idToClient: webtools.MakeSafeMap[string, *udptools.UDPServerConn](), pendingConnsData: webtools.MakeSafeMap[*udptools.UDPServerConn, [][]byte]()}
+	cl := &TCPProxyClientUDP{clientToID: webtools.MakeSafeMap[*udptools.UDPServerConn, string](), pendingConnections: webtools.MakeSafeMap[string, *udptools.UDPServerConn](), idToClient: webtools.MakeSafeMap[string, *udptools.UDPServerConn](), pendingConnsData: webtools.MakeSafeMap[*udptools.UDPServerConn, [][]byte]()}
 	var err error
 	cl.tcpClient, err = tcptools.NewTCPClientSimple(tcpProxyAddress, 0, false, cl.handleTCPReadFunc, reportTraffic)
 	if err != nil {
@@ -67,7 +70,7 @@ func (cl *TCPProxyClientUDP) handleTCPReadFunc(_ *tcptools.TCPClientSimple, fram
 					return
 				}
 				cl.pendingConnections.Delete(string(frame.Data))
-				cl.clientToId.Set(conn, string(frame.Id))
+				cl.clientToID.Set(conn, string(frame.Id))
 				cl.idToClient.Set(string(frame.Id), conn)
 				cl.tcpClient.GetLogger().Log(1, "Prepared new connection with temporary id: "+string(frame.Data)+" for connection connected to: "+conn.Address.String()+" with new id: "+string(frame.Id))
 
@@ -101,13 +104,13 @@ func (cl *TCPProxyClientUDP) handleUDPReadFunc(udpConn *udptools.UDPServerConn, 
 		return
 	}
 
-	id := cl.clientToId.Get(udpConn)
+	id := cl.clientToID.Get(udpConn)
 	if id == "" {
 		//No connection found, request new
-		tempId := webtools.GenerateRandomId()
-		cl.pendingConnections.Set(tempId, udpConn)
-		cl.tcpClient.GetLogger().Log(1, "Preparing new connection with temporary id: "+tempId+" for connection connected to: "+udpConn.Address.String())
-		cl.tcpClient.Send(webtools.PackWebtoolsFrame(webtools.WEBTOOLS_FRAME_TYPE_CONNECT, []byte("0"), []byte(tempId)))
+		tempID := webtools.GenerateRandomId()
+		cl.pendingConnections.Set(tempID, udpConn)
+		cl.tcpClient.GetLogger().Log(1, "Preparing new connection with temporary id: "+tempID+" for connection connected to: "+udpConn.Address.String())
+		cl.tcpClient.Send(webtools.PackWebtoolsFrame(webtools.WEBTOOLS_FRAME_TYPE_CONNECT, []byte("0"), []byte(tempID)))
 		cl.pendingConnsData.Set(udpConn, append(make([][]byte, 0), data))
 		return
 	}
@@ -122,7 +125,7 @@ func (cl *TCPProxyClientUDP) handleUDPReadFunc(udpConn *udptools.UDPServerConn, 
 }
 
 /*
-Connects to TCP Proxy server and start reading loop, does not locks execution thread
+Connect connects to TCP Proxy server and start reading loop, does not locks execution thread
 */
 func (cl *TCPProxyClientUDP) Connect() {
 	cl.tcpClient.Connect()
@@ -130,7 +133,7 @@ func (cl *TCPProxyClientUDP) Connect() {
 }
 
 /*
-Connects to TCP Proxy server and start reading loop, does not locks execution thread
+Stop stops the client
 */
 func (cl *TCPProxyClientUDP) Stop() {
 	cl.tcpClient.Stop()

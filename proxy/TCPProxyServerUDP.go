@@ -1,4 +1,4 @@
-package proxyTools
+package proxy
 
 import (
 	"net"
@@ -8,18 +8,18 @@ import (
 )
 
 /*
-TCP Proxy server for UDP object
+TCPProxyServerUDP is server for proxied UDP traffic over TCP
 */
 type TCPProxyServerUDP struct {
 	idToClient       webtools.SafeMap[string, *TCPProxyServerUDPConn]
-	clientToId       webtools.SafeMap[*udptools.UDPClient, string]
+	clientToID       webtools.SafeMap[*udptools.UDPClient, string]
 	tcpServer        *tcptools.TCPServer
 	tcpServerAddress string
 	reportTrafic     bool
 }
 
 /*
-TCP Proxy server for UDP connection object
+TCPProxyServerUDPConn is connection object of TCPProxyServerUDP
 */
 type TCPProxyServerUDPConn struct {
 	udpClient *udptools.UDPClient
@@ -29,21 +29,21 @@ type TCPProxyServerUDPConn struct {
 }
 
 /*
-Creates frame and sends it to TCP
+SendToTCP creates frame and sends it to TCP
 */
 func (cl *TCPProxyServerUDPConn) SendToTCP(operation uint8, data []byte) {
 	cl.source.Send(webtools.PackWebtoolsFrame(operation, cl.id, data))
 }
 
 /*
-Creates frame and sends it to UDP
+SendToUDP sends data to UDP
 */
 func (cl *TCPProxyServerUDPConn) SendToUDP(data []byte) {
 	cl.udpClient.Send(data)
 }
 
 /*
-Closes connection to client
+Close closes connection to client
 */
 func (cl *TCPProxyServerUDPConn) Close(isInitiator bool) {
 	if cl == nil || cl.udpClient == nil {
@@ -54,14 +54,14 @@ func (cl *TCPProxyServerUDPConn) Close(isInitiator bool) {
 	if isInitiator {
 		cl.SendToTCP(webtools.WEBTOOLS_FRAME_TYPE_CLOSE, nil)
 	}
-	cl.origin.clientToId.Delete(cl.udpClient)
+	cl.origin.clientToID.Delete(cl.udpClient)
 }
 
 /*
-Creates new TCP Proxy Server for UDP but does not starts it
+NewTCPProxyServerUDP creates new TCP Proxy Server for UDP but does not starts it
 */
 func NewTCPProxyServerUDP(tcpProxyAddress string, udpServerAddress string, reportTraffic bool) (*TCPProxyServerUDP, error) {
-	sv := &TCPProxyServerUDP{tcpServerAddress: udpServerAddress, clientToId: webtools.MakeSafeMap[*udptools.UDPClient, string](), idToClient: webtools.MakeSafeMap[string, *TCPProxyServerUDPConn](), reportTrafic: reportTraffic}
+	sv := &TCPProxyServerUDP{tcpServerAddress: udpServerAddress, clientToID: webtools.MakeSafeMap[*udptools.UDPClient, string](), idToClient: webtools.MakeSafeMap[string, *TCPProxyServerUDPConn](), reportTrafic: reportTraffic}
 	var err error
 	sv.tcpServer, err = tcptools.NewTCPServer(tcpProxyAddress, sv.handleTCPReadFunc, reportTraffic, true)
 	if err != nil {
@@ -107,13 +107,12 @@ func (sv *TCPProxyServerUDP) handleTCPReadFunc(conn *tcptools.TCPServerConn, fra
 				}
 				cl.Connect()
 				sv.idToClient.Set(string(frame.Id), &TCPProxyServerUDPConn{udpClient: cl, id: frame.Id, source: conn, origin: sv})
-				sv.clientToId.Set(cl, string(frame.Id))
+				sv.clientToID.Set(cl, string(frame.Id))
 				sv.idToClient.Get(string(frame.Id)).SendToTCP(webtools.WEBTOOLS_FRAME_TYPE_CONNECT, frame.Data)
 				return
-			} else {
-				conn.Client.GetLogger().Log(3, "Could not find connection to id: "+string(frame.Id))
-				return
 			}
+			conn.Client.GetLogger().Log(3, "Could not find connection to id: "+string(frame.Id))
+			return
 		}
 		cl := sv.idToClient.Get(string(frame.Id))
 		if !cl.udpClient.IsAlive() {
@@ -137,14 +136,14 @@ func (sv *TCPProxyServerUDP) handleTCPReadFunc(conn *tcptools.TCPServerConn, fra
 	}
 }
 
-func (sv *TCPProxyServerUDP) handleUDPReadFunc(udp *udptools.UDPClient, sourceAddress *net.UDPAddr, data []byte, ended bool) {
+func (sv *TCPProxyServerUDP) handleUDPReadFunc(udp *udptools.UDPClient, _ *net.UDPAddr, data []byte, ended bool) {
 	//Get TCP client
-	if sv.clientToId.Get(udp) == "" || sv.idToClient.Get(sv.clientToId.Get(udp)) == nil {
+	if sv.clientToID.Get(udp) == "" || sv.idToClient.Get(sv.clientToID.Get(udp)) == nil {
 		//Connection does not exists
 		udp.Logger.Log(3, "Connection connected to: "+udp.Conn.RemoteAddr().String()+" not found")
 		return
 	}
-	id := sv.clientToId.Get(udp)
+	id := sv.clientToID.Get(udp)
 	cl := sv.idToClient.Get(id)
 
 	//End other connection
@@ -157,14 +156,14 @@ func (sv *TCPProxyServerUDP) handleUDPReadFunc(udp *udptools.UDPClient, sourceAd
 }
 
 /*
-Starts TCP Proxy Server for UDP. Locks execution thread
+Start starts TCP Proxy Server for UDP. Locks execution thread
 */
 func (sv *TCPProxyServerUDP) Start() {
 	sv.tcpServer.Start()
 }
 
 /*
-Stops TCP Proxy Server for UDP
+Stop stops TCP Proxy Server for UDP
 */
 func (sv *TCPProxyServerUDP) Stop() {
 	sv.tcpServer.Stop()
