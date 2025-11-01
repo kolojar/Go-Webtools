@@ -1,4 +1,4 @@
-package httpTools
+package httptools
 
 import (
 	"encoding/base64"
