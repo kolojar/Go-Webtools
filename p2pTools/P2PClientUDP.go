@@ -14,7 +14,7 @@ import (
 )
 
 // Retry count for punching
-const P2P_PUNCH_RETRY_COUNT = 10
+const P2P_PUNCH_RETRY_COUNT = 50
 
 // Used for sending punch, in id there is origin id and in data is targetId - server does not modifies frame, just sends it back
 const P2P_CMD_PUNCH uint8 = 50
@@ -219,30 +219,32 @@ func (p2p *P2PClientUDP) readFuncCoordinator(_ *udpTools.UDPClient, sourceAddres
 					} else {
 						clientUDP.Logger.Log(3, "Error connecting UDP to target IP: "+string(split[1])+" with error: "+err.Error())
 					}
-					go func() {
-						if p2p.tcpOutcommingConnsCls.Get(string(frame.Id)).Key != nil {
-							clientUDP.Logger.Log(0, "TCP already found.")
-							return
-						}
-
-						clientUDP.Logger.Log(0, "Dialing TCP...")
-						tcpConn, err := net.DialTimeout("tcp", string(split[1]), 100*time.Millisecond)
-						if err == nil {
-							//Create new client TCP
-							clientTCP := tcpTools.NewTCPClientSimpleFromConnection(tcpConn.(*net.TCPConn), 0, false, p2p.readFuncOutcommingClientsTCP, p2p.reportTraffic)
-							clientTCP.GetLogger().Preprefix = p2p.loggerPrefix
-							clientTCP.GetLogger().Prefix = "P2PClientUDP - PeerClientTCP for id: " + string(frame.Id)
-							if clientTCP.Connect() {
-								clientTCP.Send(webtools.PackWebtoolsFrame(P2P_CMD_PUNCH, p2p.id, frame.Id))
-								p2p.tcpOutcommingConnsCls.Set(string(frame.Id), webtools.KeyValuePair[*tcpTools.TCPClientSimple, bool]{Key: clientTCP, Value: false})
-								p2p.udpClientCoordinator.Send(webtools.PackWebtoolsFrame(P2P_CMD_CONNECT_STATUS_TCP, frame.Id, frame.Data))
+					if i >= 20 || (i < 20 && i%2 == 0) { //Eliminate some repeated connections for TCP
+						go func() {
+							if p2p.tcpOutcommingConnsCls.Get(string(frame.Id)).Key != nil {
+								clientUDP.Logger.Log(0, "TCP already found.")
+								return
 							}
 
-						} else {
-							clientUDP.Logger.Log(3, "Error connecting TCP to target IP: "+string(split[1])+" with error: "+err.Error())
-						}
-					}()
-					time.Sleep(time.Duration(i+1) * 100 * time.Millisecond)
+							clientUDP.Logger.Log(0, "Dialing TCP...")
+							tcpConn, err := net.DialTimeout("tcp", string(split[1]), 1000*time.Millisecond)
+							if err == nil {
+								//Create new client TCP
+								clientTCP := tcpTools.NewTCPClientSimpleFromConnection(tcpConn.(*net.TCPConn), 0, false, p2p.readFuncOutcommingClientsTCP, p2p.reportTraffic)
+								clientTCP.GetLogger().Preprefix = p2p.loggerPrefix
+								clientTCP.GetLogger().Prefix = "P2PClientUDP - PeerClientTCP for id: " + string(frame.Id)
+								if clientTCP.Connect() {
+									clientTCP.Send(webtools.PackWebtoolsFrame(P2P_CMD_PUNCH, p2p.id, frame.Id))
+									p2p.tcpOutcommingConnsCls.Set(string(frame.Id), webtools.KeyValuePair[*tcpTools.TCPClientSimple, bool]{Key: clientTCP, Value: false})
+									p2p.udpClientCoordinator.Send(webtools.PackWebtoolsFrame(P2P_CMD_CONNECT_STATUS_TCP, p2p.id, frame.Id))
+								}
+
+							} else {
+								clientUDP.Logger.Log(3, "Error connecting TCP to target IP: "+string(split[1])+" with error: "+err.Error())
+							}
+						}()
+					}
+					time.Sleep(time.Duration(webtools.FormatByBool(i < 10, 5, webtools.FormatByBool(i < 20, 50, 100))) * time.Millisecond)
 					if !p2p.targetIdsConnectingStatus.Get(string(frame.Id)) {
 						//Connected to server
 						clientUDP.Logger.Log(1, "Connected to other peer, waiting for coordinator.")
