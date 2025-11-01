@@ -19,8 +19,8 @@ import (
 	"webtools"
 )
 
-// TIMEOUT_LIMIT_OF_SIGNATURE_IN_MINUTES tells how long will the signature be valid
-const TIMEOUT_LIMIT_OF_SIGNATURE_IN_MINUTES = 5
+// timeoutLimitOfSignatureInMinutes tells how long will the signature be valid
+const timeoutLimitOfSignatureInMinutes = 5
 
 /*
 Asymmetric provides asymmetric encryption support using OAEP
@@ -230,7 +230,7 @@ Sign signs data using local Private Key
 func (enc *Asymmetric) Sign(data []byte) (*AsymmetricSignedData, error) {
 	// Make expiration
 	timestamp := time.Now().UTC()
-	expires := timestamp.Add(time.Minute * TIMEOUT_LIMIT_OF_SIGNATURE_IN_MINUTES)
+	expires := timestamp.Add(time.Minute * timeoutLimitOfSignatureInMinutes)
 
 	// Create hash
 	dataForHasher := make([]byte, 0)
