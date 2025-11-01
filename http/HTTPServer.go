@@ -1,4 +1,4 @@
-package httptools
+package http
 
 import (
 	"errors"
@@ -12,19 +12,14 @@ import (
 )
 
 /*
-Standardized type of function
-*HTTPServer = Server
-http.ResponseWriter = Responce
-*http.Request = Request
-params = map[string]string
-Returns bool = got handled
+AccessFunc is function definition for event when someone wants some resource on server (access), returns true if request was handeled by this method
 */
-type HTTPAccessFunc func(server *HTTPServer, w http.ResponseWriter, r *http.Request, params map[string]string) bool
+type AccessFunc func(server *Server, w http.ResponseWriter, r *http.Request, params map[string]string) bool
 
-var iNVALID_NAMES = [...]string{"..", "."}
+var invalidNames = [...]string{"..", "."}
 
 /*
-Checks if path constains some invalid names (server protection) -> Returns TRUE if value is INVALID
+CheckInvalidNames checks if path contains some invalid names (server protection) -> Returns TRUE if value is INVALID
 ! Must be present in every operation with files on server !
 */
 func CheckInvalidNames(path string) error {
@@ -32,10 +27,10 @@ func CheckInvalidNames(path string) error {
 		return errors.New("path does not have prefix")
 	}
 	split := strings.Split(path, "/")
-	for i := 0; i < len(iNVALID_NAMES); i++ {
+	for i := 0; i < len(invalidNames); i++ {
 		for k := 0; k < len(split); k++ {
-			if strings.EqualFold(split[k], iNVALID_NAMES[i]) {
-				return errors.New("Found invalid name: " + iNVALID_NAMES[i] + " in: " + path)
+			if strings.EqualFold(split[k], invalidNames[i]) {
+				return errors.New("Found invalid name: " + invalidNames[i] + " in: " + path)
 			}
 		}
 	}
@@ -43,9 +38,9 @@ func CheckInvalidNames(path string) error {
 }
 
 /*
-Struct of HTTP server
+Server is struct of HTTP server
 */
-type HTTPServer struct {
+type Server struct {
 	// Key is url on server and value is real path in file system, they are not relative to rootPath. They are handeled automatically
 	HostPaths map[string]string
 	//This path is not handeled automatically
@@ -53,26 +48,35 @@ type HTTPServer struct {
 	address             string
 	Logger              *webtools.ConsoleLogger
 	server              http.Server
-	onAccessFunc        HTTPAccessFunc
+	onAccessFunc        AccessFunc
 	startWebBrowser     bool
 	isAlive             bool
 	UseDirectoryListing bool
 }
 
-func (sv *HTTPServer) GetRootPath() string {
+/*
+GetRootPath gets root path of HTTP server
+*/
+func (sv *Server) GetRootPath() string {
 	return sv.rootPath
 }
 
-func (sv *HTTPServer) IsAlive() bool {
+/*
+IsAlive gets if server is alive
+*/
+func (sv *Server) IsAlive() bool {
 	return sv.isAlive
 }
 
-func (sv *HTTPServer) GetAddress() string {
+/*
+GetAddress gets address of server
+*/
+func (sv *Server) GetAddress() string {
 	return sv.address
 }
 
 /*
-Replaces double slashes with one
+TidyURLPath replaces double slashes with one
 */
 func TidyURLPath(url string) string {
 	originalLenght := len(url)
@@ -84,19 +88,19 @@ func TidyURLPath(url string) string {
 }
 
 /*
-Creates new HTTP server but does not starts it. Adds new host path to HTTP server (used for shared scripts, css, images)
+NewServer creates new HTTP server but does not starts it. Adds new host path to HTTP server (used for shared scripts, css, images)
 */
-func NewHTTPServer(address string, onAccessFunc HTTPAccessFunc, rootPath string, startWebBrowser bool) *HTTPServer {
+func NewServer(address string, onAccessFunc AccessFunc, rootPath string, startWebBrowser bool) *Server {
 	if !strings.HasSuffix(rootPath, "/") {
 		rootPath += "/"
 	}
-	return &HTTPServer{address: address, HostPaths: map[string]string{}, Logger: webtools.NewConsoleLogger("HTTPServer", 0), onAccessFunc: onAccessFunc, startWebBrowser: startWebBrowser, rootPath: rootPath}
+	return &Server{address: address, HostPaths: map[string]string{}, Logger: webtools.NewConsoleLogger("HTTPServer", 0), onAccessFunc: onAccessFunc, startWebBrowser: startWebBrowser, rootPath: rootPath}
 }
 
 /*
-Launches HTTP server on specified address. Locks execution thread
+Start starts HTTP server on specified address. Locks execution thread
 */
-func (sv *HTTPServer) Start() {
+func (sv *Server) Start() {
 	if sv.isAlive {
 		return
 	}
@@ -115,10 +119,10 @@ func (sv *HTTPServer) Start() {
 }
 
 /*
-Resolves relative urls for HTTP server to real OS FileSystem path
+ResolvePath resolves relative urls for HTTP server to real OS FileSystem path
 Returns list of real urls
 */
-func (sv *HTTPServer) ResolvePath(url string) []string {
+func (sv *Server) ResolvePath(url string) []string {
 	result := make([]string, 0)
 	for k, v := range sv.HostPaths {
 		//Sort out hostPaths
@@ -136,7 +140,7 @@ func (sv *HTTPServer) ResolvePath(url string) []string {
 /*
 Handles and sorts HTTP requests
 */
-func (sv *HTTPServer) httpHandler(w http.ResponseWriter, r *http.Request) {
+func (sv *Server) httpHandler(w http.ResponseWriter, r *http.Request) {
 	sv.Logger.Log(1, r.RemoteAddr+" - "+r.Method+" - "+r.URL.String())
 	//Check name
 	err2 := CheckInvalidNames(r.URL.Path)
@@ -177,7 +181,7 @@ func (sv *HTTPServer) httpHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 /*
-Reads file contents
+ReadFile reads file contents
 Returns data, isDirectory, error
 */
 func ReadFile(filePath string) ([]byte, bool, error) {
@@ -205,20 +209,19 @@ func ReadFile(filePath string) ([]byte, bool, error) {
 }
 
 /*
-Reads file contents as string
+ReadFileString reads file contents as string
 Returns data, isDirectory, error
 */
 func ReadFileString(filePath string) (string, bool, error) {
 	data, isDir, err := ReadFile(filePath)
 	if err != nil {
 		return "", isDir, err
-	} else {
-		return string(data), isDir, nil
 	}
+	return string(data), isDir, nil
 }
 
 /*
-Joins 2 paths together
+JoinPaths joins 2 paths together
 */
 func JoinPaths(path1 string, path2 string) string {
 	result := strings.TrimSuffix(path1, "/")
@@ -230,9 +233,9 @@ func JoinPaths(path1 string, path2 string) string {
 }
 
 /*
-Tries to handle file or folder request
+TryHandleHTTPFile tries to handle file or folder request
 */
-func TryHandleHTTPFile(w http.ResponseWriter, filePath string, contentType string, urlPath string, sv *HTTPServer) error {
+func TryHandleHTTPFile(w http.ResponseWriter, filePath string, contentType string, urlPath string, sv *Server) error {
 	//Read data
 	data, isDir, err := ReadFileString(filePath)
 	if err != nil {
@@ -243,12 +246,11 @@ func TryHandleHTTPFile(w http.ResponseWriter, filePath string, contentType strin
 	if isDir {
 		if sv != nil && sv.UseDirectoryListing {
 			HandleDirectoryListingHTTP(w, filePath, urlPath, sv)
-		} else {
-			//http.Error(w, "Directory listing not supported.", http.StatusForbidden)
-			//return errors.New("directory listing not supported")
-			return os.ErrNotExist
+			return nil
 		}
-		return nil
+		//http.Error(w, "Directory listing not supported.", http.StatusForbidden)
+		//return errors.New("directory listing not supported")
+		return os.ErrNotExist
 	}
 
 	//Send data
@@ -257,6 +259,9 @@ func TryHandleHTTPFile(w http.ResponseWriter, filePath string, contentType strin
 	return nil
 }
 
+/*
+SortHTTPContentType sorts type of file
+*/
 func SortHTTPContentType(path string) string {
 	contentType := "text/html"
 	if strings.HasSuffix(path, ".css") {
@@ -274,9 +279,9 @@ func SortHTTPContentType(path string) string {
 }
 
 /*
-Handles directory access get request relative to HTTP server root
+TryHandleHTTPFileRelative handles directory access get request relative to HTTP server root
 */
-func (sv *HTTPServer) TryHandleHTTPFileRelative(w http.ResponseWriter, r *http.Request, getPath string) error {
+func (sv *Server) TryHandleHTTPFileRelative(w http.ResponseWriter, _ *http.Request, getPath string) error {
 	//Check invalid names
 	err := CheckInvalidNames(getPath)
 	if err != nil {
@@ -286,16 +291,16 @@ func (sv *HTTPServer) TryHandleHTTPFileRelative(w http.ResponseWriter, r *http.R
 }
 
 /*
-Handles directory access get request
+HandleHTTPGet handles directory access get request
 */
-func HandleHTTPGet(w http.ResponseWriter, r *http.Request, realPath string, sv *HTTPServer) error {
+func HandleHTTPGet(w http.ResponseWriter, r *http.Request, realPath string, sv *Server) error {
 	return TryHandleHTTPFile(w, realPath, SortHTTPContentType(r.URL.Path), r.URL.Path, sv)
 }
 
 /*
-Handles directory access GET request relative to HTTP server
+HandleHTTPGetRelative handles directory access GET request relative to HTTP server
 */
-func (sv *HTTPServer) HandleHTTPGetRelative(w http.ResponseWriter, r *http.Request) bool {
+func (sv *Server) HandleHTTPGetRelative(w http.ResponseWriter, r *http.Request) bool {
 	urls := sv.ResolvePath(r.URL.Path)
 	for i := 0; i < len(urls); i++ {
 		//Handle each url
@@ -317,15 +322,15 @@ func (sv *HTTPServer) HandleHTTPGetRelative(w http.ResponseWriter, r *http.Reque
 }
 
 /*
-Handles file read relative to HTTP server root
+ReadFileRelative handles file read relative to HTTP server root
 Returns data, isDir, error
 */
-func (sv *HTTPServer) ReadFileRelative(path string) ([]byte, bool, error) {
+func (sv *Server) ReadFileRelative(path string) ([]byte, bool, error) {
 	return ReadFile(JoinPaths(sv.rootPath, path))
 }
 
 /*
-Creates map from url parameters
+CreateParametersFromURL creates map from url parameters
 */
 func CreateParametersFromURL(text string) (string, map[string]string) {
 	// Split & parts
@@ -349,7 +354,7 @@ func CreateParametersFromURL(text string) (string, map[string]string) {
 }
 
 /*
-Creates url like parameters from map
+CreateURLFromParameters creates url like parameters from map
 */
 func CreateURLFromParameters(preURL string, params map[string]string) string {
 	result := preURL + "&"
@@ -363,9 +368,9 @@ func CreateURLFromParameters(preURL string, params map[string]string) string {
 }
 
 /*
-Stops HTTP server
+Stop stops HTTP server
 */
-func (sv *HTTPServer) Stop() {
+func (sv *Server) Stop() {
 	if !sv.isAlive {
 		return
 	}

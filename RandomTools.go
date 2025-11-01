@@ -6,8 +6,15 @@ import (
 	"time"
 )
 
-const ALPHABET_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-const NUMBER_LETTERS = "0123456789"
+/*
+AlphabetLetters are all English alphabet letters
+*/
+const AlphabetLetters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+
+/*
+NumberLetters are all number characters
+*/
+const NumberLetters = "0123456789"
 
 /*
 GenerateRandomID generates random Id based on random and current time
@@ -20,7 +27,7 @@ func GenerateRandomID() string {
 GenerateRandomString generates random string
 */
 func GenerateRandomString(lenght int) string {
-	letters := NUMBER_LETTERS + ALPHABET_LETTERS
+	letters := NumberLetters + AlphabetLetters
 	result := ""
 	for i := 0; i < lenght; i++ {
 		result += string(letters[rand.IntN(len(letters))])

@@ -1,4 +1,4 @@
-package httptools
+package http
 
 import (
 	"strconv"
@@ -36,7 +36,7 @@ func (base *HTMLElementBase) SetTagName(newName string) bool {
 	if len(newName) == 0 {
 		return false
 	}
-	if !strings.ContainsAny(string(newName[0]), webtools.ALPHABET_LETTERS) {
+	if !strings.ContainsAny(string(newName[0]), webtools.AlphabetLetters) {
 		return false
 	}
 	base.tagName = newName

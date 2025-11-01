@@ -1,4 +1,4 @@
-package httptools
+package http
 
 import (
 	"crypto/sha1"
@@ -14,7 +14,7 @@ import (
 	tcptools "webtools/tcp"
 )
 
-const webSocketGuid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+const webSocketGUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
 /*
 Creates WebSocket key from original security key and magic text
@@ -23,7 +23,7 @@ func computeWebSocketKey(webSocketKey string) string {
 	//New hasher
 	sha1Hasher := sha1.New()
 	//Hash SHA combined original key and magic text
-	sha1Hasher.Write([]byte(webSocketKey + webSocketGuid))
+	sha1Hasher.Write([]byte(webSocketKey + webSocketGUID))
 	//Make sum of SHA key
 	acceptValue := sha1Hasher.Sum(nil)
 	//Encode byte to string
@@ -31,16 +31,12 @@ func computeWebSocketKey(webSocketKey string) string {
 }
 
 /*
-Standardized type of function
-*WebSocketServerConn = Connection
-String = message
-Uint8 = status
-Bool = isBinary
+WebSocketServerReadFunc is function definition for reading data from WebSocketServer
 */
 type WebSocketServerReadFunc func(conn *WebSocketServerConn, data []byte, status uint8, isBinary bool)
 
 /*
-HTTP WebSocket server connection object
+WebSocketServerConn is connection object of WebSocketServer
 */
 type WebSocketServerConn struct {
 	origin    *WebSocketServer
@@ -52,79 +48,89 @@ type WebSocketServerConn struct {
 	Cookies   []*http.Cookie
 }
 
+/*
+GetConn gets raw TCP connection
+*/
 func (httpConn *WebSocketServerConn) GetConn() *net.TCPConn {
 	return httpConn.Client.GetConn()
 }
 
 /*
-Sends data to client, it is set by first recieved packed, can be changed using IsBinary property
+Send sends data to client, it is set by first recieved packed, can be changed using IsBinary property
 */
 func (httpConn *WebSocketServerConn) Send(data []byte) {
 	httpConn.Client.Send(data, map[string]any{"opcode": webtools.FormatByBool[uint8](httpConn.IsBinary, 2, 1)})
 }
 
 /*
-Closes connection to client
+Close closes connection to client
 */
 func (httpConn *WebSocketServerConn) Close() {
 	httpConn.Client.Stop()
 }
 
 /*
-Gets URL parameter from original HTTP request
+GetURLParameter gets URL parameter from original HTTP request
 */
 func (httpConn *WebSocketServerConn) GetURLParameter(key string) string {
 	return httpConn.urlParams[key]
 }
 
 /*
-Sets URL parameter from original HTTP request
+SetURLParameter sets URL parameter from original HTTP request
 */
 func (httpConn *WebSocketServerConn) SetURLParameter(key string, value string) {
 	httpConn.urlParams[key] = value
 }
 
 /*
-Removes URL parameter from original HTTP request
+RemoveURLParameter removes URL parameter from original HTTP request
 */
 func (httpConn *WebSocketServerConn) RemoveURLParameter(key string) {
 	delete(httpConn.urlParams, key)
 }
 
 /*
-HTTP WebSocket server for JavaScript with standards
+WebSocketServer is HTTP WebSocket server for JavaScript with standards
 */
 type WebSocketServer struct {
-	httpServer                *HTTPServer
+	httpServer                *Server
 	Logger                    *webtools.ConsoleLogger
 	conns                     webtools.SafeMap[*tcptools.ClientUniversal, *WebSocketServerConn]
-	onAccessFunc              HTTPAccessFunc
+	onAccessFunc              AccessFunc
 	websocketURLsAndReadFuncs webtools.SafeMap[string, WebSocketServerReadFunc]
 	reportTraffic             bool
 }
 
+/*
+IsAlive gets if server is alive
+*/
 func (sv *WebSocketServer) IsAlive() bool {
 	return sv.httpServer.IsAlive()
 }
+
+/*
+GetAddress gets address of server
+*/
 func (sv *WebSocketServer) GetAddress() string {
 	return sv.httpServer.GetAddress()
 }
 
 /*
-Creates new HTTP WebSocket Server but does not starts it
+NewWebSocketServer creates new HTTP WebSocket Server but does not starts it
 This readFunc is asociated with "/websocket" url
 */
-func NewHTTPWebSocketServer(address string, readFunc WebSocketServerReadFunc, onAccessFunc HTTPAccessFunc, rootPath string, reportTraffic bool) *WebSocketServer {
-	wsUrlAndFuncs := webtools.MakeSafeMap[string, WebSocketServerReadFunc]()
-	wsUrlAndFuncs.Set("/websocket", readFunc)
-	sv := &WebSocketServer{Logger: webtools.NewConsoleLoggerForTraffic("HTTP-WSServer", reportTraffic), reportTraffic: reportTraffic, conns: webtools.MakeSafeMap[*tcptools.ClientUniversal, *WebSocketServerConn](), onAccessFunc: onAccessFunc, websocketURLsAndReadFuncs: wsUrlAndFuncs}
-	sv.httpServer = NewHTTPServer(address, sv.handleHTTPAccess, rootPath, false)
+func NewWebSocketServer(address string, readFunc WebSocketServerReadFunc, onAccessFunc AccessFunc, rootPath string, reportTraffic bool) *WebSocketServer {
+	wsURLAndFuncs := webtools.MakeSafeMap[string, WebSocketServerReadFunc]()
+	wsURLAndFuncs.Set("/websocket", readFunc)
+	sv := &WebSocketServer{Logger: webtools.NewConsoleLoggerForTraffic("HTTP-WSServer", reportTraffic), reportTraffic: reportTraffic, conns: webtools.MakeSafeMap[*tcptools.ClientUniversal, *WebSocketServerConn](), onAccessFunc: onAccessFunc, websocketURLsAndReadFuncs: wsURLAndFuncs}
+	sv.httpServer = NewServer(address, sv.handleHTTPAccess, rootPath, false)
 	sv.httpServer.Logger = sv.Logger
 	return sv
 }
 
 /*
-Adds URL of WebSocket
+AddWebSocketURL adds URL of WebSocket
 */
 func (sv *WebSocketServer) AddWebSocketURL(url string, readFunc WebSocketServerReadFunc) error {
 	if !strings.HasPrefix(url, "/") {
@@ -135,20 +141,20 @@ func (sv *WebSocketServer) AddWebSocketURL(url string, readFunc WebSocketServerR
 }
 
 /*
-Removes URL of WebSocket
+RemoveWebSocketURL removes URL of WebSocket
 */
-func (sv *WebSocketServer) RemovedWebSocketURL(url string) {
+func (sv *WebSocketServer) RemoveWebSocketURL(url string) {
 	sv.websocketURLsAndReadFuncs.Delete(url)
 }
 
 /*
-Gets HTTP server
+GetHTTPServer gets HTTP server
 */
-func (sv *WebSocketServer) GetHTTPServer() *HTTPServer {
+func (sv *WebSocketServer) GetHTTPServer() *Server {
 	return sv.httpServer
 }
 
-func (sv *WebSocketServer) handleHTTPAccess(_ *HTTPServer, w http.ResponseWriter, r *http.Request, params map[string]string) bool {
+func (sv *WebSocketServer) handleHTTPAccess(_ *Server, w http.ResponseWriter, r *http.Request, params map[string]string) bool {
 	if r.Method == http.MethodGet && slices.Contains(sv.websocketURLsAndReadFuncs.GetKeys(), r.URL.Path) {
 		//Websocket request - Correct URL and Method
 		sv.Logger.Log(1, "Preparing connection from: "+r.RemoteAddr)
@@ -201,15 +207,18 @@ func (sv *WebSocketServer) handleHTTPAccess(_ *HTTPServer, w http.ResponseWriter
 		//sv.Logger.Log(2, "Connection from: "+conn.RemoteAddr().String()+" connected locally to: "+conn.LocalAddr().String())
 		//go handleWebSocketFrameRead(conn.(*net.TCPConn), sv.Logger, sv.readFuncLocal)
 		return true
-	} else {
-		//Normal request
-		if sv.onAccessFunc != nil {
-			return sv.onAccessFunc(sv.httpServer, w, r, params)
-		}
+	}
+
+	//Normal request
+	if sv.onAccessFunc != nil {
+		return sv.onAccessFunc(sv.httpServer, w, r, params)
 	}
 	return false
 }
 
+/*
+HandleWebSocketFrameRead handles reading of WebSocket frame, is used in TCPClientUniversal
+*/
 func HandleWebSocketFrameRead(cl *tcptools.ClientUniversal, limit int, logger *webtools.ConsoleLogger, readFunc tcptools.ClientUniversalOnReadFuncIntenal) (bool, error) {
 	for i := 0; i < limit || limit < 0; i++ {
 		//Read header of frame
@@ -311,7 +320,7 @@ func HandleWebSocketFrameRead(cl *tcptools.ClientUniversal, limit int, logger *w
 }
 
 /*
-Pack websocket frame
+PackWebSocketFrame packs websocket frame
 Sources: https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API/Writing_WebSocket_server
 Sources: https://en.wikipedia.org/wiki/WebSocket#Opcodes
 Some fixes applied from ChatGPT (big payloads)
@@ -347,6 +356,9 @@ func PackWebSocketFrame(payload []byte, opcode uint8, logger *webtools.ConsoleLo
 	return frame
 }
 
+/*
+WriteToWebSocketFrameHandler handles packing frame and wrtiting it to WebSocket, is used in TCPClientUniversal
+*/
 func WriteToWebSocketFrameHandler(cl *tcptools.ClientUniversal, data []byte, otherData map[string]any) error {
 	//Get opcode
 	opcode := otherData["opcode"]
@@ -428,21 +440,21 @@ Writes to Client with opcode
 //}
 
 /*
-Starts HTTP Server. Locks execution thread
+Start starts WebSocket HTTP Server. Locks execution thread
 */
 func (sv *WebSocketServer) Start() {
 	sv.httpServer.Start()
 }
 
 /*
-Stops HTTP Server
+Stop stops WebSocket HTTP Server
 */
 func (sv *WebSocketServer) Stop() {
 	sv.httpServer.Stop()
 }
 
 /*
-Broadcasts data to clients with specific url parameter/s supplied in filter, set filter to nil for all connections
+BroadcastToClients broadcasts data to clients with specific url parameter/s supplied in filter, set filter to nil for all connections
 */
 func (sv *WebSocketServer) BroadcastToClients(filterURLParams map[string]string, data []byte) {
 	if sv != nil {
@@ -451,21 +463,21 @@ func (sv *WebSocketServer) BroadcastToClients(filterURLParams map[string]string,
 }
 
 /*
-Filters WebSocket connections matching URL parameters
+FilterClients filters WebSocket connections matching URL parameters
 */
 func (sv *WebSocketServer) FilterClients(filterURLParams map[string]string) []*WebSocketServerConn {
 	return FilterWebSocketClients(sv.conns.GetValues(), filterURLParams)
 }
 
 /*
-Filters WebSocket connections matching URL parameters
+FilterWebSocketClients filters WebSocket connections matching URL parameters
 */
 func FilterWebSocketClients(clients []*WebSocketServerConn, filterURLParams map[string]string) []*WebSocketServerConn {
 	result := make([]*WebSocketServerConn, 0)
 	for _, v := range clients {
 		if filterURLParams != nil {
 			//Check parameters
-			var invalid bool = false
+			var invalid = false
 			for k, v2 := range filterURLParams {
 				if v.urlParams[k] != v2 {
 					invalid = true
@@ -483,7 +495,7 @@ func FilterWebSocketClients(clients []*WebSocketServerConn, filterURLParams map[
 }
 
 /*
-Broadcasts data to clients with specific url parameter/s supplied in filter, set filter to nil for all connections
+BroadcastToWebSocketClients broadcasts data to clients with specific url parameter/s supplied in filter, set filter to nil for all connections
 */
 func BroadcastToWebSocketClients(clients []*WebSocketServerConn, filterURLParams map[string]string, data []byte) {
 	for _, v := range FilterWebSocketClients(clients, filterURLParams) {

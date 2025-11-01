@@ -3,7 +3,7 @@ package proxy
 import (
 	"net"
 	"webtools"
-	httptools "webtools/httpTools"
+	"webtools/http"
 	"webtools/udp"
 )
 
@@ -13,7 +13,7 @@ HTTPProxyServerUDP is server for proxied UDP traffic over HTTP
 type HTTPProxyServerUDP struct {
 	idToClient       webtools.SafeMap[string, *HTTPProxyServerUDPConn]
 	clientToID       webtools.SafeMap[*udp.Client, string]
-	httpServer       *httptools.WebSocketServer
+	httpServer       *http.WebSocketServer
 	udpServerAddress string
 	reportTrafic     bool
 }
@@ -24,7 +24,7 @@ HTTPProxyServerUDPConn is connection object of HTTPProxyServerUDP
 type HTTPProxyServerUDPConn struct {
 	udpClient *udp.Client
 	id        []byte
-	source    *httptools.WebSocketServerConn
+	source    *http.WebSocketServerConn
 	origin    *HTTPProxyServerUDP
 }
 
@@ -59,12 +59,12 @@ NewHTTPProxyServerUDP creates new HTTP Proxy Server for UDP but does not starts 
 */
 func NewHTTPProxyServerUDP(httpProxyAddress string, udpServerAddress string, reportTraffic bool) *HTTPProxyServerUDP {
 	sv := &HTTPProxyServerUDP{udpServerAddress: udpServerAddress, clientToID: webtools.MakeSafeMap[*udp.Client, string](), idToClient: webtools.MakeSafeMap[string, *HTTPProxyServerUDPConn](), reportTrafic: reportTraffic}
-	sv.httpServer = httptools.NewHTTPWebSocketServer(httpProxyAddress, sv.handleWebSocketReadFunc, nil, "", reportTraffic)
+	sv.httpServer = http.NewWebSocketServer(httpProxyAddress, sv.handleWebSocketReadFunc, nil, "", reportTraffic)
 	sv.httpServer.Logger.Prefix = "HTTPProxyServerUDP - " + sv.httpServer.Logger.Prefix
 	return sv
 }
 
-func (sv *HTTPProxyServerUDP) handleWebSocketReadFunc(conn *httptools.WebSocketServerConn, frame []byte, status uint8, isBinary bool) {
+func (sv *HTTPProxyServerUDP) handleWebSocketReadFunc(conn *http.WebSocketServerConn, frame []byte, status uint8, isBinary bool) {
 	_ = isBinary //Get rid of unneded property
 	if status == webtools.ConnectStatus {
 		conn.IsBinary = true
