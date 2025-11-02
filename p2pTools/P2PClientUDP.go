@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"net"
 	"slices"
 	"strconv"
@@ -183,7 +184,9 @@ func (p2p *P2PClientUDP) readFuncCoordinator(_ *udpTools.UDPClient, sourceAddres
 				}
 
 				//Split data
+				fmt.Println(frame.Data)
 				split := bytes.SplitN(frame.Data, []byte{webtools.WEBTOOLS_FRAME_SEPARATOR}, 2)
+				fmt.Println(split)
 				if len(split) != 2 {
 					p2p.udpClientCoordinator.Logger.Log(3, "Invalid split data in frame.")
 					return
