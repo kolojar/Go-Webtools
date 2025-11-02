@@ -33,7 +33,7 @@ func HandleDirectoryListingHTTP(w http.ResponseWriter, realPath string, urlPath 
 	}
 
 	//Create HTML
-	creator := NewHTMLCreator(true, "en", "directoryListing")
+	creator := NewHTMLCreator(true, "en", "directoryListing", true)
 	creator.AddBodyElement(NewHTMLHxElement(1, "Current directory: "+urlPath))
 	list := NewHTMLListElement()
 

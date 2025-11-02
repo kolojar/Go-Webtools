@@ -90,6 +90,53 @@ func (base *HTMLElementBase) GetElementBase() *HTMLElementBase {
 }
 
 /*
+FindElementsByAttributes finds element by specified attributes
+*/
+func (base *HTMLElementBase) FindElementsByAttributes(attributes map[string]string) []IHTMLElement {
+	result := make([]IHTMLElement, 0)
+	//Check this
+	found := (len(base.Attributes) == 0 && len(attributes) == 0) || len(attributes) > 0
+	for k, v := range attributes {
+		if base.Attributes[k] != v {
+			found = false
+			break
+		}
+	}
+	if found {
+		result = append(result, base)
+	}
+
+	//Look for children
+	for _, v := range base.HTMLElements {
+		result = append(result, v.GetElementBase().FindElementsByAttributes(attributes)...)
+	}
+	return result
+}
+
+/*
+MoveScriptsToEnd finds scripts and moves them at the end of element
+*/
+func (base *HTMLElementBase) MoveScriptsToEnd() {
+	//Get scripts
+	scripts := make([]IHTMLElement, 0)
+	for _, element := range base.HTMLElements {
+		if element.GetElementBase().tagName == "script" {
+			scripts = append(scripts, element)
+		}
+	}
+
+	//Delete scripts
+	for _, element := range scripts {
+		base.HTMLElements = webtools.RemoveElement(base.HTMLElements, element)
+	}
+
+	//Add scripts
+	for _, element := range scripts {
+		base.HTMLElements = append(base.HTMLElements, element)
+	}
+}
+
+/*
 NewHTMLJSLinkElement creates new JS Link
 */
 func NewHTMLJSLinkElement(src string, typeOfImport string) *HTMLElementBase {
@@ -188,19 +235,23 @@ type HTMLCreator struct {
 	GenerateStructure bool
 	Lang              string
 	Title             string
+	MoveScriptsToEnd  bool
 }
 
 /*
 NewHTMLCreator creates new instance of HTML Creator
 */
-func NewHTMLCreator(GenerateStructure bool, lang string, titile string) *HTMLCreator {
-	return &HTMLCreator{GenerateStructure: GenerateStructure, Lang: lang, BodyElement: NewHTMLElementBase("body"), HeadElements: make([]IHTMLElement, 0), Title: titile}
+func NewHTMLCreator(generateStructure bool, lang string, title string, moveScriptsToEnd bool) *HTMLCreator {
+	return &HTMLCreator{GenerateStructure: generateStructure, Lang: lang, BodyElement: NewHTMLElementBase("body"), HeadElements: make([]IHTMLElement, 0), Title: title, MoveScriptsToEnd: moveScriptsToEnd}
 }
 
 /*
 ExportHTML exports whole HTML file
 */
 func (creator *HTMLCreator) ExportHTML() string {
+	if creator.MoveScriptsToEnd {
+		creator.BodyElement.MoveScriptsToEnd()
+	}
 	if !creator.GenerateStructure {
 		return creator.BodyElement.ExportHTML()
 	}
@@ -220,9 +271,10 @@ func (creator *HTMLCreator) ExportHTML() string {
 	result += "</head>"
 
 	//Generate body
-	result += "<body>"
+	//result += "<body>"
 	result += creator.BodyElement.ExportHTML()
-	result += "</body>"
+	//result += "</body>"
+	result += "</html>"
 	return result
 }
 
@@ -238,4 +290,11 @@ AddBodyElement adds element to body
 */
 func (creator *HTMLCreator) AddBodyElement(element IHTMLElement) {
 	creator.BodyElement.HTMLElements = append(creator.BodyElement.HTMLElements, element)
+}
+
+/*
+RemoveBodyElement removes element from body
+*/
+func (creator *HTMLCreator) RemoveBodyElement(element IHTMLElement) {
+	creator.BodyElement.HTMLElements = webtools.RemoveElement(creator.BodyElement.HTMLElements, element)
 }
