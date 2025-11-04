@@ -1,5 +1,7 @@
 package p2pTools
 
+//FIX NOT RUNNING TCP SERVER!
+
 import (
 	"bytes"
 	"encoding/binary"
