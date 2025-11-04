@@ -187,6 +187,22 @@ func main() {
 			ub, _ := udp.NewBridge("127.0.0.1:7777", "127.0.0.1:17777", true)
 			ub.Start()
 		}
+		/*case "dynamicsv":
+		{
+			sv := http.NewDynamicHTMLServer("127.0.0.1:8080", nil, nil, onInstanceChange, "", true)
+			creator := http.NewHTMLCreator(true, "en", "Test site", true)
+			creator.AddBodyElement(http.NewHTMLHxElement(1, "Example site"))
+			text := http.NewHTMLElementBase("p")
+			textPreClock := http.NewHTMLElementBase("span")
+			textPreClock.InnerHTML = "Current time: "
+			text.HTMLElements = append(text.HTMLElements, textPreClock)
+			textClock := http.NewHTMLElementBase("span")
+			sv.MakeDynamicElement(textClock, "clock")
+			text.HTMLElements = append(text.HTMLElements, textClock)
+			creator.AddBodyElement(text)
+			sv.AddPage("/test", creator)
+			sv.Start()
+		}*/
 	}
 }
 
