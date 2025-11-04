@@ -187,7 +187,7 @@ func main() {
 			ub, _ := udp.NewBridge("127.0.0.1:7777", "127.0.0.1:17777", true)
 			ub.Start()
 		}
-	case "dynamicsv":
+		/*case "dynamicsv":
 		{
 			sv := http.NewDynamicHTMLServer("127.0.0.1:8080", nil, nil, onInstanceChange, "", true)
 			creator := http.NewHTMLCreator(true, "en", "Test site", true)
@@ -202,7 +202,7 @@ func main() {
 			creator.AddBodyElement(text)
 			sv.AddPage("/test", creator)
 			sv.Start()
-		}
+		}*/
 	}
 }
 
@@ -261,18 +261,5 @@ func readFuncHTTPWsSv(conn *http.WebSocketServerConn, data []byte, status uint8,
 func readFuncHTTPWsCl(conn *http.WebSocketClient, _ []byte, status uint8, _ bool) {
 	if status == webtools.ReadDataStatus {
 		conn.Stop()
-	}
-}
-
-func onInstanceChange(server *http.DynamicHTMLServer, instanceConn *http.WebSocketServerConn, status uint8, values map[string]string) {
-	if status == webtools.ConnectStatus {
-		id := webtools.GenerateRandomID()
-		go func() {
-			ok := true
-			for ok {
-				time.Sleep(100 * time.Millisecond)
-				ok = server.SendEvent(instanceConn, "clock", http.DynamicEventSetInnerHTML, id+" "+time.Now().String())
-			}
-		}()
 	}
 }
