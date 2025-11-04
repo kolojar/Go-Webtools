@@ -11,6 +11,8 @@ import (
 	"webtools"
 )
 
+const framer_keepAliveTimerInSeconds = 15
+
 /*
 Config settings for UDP framer
 */
@@ -23,6 +25,7 @@ type UDPFramerConfig struct {
 	TimeoutForResendInMs int64
 	//Retry count
 	ResendMaxLimit uint
+	UseKeepAlive   bool
 }
 
 type UDPFramerReadFunc func(address *net.UDPAddr, data []byte, ended bool)
@@ -31,20 +34,22 @@ type UDPFramerReadFunc func(address *net.UDPAddr, data []byte, ended bool)
 Adds basic checking for resending packages and ordering them same as TCP
 */
 type UDPFramer struct {
-	config         *UDPFramerConfig
-	gotResponce    webtools.SafeMap[string, bool]
-	readData       webtools.SafeMap[string, time.Time]
-	orderList      []webtools.FourValuePair[string, uint64, *net.UDPAddr, []byte]
-	orderListMutex *sync.RWMutex
-	onReadFunc     UDPFramerReadFunc
-	onFailSendFunc UDPFramerReadFunc
+	config             *UDPFramerConfig
+	gotResponce        webtools.SafeMap[string, bool]
+	readData           webtools.SafeMap[string, time.Time]
+	orderList          []webtools.FourValuePair[string, uint64, *net.UDPAddr, []byte]
+	orderListMutex     *sync.RWMutex
+	onReadFunc         UDPFramerReadFunc
+	onFailSendFunc     UDPFramerReadFunc
+	isKeepAliveRunning bool
+	keepAliveConns     webtools.SafeMap[*net.UDPAddr, *net.UDPConn]
 }
 
 /*
 Creates new UDP framer
 */
-func NewUDPFramer(readFunc UDPFramerReadFunc, failSendFunc UDPFramerReadFunc, timeoutForResendInMs int64, resendMaxLimit uint, isOrganised bool, organisedTimeoutInMs int64) *UDPFramer {
-	framer := NewUDPFramerSimpleFromConfig(&UDPFramerConfig{TimeoutForResendInMs: timeoutForResendInMs, ResendMaxLimit: resendMaxLimit, IsOrganised: isOrganised, OrganisedTimeoutInMs: organisedTimeoutInMs}, failSendFunc)
+func NewUDPFramer(readFunc UDPFramerReadFunc, failSendFunc UDPFramerReadFunc, timeoutForResendInMs int64, resendMaxLimit uint, isOrganised bool, organisedTimeoutInMs int64, useKeepAlive bool) *UDPFramer {
+	framer := NewUDPFramerSimpleFromConfig(&UDPFramerConfig{TimeoutForResendInMs: timeoutForResendInMs, ResendMaxLimit: resendMaxLimit, IsOrganised: isOrganised, OrganisedTimeoutInMs: organisedTimeoutInMs, UseKeepAlive: useKeepAlive}, failSendFunc)
 	framer.onReadFunc = readFunc
 	return framer
 }
@@ -52,8 +57,8 @@ func NewUDPFramer(readFunc UDPFramerReadFunc, failSendFunc UDPFramerReadFunc, ti
 /*
 Creates new UDP framer
 */
-func NewUDPFramerSimple(failSendFunc UDPFramerReadFunc, timeoutForResendInMs int64, resendMaxLimit uint, isOrganised bool, organisedTimeoutInMs int64) *UDPFramer {
-	framer := NewUDPFramerSimpleFromConfig(&UDPFramerConfig{TimeoutForResendInMs: timeoutForResendInMs, ResendMaxLimit: resendMaxLimit, IsOrganised: isOrganised, OrganisedTimeoutInMs: organisedTimeoutInMs}, failSendFunc)
+func NewUDPFramerSimple(failSendFunc UDPFramerReadFunc, timeoutForResendInMs int64, resendMaxLimit uint, isOrganised bool, organisedTimeoutInMs int64, useKeepAlive bool) *UDPFramer {
+	framer := NewUDPFramerSimpleFromConfig(&UDPFramerConfig{TimeoutForResendInMs: timeoutForResendInMs, ResendMaxLimit: resendMaxLimit, IsOrganised: isOrganised, OrganisedTimeoutInMs: organisedTimeoutInMs, UseKeepAlive: useKeepAlive}, failSendFunc)
 	framer.onFailSendFunc = failSendFunc
 	return framer
 }
@@ -62,7 +67,16 @@ func NewUDPFramerSimple(failSendFunc UDPFramerReadFunc, timeoutForResendInMs int
 Creates new UDP framer
 */
 func NewUDPFramerSimpleFromConfig(config *UDPFramerConfig, failSendFunc UDPFramerReadFunc) *UDPFramer {
-	return &UDPFramer{onReadFunc: nil, onFailSendFunc: failSendFunc, config: config, gotResponce: webtools.MakeSafeMap[string, bool](), readData: webtools.MakeSafeMap[string, time.Time](), orderList: make([]webtools.FourValuePair[string, uint64, *net.UDPAddr, []byte], 0), orderListMutex: &sync.RWMutex{}}
+	return &UDPFramer{
+		onReadFunc:         nil,
+		onFailSendFunc:     failSendFunc,
+		config:             config,
+		gotResponce:        webtools.MakeSafeMap[string, bool](),
+		readData:           webtools.MakeSafeMap[string, time.Time](),
+		orderList:          make([]webtools.FourValuePair[string, uint64, *net.UDPAddr, []byte], 0),
+		orderListMutex:     &sync.RWMutex{},
+		keepAliveConns:     webtools.MakeSafeMap[*net.UDPAddr, *net.UDPConn](),
+		isKeepAliveRunning: config.UseKeepAlive}
 }
 
 /*
@@ -148,6 +162,12 @@ func (framer *UDPFramer) Resolve(address *net.UDPAddr, data []byte, logger *webt
 			logger.Log(0, "Got ACK frame.")
 			framer.gotResponce.Set(string(id), true)
 			framer.CleanupData(logger, false)
+			return nil
+		}
+	case '2':
+		{
+			//Keep alive
+			logger.Log(0, "Got keep alive frame.")
 			return nil
 		}
 	default:
@@ -283,6 +303,7 @@ func processDataForUDP(address *net.UDPAddr, data []byte, ended bool, readFunc U
 Sends data frame for UDP frame protocol, blocks execution thread
 */
 func (framer *UDPFramer) SendFrame(isServer bool, listener *net.UDPConn, addr *net.UDPAddr, id string, sequenceNum uint, data []byte, logger *webtools.ConsoleLogger) {
+	framer.AddListenerToKeepAlive(isServer, listener, addr, logger)
 	var resend bool = true
 	for resend {
 		//Build frame
@@ -339,5 +360,50 @@ func processSendForUDP(isServer bool, listener *net.UDPConn, addr *net.UDPAddr, 
 	} else {
 		//Framing
 		go framer.SendFrame(isServer, listener, addr, webtools.GenerateRandomId(), 1, data, logger)
+
 	}
+}
+
+/*
+AddListenerToKeepAlive adds listener to keep alive, listeners used in framer are added automatically on first use
+*/
+func (framer *UDPFramer) AddListenerToKeepAlive(isServer bool, listener *net.UDPConn, addr *net.UDPAddr, logger *webtools.ConsoleLogger) {
+	if framer.keepAliveConns.Has(addr) {
+		return
+	}
+
+	//Add listener
+	framer.keepAliveConns.Set(addr, listener)
+	logger.Log(1, "KeepAlive for: "+addr.String()+" added.")
+	go func() {
+		//Start time loop
+		lastUpdate := time.Unix(0, 0)
+		for framer.isKeepAliveRunning {
+			for time.Since(lastUpdate).Seconds() < framer_keepAliveTimerInSeconds {
+				time.Sleep(time.Second)
+			}
+
+			//Send frame to keep alive - build frame
+			frame := make([]byte, 0)
+			frame = append(frame, byte('2')) //2 for keepAlive
+			frame = append(frame, webtools.WEBTOOLS_FRAME_SEPARATOR)
+
+			//Put ID
+			frame = append(frame, byte('0'))
+			frame = append(frame, webtools.WEBTOOLS_FRAME_SEPARATOR)
+
+			//Send frame
+			logger.Log(0, "Sending keepAlive frame to: "+addr.String())
+			writeToUDP(isServer, listener, addr, frame, logger)
+			lastUpdate = time.Now()
+		}
+		logger.Log(1, "KeepAlive for: "+addr.String()+" ended.")
+	}()
+}
+
+/*
+StopKeepAlive requests stop of keepAlive
+*/
+func (framer *UDPFramer) StopKeepAlive() {
+	framer.isKeepAliveRunning = false
 }

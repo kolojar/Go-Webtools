@@ -13,7 +13,7 @@ import (
 )
 
 // Standard framing
-var P2P_FRAMER_CONFIG = &udpTools.UDPFramerConfig{IsOrganised: true, OrganisedTimeoutInMs: 50, TimeoutForResendInMs: 50, ResendMaxLimit: 5}
+var P2P_FRAMER_CONFIG = &udpTools.UDPFramerConfig{IsOrganised: true, OrganisedTimeoutInMs: 50, TimeoutForResendInMs: 50, ResendMaxLimit: 5, UseKeepAlive: true}
 
 // Wait time in seconds for P2P puncholing to start
 const P2P_TIMEOUT_START = 5

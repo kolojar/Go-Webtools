@@ -17,7 +17,7 @@ import (
 
 func main() {
 	fmt.Println("Hello world")
-	framer := udpTools.NewUDPFramerSimple(nil, 50, 5, true, 50)
+	framer := udpTools.NewUDPFramerSimple(nil, 50, 5, true, 50, true)
 	localIP, _ := p2pTools.GetThisComputerLocalIP()
 	upnp := p2pTools.NewUPnPServiceManager(localIP)
 	upnp.SetupUPnP()

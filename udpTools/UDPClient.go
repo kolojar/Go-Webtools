@@ -107,6 +107,9 @@ func (udp *UDPClient) Send(data []byte) {
 Stops TCP client
 */
 func (udp *UDPClient) Stop() {
+	if udp.udpFramer != nil {
+		udp.udpFramer.StopKeepAlive()
+	}
 	if udp.Conn == nil || !udp.isAlive {
 		//Invalid connection
 		return

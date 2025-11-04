@@ -226,6 +226,9 @@ func writeToUDP(isServer bool, listener *net.UDPConn, addr *net.UDPAddr, data []
 Stops UDP server
 */
 func (udp *UDPServer) Stop() {
+	if udp.udpFramer != nil {
+		udp.udpFramer.StopKeepAlive()
+	}
 	if !udp.isAlive {
 		return
 	}
