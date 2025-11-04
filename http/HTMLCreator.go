@@ -131,9 +131,7 @@ func (base *HTMLElementBase) MoveScriptsToEnd() {
 	}
 
 	//Add scripts
-	for _, element := range scripts {
-		base.HTMLElements = append(base.HTMLElements, element)
-	}
+	base.HTMLElements = append(base.HTMLElements, scripts...)
 }
 
 /*
