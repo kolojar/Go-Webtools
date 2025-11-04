@@ -23,12 +23,13 @@ const P2P_CMD_PUNCH uint8 = 50
 // Used for sending data, id is sourceId, data is data
 const P2P_CMD_DATA uint8 = 51
 
-type P2PClientUDPReadFunc func(client *P2PClientUDP, sourceId []byte, data []byte, ended bool, logger *webtools.ConsoleLogger)
+type P2PClientUDPReadFunc func(client *P2PClient, sourceId []byte, data []byte, ended bool, logger *webtools.ConsoleLogger)
 
-type P2PClientUDP struct {
+type P2PClient struct {
 	//Coordinator
 	upnpServiceManager        *UPnPServiceManager
 	udpClientCoordinator      *udpTools.UDPClient
+	tcpClientCoordinator      *tcpTools.TCPClientSimple
 	id                        []byte
 	isConnecting              bool
 	targetIdThisConnecting    []byte
@@ -39,6 +40,7 @@ type P2PClientUDP struct {
 	port                      int
 	loggerPrefix              string
 	publicIP                  string
+	coordinatorAddress        string
 
 	//Server for incomming conns
 	udpIncommingConnsSv *udpTools.UDPServer
@@ -52,7 +54,7 @@ type P2PClientUDP struct {
 	tcpOutcommingConnsCls webtools.SafeMap[string, webtools.KeyValuePair[*tcpTools.TCPClientSimple, bool]]
 }
 
-func (p2p *P2PClientUDP) IsAlive() bool {
+func (p2p *P2PClient) IsAlive() bool {
 	for _, val := range p2p.udpOutcommingConnsCls.GetValues() {
 		if val.Key.IsAlive() {
 			return true
@@ -61,12 +63,12 @@ func (p2p *P2PClientUDP) IsAlive() bool {
 	return p2p.udpIncommingConnsSv.IsAlive()
 }
 
-func (p2p *P2PClientUDP) GetPublicIP() string {
+func (p2p *P2PClient) GetPublicIP() string {
 	return p2p.publicIP
 }
 
 // Sets logger prefix
-func (p2p *P2PClientUDP) SetLoggerPrefix(prefix string) {
+func (p2p *P2PClient) SetLoggerPrefix(prefix string) {
 	p2p.loggerPrefix = prefix
 	p2p.udpClientCoordinator.Logger.Preprefix = prefix
 	p2p.udpIncommingConnsSv.Logger.Preprefix = prefix
@@ -79,9 +81,9 @@ func (p2p *P2PClientUDP) SetLoggerPrefix(prefix string) {
 Creates new P2P Client for UDP but does not starts it
 Setup UPnP using SetupUPnP()
 */
-func NewP2PClientUDP(coordinatorAddress string, portForIncommingConns int, readFunc P2PClientUDPReadFunc, reportTraffic bool) (*P2PClientUDP, error) {
+func NewP2PClientUDP(coordinatorAddress string, portForIncommingConns int, readFunc P2PClientUDPReadFunc, reportTraffic bool) (*P2PClient, error) {
 	//New P2P
-	p2p := &P2PClientUDP{
+	p2p := &P2PClient{
 		id:                        nil,
 		isConnecting:              false,
 		reportTraffic:             reportTraffic,
@@ -93,6 +95,7 @@ func NewP2PClientUDP(coordinatorAddress string, portForIncommingConns int, readF
 		port:                      portForIncommingConns,
 		tcpIncommingConns:         webtools.MakeSafeMap[string, webtools.KeyValuePair[*tcpTools.TCPServerConn, bool]](),
 		tcpOutcommingConnsCls:     webtools.MakeSafeMap[string, webtools.KeyValuePair[*tcpTools.TCPClientSimple, bool]](),
+		coordinatorAddress:        coordinatorAddress,
 	}
 
 	//New client for Coordinator
@@ -102,7 +105,7 @@ func NewP2PClientUDP(coordinatorAddress string, portForIncommingConns int, readF
 		return nil, err
 	}
 	p2p.udpClientCoordinator.Logger.Prefix = "P2PClientUDP - CoordinatorClient"
-	p2p.udpClientCoordinator.SetupFraming(udpTools.NewUDPFramerSimpleFromConfig(P2P_FRAMER_CONFIG))
+	p2p.udpClientCoordinator.SetupFraming(udpTools.NewUDPFramerSimpleFromConfig(P2P_FRAMER_CONFIG, p2p.sendFailFunc))
 
 	//Setup servers
 	p2p.udpIncommingConnsSv, err = udpTools.NewUDPServer("0.0.0.0:"+strconv.Itoa(portForIncommingConns), p2p.readFuncIncommingServerUDP, reportTraffic)
@@ -121,7 +124,7 @@ func NewP2PClientUDP(coordinatorAddress string, portForIncommingConns int, readF
 /*
 Setups UDP framer for whole client
 */
-func (p2p *P2PClientUDP) SetupFraming(framer *udpTools.UDPFramer) {
+func (p2p *P2PClient) SetupFraming(framer *udpTools.UDPFramer) {
 	p2p.udpFramer = framer
 	p2p.udpIncommingConnsSv.SetupFraming(framer)
 	for _, val := range p2p.udpOutcommingConnsCls.GetValues() {
@@ -130,7 +133,7 @@ func (p2p *P2PClientUDP) SetupFraming(framer *udpTools.UDPFramer) {
 }
 
 // Setups UPnP for P2P Client
-func (p2p *P2PClientUDP) SetupUPnP(upnp *UPnPServiceManager) error {
+func (p2p *P2PClient) SetupUPnP(upnp *UPnPServiceManager) error {
 	if p2p.upnpServiceManager != nil {
 		//Remove old
 		err := p2p.upnpServiceManager.RemoveUPnPPort(p2p.port, "UDP")
@@ -160,7 +163,27 @@ func (p2p *P2PClientUDP) SetupUPnP(upnp *UPnPServiceManager) error {
 	return nil
 }
 
-func (p2p *P2PClientUDP) readFuncCoordinator(_ *udpTools.UDPClient, sourceAddress *net.UDPAddr, data []byte, ended bool) {
+func (p2p *P2PClient) sendFailFunc(_ *net.UDPAddr, data []byte, _ bool) {
+	//Failed to send traffic to Coordinator using UDP, switch to TCP
+	if p2p.tcpClientCoordinator == nil {
+		var err error
+		p2p.tcpClientCoordinator, err = tcpTools.NewTCPClientSimple(p2p.coordinatorAddress, 0, false, p2p.readFuncCoordinatorTCP, p2p.reportTraffic)
+		if err != nil {
+			p2p.udpClientCoordinator.Logger.Log(2, "Could not create TCP client: "+err.Error())
+			return
+		}
+		p2p.tcpClientCoordinator.GetLogger().Prefix = "P2PClientTCP - CoordinatorClient"
+		p2p.tcpClientCoordinator.Connect()
+	}
+	p2p.tcpClientCoordinator.Send(data)
+
+}
+
+func (p2p *P2PClient) readFuncCoordinatorTCP(_ *tcpTools.TCPClientSimple, data []byte, status uint8) {
+	p2p.readFuncCoordinator(nil, nil, data, status == webtools.TCP_DISCONNECT_STATUS)
+}
+
+func (p2p *P2PClient) readFuncCoordinator(_ *udpTools.UDPClient, _ *net.UDPAddr, data []byte, ended bool) {
 	for _, frame := range webtools.UnpackWebtoolsFrame(data, p2p.udpClientCoordinator.Logger) {
 		switch frame.Operation {
 		case P2P_CMD_NEW_ID:
@@ -169,7 +192,18 @@ func (p2p *P2PClientUDP) readFuncCoordinator(_ *udpTools.UDPClient, sourceAddres
 				p2p.id = frame.Id
 				p2p.publicIP = string(frame.Data)
 				p2p.udpClientCoordinator.Logger.Log(2, "This client id is: "+string(p2p.id)+" and public IP: "+p2p.publicIP)
-				break
+
+				//New client for Coordinator
+				var err error
+				p2p.tcpClientCoordinator, err = tcpTools.NewTCPClientSimple(p2p.coordinatorAddress, 0, false, p2p.readFuncCoordinatorTCP, p2p.reportTraffic)
+				if err != nil {
+					p2p.udpClientCoordinator.Logger.Log(2, "Could not create TCP client: "+err.Error())
+					continue
+				}
+				p2p.tcpClientCoordinator.GetLogger().Prefix = "P2PClientTCP - CoordinatorClient"
+				p2p.tcpClientCoordinator.Connect()
+				p2p.tcpClientCoordinator.Send(webtools.PackWebtoolsFrame(P2P_CMD_ASSOCIATE_TCP, p2p.id, []byte("0")))
+				continue
 			}
 		case P2P_CMD_START_PUNCHING:
 			{
@@ -382,7 +416,7 @@ func (p2p *P2PClientUDP) readFuncCoordinator(_ *udpTools.UDPClient, sourceAddres
 	}
 }
 
-func (p2p *P2PClientUDP) readFuncOutcommingClientsUDP(client *udpTools.UDPClient, sourceAddress *net.UDPAddr, data []byte, ended bool) {
+func (p2p *P2PClient) readFuncOutcommingClientsUDP(client *udpTools.UDPClient, sourceAddress *net.UDPAddr, data []byte, ended bool) {
 	for _, frame := range webtools.UnpackWebtoolsFrame(data, p2p.udpClientCoordinator.Logger) {
 		switch frame.Operation {
 		case P2P_CMD_PUNCH:
@@ -408,7 +442,7 @@ func (p2p *P2PClientUDP) readFuncOutcommingClientsUDP(client *udpTools.UDPClient
 	}
 }
 
-func (p2p *P2PClientUDP) readFuncIncommingServerUDP(conn *udpTools.UDPServerConn, data []byte, ended bool) {
+func (p2p *P2PClient) readFuncIncommingServerUDP(conn *udpTools.UDPServerConn, data []byte, ended bool) {
 	for _, frame := range webtools.UnpackWebtoolsFrame(data, p2p.udpClientCoordinator.Logger) {
 		switch frame.Operation {
 		case P2P_CMD_PUNCH:
@@ -435,7 +469,7 @@ func (p2p *P2PClientUDP) readFuncIncommingServerUDP(conn *udpTools.UDPServerConn
 	}
 }
 
-func (p2p *P2PClientUDP) readFuncOutcommingClientsTCP(client *tcpTools.TCPClientSimple, data []byte, status uint8) {
+func (p2p *P2PClient) readFuncOutcommingClientsTCP(client *tcpTools.TCPClientSimple, data []byte, status uint8) {
 	for _, frame := range webtools.UnpackWebtoolsFrame(data, p2p.udpClientCoordinator.Logger) {
 		if p2p.readFunc != nil {
 			p2p.readFunc(p2p, frame.Id, frame.Data, status == webtools.TCP_DISCONNECT_STATUS, client.GetLogger())
@@ -443,7 +477,7 @@ func (p2p *P2PClientUDP) readFuncOutcommingClientsTCP(client *tcpTools.TCPClient
 	}
 }
 
-func (p2p *P2PClientUDP) readFuncIncommingServerTCP(conn *tcpTools.TCPServerConn, data []byte, status uint8) {
+func (p2p *P2PClient) readFuncIncommingServerTCP(conn *tcpTools.TCPServerConn, data []byte, status uint8) {
 	for _, frame := range webtools.UnpackWebtoolsFrame(data, p2p.udpClientCoordinator.Logger) {
 		switch frame.Operation {
 		case P2P_CMD_PUNCH:
@@ -472,7 +506,7 @@ func (p2p *P2PClientUDP) readFuncIncommingServerTCP(conn *tcpTools.TCPServerConn
 /*
 Connects to coordinator, does not lock execution thread
 */
-func (p2p *P2PClientUDP) ConnectToCoordinator() bool {
+func (p2p *P2PClient) ConnectToCoordinator() bool {
 	if p2p.id != nil {
 		return true
 	}
@@ -497,7 +531,7 @@ func (p2p *P2PClientUDP) ConnectToCoordinator() bool {
 /*
 Connects to specified id,does not lock execution thread
 */
-func (p2p *P2PClientUDP) ConnectToPeer(targetId []byte) bool {
+func (p2p *P2PClient) ConnectToPeer(targetId []byte) bool {
 	for p2p.isConnecting {
 		time.Sleep(100 * time.Millisecond)
 	}
@@ -519,7 +553,7 @@ func (p2p *P2PClientUDP) ConnectToPeer(targetId []byte) bool {
 /*
 Sends data to target peer, returns if value was send
 */
-func (p2p *P2PClientUDP) Send(targetId []byte, data []byte) bool {
+func (p2p *P2PClient) Send(targetId []byte, data []byte) bool {
 	//Handle outcommingUDP UDP
 	outcommingUDP, ok := p2p.udpOutcommingConnsCls.GetHas(string(targetId))
 	if ok && outcommingUDP.Value {
@@ -571,7 +605,7 @@ func (p2p *P2PClientUDP) Send(targetId []byte, data []byte) bool {
 /*
 Stops P2P client
 */
-func (p2p *P2PClientUDP) Stop() {
+func (p2p *P2PClient) Stop() {
 	if p2p.upnpServiceManager != nil {
 		p2p.upnpServiceManager.Shutdown()
 	}
@@ -587,7 +621,7 @@ func (p2p *P2PClientUDP) Stop() {
 }
 
 // Check if your connection is CG-NAT, you need to connect to coordinator first
-func (p2p *P2PClientUDP) CheckCGNAT() (bool, error) {
+func (p2p *P2PClient) CheckCGNAT() (bool, error) {
 	if p2p.upnpServiceManager == nil {
 		p2p.udpClientCoordinator.Logger.Log(3, "No UPnP manager found.")
 		return false, errors.New("no upnp manager active")

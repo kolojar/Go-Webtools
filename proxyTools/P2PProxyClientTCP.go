@@ -14,7 +14,7 @@ type P2PProxyClientTCP struct {
 	clientToId         webtools.SafeMap[*tcpTools.TCPServerConn, string]
 	idToClient         webtools.SafeMap[string, *tcpTools.TCPServerConn]
 	tcpServer          *tcpTools.TCPServer
-	p2pClient          *p2pTools.P2PClientUDP
+	p2pClient          *p2pTools.P2PClient
 	pendingConnections webtools.SafeMap[string, *tcpTools.TCPServerConn]
 	pendingConnsData   webtools.SafeMap[*tcpTools.TCPServerConn, [][]byte]
 	p2pServerId        []byte
@@ -49,7 +49,7 @@ func NewP2PProxyClientTCP(p2pCoordinatorAddress string, p2pPortForIncommingConns
 	return cl, nil
 }
 
-func (cl *P2PProxyClientTCP) handleP2PReadFunc(_ *p2pTools.P2PClientUDP, sourceId []byte, frame []byte, ended bool, logger *webtools.ConsoleLogger) {
+func (cl *P2PProxyClientTCP) handleP2PReadFunc(_ *p2pTools.P2PClient, sourceId []byte, frame []byte, ended bool, logger *webtools.ConsoleLogger) {
 	if ended {
 		//Close all connections
 		cl.tcpServer.Stop()

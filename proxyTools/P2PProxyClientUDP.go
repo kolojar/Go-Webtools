@@ -14,7 +14,7 @@ type P2PProxyClientUDP struct {
 	clientToId         webtools.SafeMap[*udpTools.UDPServerConn, string]
 	idToClient         webtools.SafeMap[string, *udpTools.UDPServerConn]
 	udpServer          *udpTools.UDPServer
-	p2pClient          *p2pTools.P2PClientUDP
+	p2pClient          *p2pTools.P2PClient
 	pendingConnections webtools.SafeMap[string, *udpTools.UDPServerConn]
 	pendingConnsData   webtools.SafeMap[*udpTools.UDPServerConn, [][]byte]
 	p2pServerId        []byte
@@ -49,7 +49,7 @@ func NewP2PProxyClientUDP(p2pCoordinatorAddress string, p2pPortForIncommingConns
 	return cl, nil
 }
 
-func (cl *P2PProxyClientUDP) handleP2PReadFunc(_ *p2pTools.P2PClientUDP, sourceId []byte, frame []byte, ended bool, logger *webtools.ConsoleLogger) {
+func (cl *P2PProxyClientUDP) handleP2PReadFunc(_ *p2pTools.P2PClient, sourceId []byte, frame []byte, ended bool, logger *webtools.ConsoleLogger) {
 	if ended {
 		//Close all connections
 		cl.udpServer.Stop()

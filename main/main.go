@@ -17,7 +17,7 @@ import (
 
 func main() {
 	fmt.Println("Hello world")
-	framer := udpTools.NewUDPFramerSimple(50, 5, true, 50)
+	framer := udpTools.NewUDPFramerSimple(nil, 50, 5, true, 50)
 	localIP, _ := p2pTools.GetThisComputerLocalIP()
 	upnp := p2pTools.NewUPnPServiceManager(localIP)
 	upnp.SetupUPnP()
@@ -274,11 +274,11 @@ func main() {
 	}
 }
 
-func p2pReadFunc(client *p2pTools.P2PClientUDP, sourceId []byte, data []byte, ended bool, _ *webtools.ConsoleLogger) {
+func p2pReadFunc(client *p2pTools.P2PClient, sourceId []byte, data []byte, ended bool, _ *webtools.ConsoleLogger) {
 	client.Send(sourceId, data)
 }
 
-func p2pReadFunc2(client *p2pTools.P2PClientUDP, sourceId []byte, data []byte, ended bool, _ *webtools.ConsoleLogger) {
+func p2pReadFunc2(client *p2pTools.P2PClient, sourceId []byte, data []byte, ended bool, _ *webtools.ConsoleLogger) {
 	fmt.Println(string(data))
 }
 

@@ -37,27 +37,32 @@ type UDPFramer struct {
 	orderList      []webtools.FourValuePair[string, uint64, *net.UDPAddr, []byte]
 	orderListMutex *sync.RWMutex
 	onReadFunc     UDPFramerReadFunc
+	onFailSendFunc UDPFramerReadFunc
 }
 
 /*
 Creates new UDP framer
 */
-func NewUDPFramer(readFunc UDPFramerReadFunc, timeoutForResendInMs int64, resendMaxLimit uint, isOrganised bool, organisedTimeoutInMs int64) *UDPFramer {
-	return &UDPFramer{onReadFunc: readFunc, config: &UDPFramerConfig{TimeoutForResendInMs: timeoutForResendInMs, ResendMaxLimit: resendMaxLimit, IsOrganised: isOrganised, OrganisedTimeoutInMs: organisedTimeoutInMs}, gotResponce: webtools.MakeSafeMap[string, bool](), readData: webtools.MakeSafeMap[string, time.Time](), orderList: make([]webtools.FourValuePair[string, uint64, *net.UDPAddr, []byte], 0), orderListMutex: &sync.RWMutex{}}
+func NewUDPFramer(readFunc UDPFramerReadFunc, failSendFunc UDPFramerReadFunc, timeoutForResendInMs int64, resendMaxLimit uint, isOrganised bool, organisedTimeoutInMs int64) *UDPFramer {
+	framer := NewUDPFramerSimpleFromConfig(&UDPFramerConfig{TimeoutForResendInMs: timeoutForResendInMs, ResendMaxLimit: resendMaxLimit, IsOrganised: isOrganised, OrganisedTimeoutInMs: organisedTimeoutInMs}, failSendFunc)
+	framer.onReadFunc = readFunc
+	return framer
 }
 
 /*
 Creates new UDP framer
 */
-func NewUDPFramerSimple(timeoutForResendInMs int64, resendMaxLimit uint, isOrganised bool, organisedTimeoutInMs int64) *UDPFramer {
-	return NewUDPFramerSimpleFromConfig(&UDPFramerConfig{TimeoutForResendInMs: timeoutForResendInMs, ResendMaxLimit: resendMaxLimit, IsOrganised: isOrganised, OrganisedTimeoutInMs: organisedTimeoutInMs})
+func NewUDPFramerSimple(failSendFunc UDPFramerReadFunc, timeoutForResendInMs int64, resendMaxLimit uint, isOrganised bool, organisedTimeoutInMs int64) *UDPFramer {
+	framer := NewUDPFramerSimpleFromConfig(&UDPFramerConfig{TimeoutForResendInMs: timeoutForResendInMs, ResendMaxLimit: resendMaxLimit, IsOrganised: isOrganised, OrganisedTimeoutInMs: organisedTimeoutInMs}, failSendFunc)
+	framer.onFailSendFunc = failSendFunc
+	return framer
 }
 
 /*
 Creates new UDP framer
 */
-func NewUDPFramerSimpleFromConfig(config *UDPFramerConfig) *UDPFramer {
-	return &UDPFramer{onReadFunc: nil, config: config, gotResponce: webtools.MakeSafeMap[string, bool](), readData: webtools.MakeSafeMap[string, time.Time](), orderList: make([]webtools.FourValuePair[string, uint64, *net.UDPAddr, []byte], 0), orderListMutex: &sync.RWMutex{}}
+func NewUDPFramerSimpleFromConfig(config *UDPFramerConfig, failSendFunc UDPFramerReadFunc) *UDPFramer {
+	return &UDPFramer{onReadFunc: nil, onFailSendFunc: failSendFunc, config: config, gotResponce: webtools.MakeSafeMap[string, bool](), readData: webtools.MakeSafeMap[string, time.Time](), orderList: make([]webtools.FourValuePair[string, uint64, *net.UDPAddr, []byte], 0), orderListMutex: &sync.RWMutex{}}
 }
 
 /*
@@ -313,6 +318,10 @@ func (framer *UDPFramer) SendFrame(isServer bool, listener *net.UDPConn, addr *n
 			//If no responce, resend
 			if framer.config.ResendMaxLimit <= sequenceNum {
 				resend = false
+				//Failed sending
+				if framer.onFailSendFunc != nil {
+					framer.onFailSendFunc(addr, data, false)
+				}
 			}
 		} else {
 			//Got responce

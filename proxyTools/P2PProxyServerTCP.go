@@ -14,7 +14,7 @@ P2P Proxy server for UDP object
 type P2PProxyServerTCP struct {
 	idToClient       webtools.SafeMap[string, *P2PProxyServerTCPConn]
 	clientToId       webtools.SafeMap[*tcpTools.TCPClientSimple, string]
-	p2pClient        *p2pTools.P2PClientUDP
+	p2pClient        *p2pTools.P2PClient
 	udpServerAddress string
 	reportTrafic     bool
 }
@@ -77,7 +77,7 @@ func NewP2PProxyServerTCP(p2pCoordinatorAddress string, p2pPortForIncommingConns
 	return sv, nil
 }
 
-func (sv *P2PProxyServerTCP) handleP2PReadFunc(_ *p2pTools.P2PClientUDP, sourceId []byte, frame []byte, ended bool, logger *webtools.ConsoleLogger) {
+func (sv *P2PProxyServerTCP) handleP2PReadFunc(_ *p2pTools.P2PClient, sourceId []byte, frame []byte, ended bool, logger *webtools.ConsoleLogger) {
 	if ended {
 		//Close all connections with this P2P Conn
 		for _, d := range sv.idToClient.GetData() {
