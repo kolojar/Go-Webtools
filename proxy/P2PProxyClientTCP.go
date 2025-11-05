@@ -1,23 +1,23 @@
-package proxyTools
+package proxy
 
 import (
 	"bytes"
 	"webtools"
-	"webtools/p2pTools"
-	"webtools/tcpTools"
+	"webtools/p2p"
+	"webtools/tcp"
 )
 
 /*
 P2P Proxy client for UDP object
 */
 type P2PProxyClientTCP struct {
-	clientToId         webtools.SafeMap[*tcpTools.TCPServerConn, string]
-	idToClient         webtools.SafeMap[string, *tcpTools.TCPServerConn]
-	tcpServer          *tcpTools.TCPServer
-	p2pClient          *p2pTools.P2PClient
-	pendingConnections webtools.SafeMap[string, *tcpTools.TCPServerConn]
-	pendingConnsData   webtools.SafeMap[*tcpTools.TCPServerConn, [][]byte]
-	p2pServerId        []byte
+	clientToID         webtools.SafeMap[*tcp.ServerConn, string]
+	idToClient         webtools.SafeMap[string, *tcp.ServerConn]
+	tcpServer          *tcp.Server
+	p2pClient          *p2p.P2PClient
+	pendingConnections webtools.SafeMap[string, *tcp.ServerConn]
+	pendingConnsData   webtools.SafeMap[*tcp.ServerConn, [][]byte]
+	p2pServerID        []byte
 }
 
 func (cl *P2PProxyClientTCP) IsAlive() bool {
@@ -27,21 +27,21 @@ func (cl *P2PProxyClientTCP) IsAlive() bool {
 /*
 Creates new P2P Proxy Client for UDP but does not starts it
 */
-func NewP2PProxyClientTCP(p2pCoordinatorAddress string, p2pPortForIncommingConns int, p2pProxyServerId []byte, tcpServerAddress string, reportTraffic bool) (*P2PProxyClientTCP, error) {
+func NewP2PProxyClientTCP(p2pCoordinatorAddress string, p2pPortForIncommingConns int, p2pProxyServerID []byte, tcpServerAddress string, reportTraffic bool) (*P2PProxyClientTCP, error) {
 	cl := &P2PProxyClientTCP{
-		clientToId:         webtools.MakeSafeMap[*tcpTools.TCPServerConn, string](),
-		pendingConnections: webtools.MakeSafeMap[string, *tcpTools.TCPServerConn](),
-		idToClient:         webtools.MakeSafeMap[string, *tcpTools.TCPServerConn](),
-		pendingConnsData:   webtools.MakeSafeMap[*tcpTools.TCPServerConn, [][]byte](),
-		p2pServerId:        p2pProxyServerId,
+		clientToID:         webtools.MakeSafeMap[*tcp.ServerConn, string](),
+		pendingConnections: webtools.MakeSafeMap[string, *tcp.ServerConn](),
+		idToClient:         webtools.MakeSafeMap[string, *tcp.ServerConn](),
+		pendingConnsData:   webtools.MakeSafeMap[*tcp.ServerConn, [][]byte](),
+		p2pServerID:        p2pProxyServerID,
 	}
 	var err error
-	cl.p2pClient, err = p2pTools.NewP2PClientUDP(p2pCoordinatorAddress, p2pPortForIncommingConns, cl.handleP2PReadFunc, reportTraffic)
+	cl.p2pClient, err = p2p.NewP2PClientUDP(p2pCoordinatorAddress, p2pPortForIncommingConns, cl.handleP2PReadFunc, reportTraffic)
 	if err != nil {
 		return nil, err
 	}
 	cl.p2pClient.SetLoggerPrefix("P2PProxyClientTCP")
-	cl.tcpServer, err = tcpTools.NewTCPServer(tcpServerAddress, cl.handleTCPReadFunc, reportTraffic, false)
+	cl.tcpServer, err = tcp.NewServer(tcpServerAddress, cl.handleTCPReadFunc, reportTraffic, false)
 	if err != nil {
 		return nil, err
 	}
@@ -49,15 +49,15 @@ func NewP2PProxyClientTCP(p2pCoordinatorAddress string, p2pPortForIncommingConns
 	return cl, nil
 }
 
-func (cl *P2PProxyClientTCP) handleP2PReadFunc(_ *p2pTools.P2PClient, sourceId []byte, frame []byte, ended bool, logger *webtools.ConsoleLogger) {
+func (cl *P2PProxyClientTCP) handleP2PReadFunc(_ *p2p.P2PClient, sourceID []byte, frame []byte, ended bool, logger *webtools.ConsoleLogger) {
 	if ended {
 		//Close all connections
 		cl.tcpServer.Stop()
 		return
 	}
-	if !bytes.Equal(sourceId, cl.p2pServerId) {
-		//Invalid source ID
-		cl.tcpServer.Logger.Log(3, "Invalid peer source id: "+string(sourceId))
+	if !bytes.Equal(sourceID, cl.p2pServerID) {
+		//InvalID source ID
+		cl.tcpServer.Logger.Log(3, "InvalID peer source ID: "+string(sourceID))
 		return
 	}
 
@@ -68,67 +68,67 @@ func (cl *P2PProxyClientTCP) handleP2PReadFunc(_ *p2pTools.P2PClient, sourceId [
 		}
 
 		switch frame.Operation {
-		case webtools.WEBTOOLS_FRAME_TYPE_CONNECT:
+		case webtools.ConnectStatus:
 			{
 				//Confirmed connection
 				conn := cl.pendingConnections.Get(string(frame.Data))
 				if conn == nil {
-					cl.tcpServer.Logger.Log(3, "Pending connection with temporary id: "+string(frame.Data)+" not found")
+					cl.tcpServer.Logger.Log(3, "Pending connection with temporary ID: "+string(frame.Data)+" not found")
 					return
 				}
 				cl.pendingConnections.Delete(string(frame.Data))
-				cl.clientToId.Set(conn, string(frame.Id))
-				cl.idToClient.Set(string(frame.Id), conn)
-				cl.tcpServer.Logger.Log(1, "Prepared new connection with temporary id: "+string(frame.Data)+" for connection connected to: "+conn.GetConn().RemoteAddr().String()+" with new id: "+string(frame.Id))
+				cl.clientToID.Set(conn, string(frame.ID))
+				cl.idToClient.Set(string(frame.ID), conn)
+				cl.tcpServer.Logger.Log(1, "Prepared new connection with temporary ID: "+string(frame.Data)+" for connection connected to: "+conn.GetConn().RemoteAddr().String()+" with new ID: "+string(frame.ID))
 
 				//Process pending data
 				for len(cl.pendingConnsData.Get(conn)) > 0 {
 					//Resend data
-					cl.p2pClient.Send(cl.p2pServerId, webtools.PackWebtoolsFrame(webtools.WEBTOOLS_FRAME_TYPE_DATA, frame.Id, cl.pendingConnsData.Get(conn)[0]))
+					cl.p2pClient.Send(cl.p2pServerID, webtools.PackWebtoolsFrame(webtools.FrameTypeData, frame.ID, cl.pendingConnsData.Get(conn)[0]))
 					cl.pendingConnsData.Set(conn, cl.pendingConnsData.Get(conn)[1:])
 				}
 				cl.pendingConnsData.Delete(conn)
 				return
 			}
-		case webtools.WEBTOOLS_FRAME_TYPE_CLOSE:
+		case webtools.FrameTypeClose:
 			{
 				//Close connection
-				cl.idToClient.Get(string(frame.Id)).Close()
+				cl.idToClient.Get(string(frame.ID)).Close()
 			}
-		case webtools.WEBTOOLS_FRAME_TYPE_DATA:
+		case webtools.FrameTypeData:
 			{
 				//Resend data
-				cl.idToClient.Get(string(frame.Id)).Send(frame.Data)
+				cl.idToClient.Get(string(frame.ID)).Send(frame.Data)
 			}
 		}
 	}
 }
 
-func (cl *P2PProxyClientTCP) handleTCPReadFunc(tcpConn *tcpTools.TCPServerConn, data []byte, status uint8) {
+func (cl *P2PProxyClientTCP) handleTCPReadFunc(tcpConn *tcp.ServerConn, data []byte, status uint8) {
 	if cl.pendingConnsData.Get(tcpConn) != nil {
 		//Already pending connection
 		cl.pendingConnsData.Set(tcpConn, append(cl.pendingConnsData.Get(tcpConn), data))
 		return
 	}
 
-	id := cl.clientToId.Get(tcpConn)
-	if id == "" {
+	ID := cl.clientToID.Get(tcpConn)
+	if ID == "" {
 		//No connection found, request new
-		tempId := webtools.GenerateRandomId()
-		cl.pendingConnections.Set(tempId, tcpConn)
-		cl.tcpServer.Logger.Log(1, "Preparing new connection with temporary id: "+tempId+" for connection connected to: "+tcpConn.GetConn().RemoteAddr().String())
-		cl.p2pClient.Send(cl.p2pServerId, webtools.PackWebtoolsFrame(webtools.WEBTOOLS_FRAME_TYPE_CONNECT, []byte("0"), []byte(tempId)))
+		tempID := webtools.GenerateRandomID()
+		cl.pendingConnections.Set(tempID, tcpConn)
+		cl.tcpServer.Logger.Log(1, "Preparing new connection with temporary ID: "+tempID+" for connection connected to: "+tcpConn.GetConn().RemoteAddr().String())
+		cl.p2pClient.Send(cl.p2pServerID, webtools.PackWebtoolsFrame(webtools.ConnectStatus, []byte("0"), []byte(tempID)))
 		cl.pendingConnsData.Set(tcpConn, append(make([][]byte, 0), data))
 		return
 	}
 
-	if status == webtools.TCP_DISCONNECT_STATUS {
+	if status == webtools.DisconnectStatus {
 		//Connection ennded
-		cl.p2pClient.Send(cl.p2pServerId, webtools.PackWebtoolsFrame(webtools.WEBTOOLS_FRAME_TYPE_CLOSE, []byte(id), nil))
+		cl.p2pClient.Send(cl.p2pServerID, webtools.PackWebtoolsFrame(webtools.FrameTypeClose, []byte(ID), nil))
 		return
 	}
 	//Send data
-	cl.p2pClient.Send(cl.p2pServerId, webtools.PackWebtoolsFrame(webtools.WEBTOOLS_FRAME_TYPE_DATA, []byte(id), data))
+	cl.p2pClient.Send(cl.p2pServerID, webtools.PackWebtoolsFrame(webtools.FrameTypeData, []byte(ID), data))
 }
 
 /*
@@ -138,7 +138,7 @@ func (cl *P2PProxyClientTCP) Connect() bool {
 	if !cl.p2pClient.ConnectToCoordinator() {
 		return false
 	}
-	if !cl.p2pClient.ConnectToPeer(cl.p2pServerId) {
+	if !cl.p2pClient.ConnectToPeer(cl.p2pServerID) {
 		return false
 	}
 	go cl.tcpServer.Start()
