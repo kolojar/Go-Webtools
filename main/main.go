@@ -12,6 +12,7 @@ import (
 	"time"
 	"webtools"
 	"webtools/http"
+	"webtools/p2p"
 	"webtools/proxy"
 	"webtools/tcp"
 	"webtools/udp"
@@ -19,7 +20,9 @@ import (
 
 func main() {
 	fmt.Println("Hello world")
-	framer := udp.NewUDPFramerSimple(50, 5, true, 50)
+	framer := udp.NewUDPFramerSimple(nil, 50, 5, true, 50, true)
+	ip, _ := p2p.GetThisComputerLocalIP()
+	upnp := p2p.NewUPnPServiceManager(ip)
 	switch os.Args[1] {
 	case "ts":
 		{
@@ -189,13 +192,13 @@ func main() {
 		}
 	case "p2psv":
 		{
-			sv, _ := p2pTools.NewP2PCoordinator("0.0.0.0:1234", true, true)
+			sv, _ := p2p.NewP2PCoordinator("0.0.0.0:1234", true, true)
 			sv.Start()
 			break
 		}
 	case "p2pcl":
 		{
-			cl, _ := p2pTools.NewP2PClientUDP("127.0.0.1:1234", 5678, p2pReadFunc, true)
+			cl, _ := p2p.NewP2PClientUDP("127.0.0.1:1234", 5678, p2pReadFunc, true)
 			cl.SetupUPnP(upnp)
 			cl.ConnectToCoordinator()
 			webtools.ReadLineFromConsole("Wait")
@@ -203,7 +206,7 @@ func main() {
 	case "p2pcl2":
 		{
 			println("p2pCl2")
-			cl, _ := p2pTools.NewP2PClientUDP("127.0.0.1:1234", 5679, p2pReadFunc2, true)
+			cl, _ := p2p.NewP2PClientUDP("127.0.0.1:1234", 5679, p2pReadFunc2, true)
 			cl.SetupUPnP(upnp)
 			cl.ConnectToCoordinator()
 			data, _ := webtools.ReadLineFromConsole("Enter target id: ")
@@ -213,7 +216,7 @@ func main() {
 		}
 	case "p2pcl3":
 		{
-			cl, _ := p2pTools.NewP2PClientUDP("127.0.0.1:1234", 5677, p2pReadFunc2, true)
+			cl, _ := p2p.NewP2PClientUDP("127.0.0.1:1234", 5677, p2pReadFunc2, true)
 			cl.SetupUPnP(upnp)
 			cl.ConnectToCoordinator()
 			data, _ := webtools.ReadLineFromConsole("Enter target id: ")
@@ -223,10 +226,10 @@ func main() {
 		}
 	case "upnp":
 		{
-			localIp, _ := p2pTools.GetThisComputerLocalIP()
+			localIp, _ := p2p.GetThisComputerLocalIP()
 			fmt.Println(localIp)
 			//time.Sleep(5 * time.Second)
-			upnp := p2pTools.NewUPnPServiceManager(localIp)
+			upnp := p2p.NewUPnPServiceManager(localIp)
 			println(upnp.SetupUPnP().Error())
 			upnp.AddUPnPPort(5555, 5555, "TCP", "This it test")
 			time.Sleep(10 * time.Second)
@@ -248,13 +251,13 @@ func main() {
 		}
 	case "p2ppsu":
 		{
-			proxy, _ := proxyTools.NewP2PProxyServerUDP("127.0.0.1:1234", 5678, "127.0.0.1:7777", true)
+			proxy, _ := proxy.NewP2PProxyServerUDP("127.0.0.1:1234", 5678, "127.0.0.1:7777", true)
 			proxy.Start()
 		}
 	case "p2ppcu":
 		{
 			data, _ := webtools.ReadLineFromConsole("Enter target id: ")
-			proxy, _ := proxyTools.NewP2PProxyClientUDP("127.0.0.1:1234", 5679, []byte(strings.ReplaceAll(string(data), "\n", "")), "127.0.0.1:17777", true)
+			proxy, _ := proxy.NewP2PProxyClientUDP("127.0.0.1:1234", 5679, []byte(strings.ReplaceAll(string(data), "\n", "")), "127.0.0.1:17777", true)
 			proxy.Connect()
 			for {
 				time.Sleep(100 * time.Millisecond)
@@ -262,7 +265,7 @@ func main() {
 		}
 	case "checkcgnat":
 		{
-			p2p, _ := p2pTools.NewP2PClientUDP("127.0.0.1:1234", 5678, nil, true)
+			p2p, _ := p2p.NewP2PClientUDP("127.0.0.1:1234", 5678, nil, true)
 			p2p.SetupUPnP(upnp)
 			if p2p.ConnectToCoordinator() {
 				p2p.CheckCGNAT()
@@ -273,35 +276,12 @@ func main() {
 	}
 }
 
-func p2pReadFunc(client *p2pTools.P2PClient, sourceId []byte, data []byte, ended bool, _ *webtools.ConsoleLogger) {
+func p2pReadFunc(client *p2p.P2PClient, sourceId []byte, data []byte, ended bool, _ *webtools.ConsoleLogger) {
 	client.Send(sourceId, data)
 }
 
-func p2pReadFunc2(client *p2pTools.P2PClient, sourceId []byte, data []byte, ended bool, _ *webtools.ConsoleLogger) {
+func p2pReadFunc2(client *p2p.P2PClient, sourceId []byte, data []byte, ended bool, _ *webtools.ConsoleLogger) {
 	fmt.Println(string(data))
-}
-
-var rc int = 0
-
-func readFuncTCPSv(conn *tcpTools.TCPServerConn, data []byte, status uint8) {
-	if status == webtools.TCP_READ_DATA_STATUS {
-		/*case "dynamicsv":
-		{
-			sv := http.NewDynamicHTMLServer("127.0.0.1:8080", nil, nil, onInstanceChange, "", true)
-			creator := http.NewHTMLCreator(true, "en", "Test site", true)
-			creator.AddBodyElement(http.NewHTMLHxElement(1, "Example site"))
-			text := http.NewHTMLElementBase("p")
-			textPreClock := http.NewHTMLElementBase("span")
-			textPreClock.InnerHTML = "Current time: "
-			text.HTMLElements = append(text.HTMLElements, textPreClock)
-			textClock := http.NewHTMLElementBase("span")
-			sv.MakeDynamicElement(textClock, "clock")
-			text.HTMLElements = append(text.HTMLElements, textClock)
-			creator.AddBodyElement(text)
-			sv.AddPage("/test", creator)
-			sv.Start()
-		}*/
-	}
 }
 
 var rc = 0

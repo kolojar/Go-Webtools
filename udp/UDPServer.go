@@ -43,7 +43,7 @@ func (conn *ServerConn) Close() {
 /*
 ServerReadFunc is function definition for reading data from Server
 */
-type ServerReadFunc func(conn *ServerConn,data []byte,ended bool)
+type ServerReadFunc func(conn *ServerConn, data []byte, ended bool)
 
 /*
 Server is basic UDP server
@@ -55,15 +55,15 @@ type Server struct {
 	Logger        *webtools.ConsoleLogger
 	requestedStop bool
 	isAlive       bool
-	conns         webtools.SafeMap[string, *UDPServerConn]
-	udpFramer     *UDPFramer
+	conns         webtools.SafeMap[string, *ServerConn]
+	udpFramer     *Framer
 }
 
-func (udp *UDPServer) IsAlive() bool {
+func (udp *Server) IsAlive() bool {
 	return udp.isAlive
 }
 
-func (udp *UDPServer) GetAddress() *net.UDPAddr {
+func (udp *Server) GetAddress() *net.UDPAddr {
 	return udp.address
 }
 
@@ -222,7 +222,7 @@ func writeToUDP(isServer bool, listener *net.UDPConn, addr *net.UDPAddr, data []
 /*
 Stop stops UDP server
 */
-func (udp *UDPServer) Stop() {
+func (udp *Server) Stop() {
 	if udp.udpFramer != nil {
 		udp.udpFramer.StopKeepAlive()
 	}

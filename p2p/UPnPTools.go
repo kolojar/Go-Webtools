@@ -1,4 +1,4 @@
-package p2pTools
+package p2p
 
 import (
 	"bufio"
