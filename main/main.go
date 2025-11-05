@@ -192,7 +192,7 @@ func main() {
 		}
 	case "p2psv":
 		{
-			sv, _ := p2p.NewP2PCoordinator("0.0.0.0:1234", true, true)
+			sv, _ := p2p.NewCoordinator("0.0.0.0:1234", true, true)
 			sv.Start()
 			break
 		}
@@ -276,11 +276,11 @@ func main() {
 	}
 }
 
-func p2pReadFunc(client *p2p.P2PClient, sourceId []byte, data []byte, ended bool, _ *webtools.ConsoleLogger) {
+func p2pReadFunc(client *p2p.Client, sourceId []byte, data []byte, ended bool, _ *webtools.ConsoleLogger) {
 	client.Send(sourceId, data)
 }
 
-func p2pReadFunc2(client *p2p.P2PClient, sourceId []byte, data []byte, ended bool, _ *webtools.ConsoleLogger) {
+func p2pReadFunc2(client *p2p.Client, sourceId []byte, data []byte, ended bool, _ *webtools.ConsoleLogger) {
 	fmt.Println(string(data))
 }
 

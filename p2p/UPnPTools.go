@@ -15,47 +15,69 @@ import (
 	"webtools"
 )
 
+/*
+UPnPXMLRoot - helper struct
+*/
 type UPnPXMLRoot struct {
 	XMLName xml.Name        `xml:"root"`
 	Device  []UPnPXMLDevice `xml:"device"`
 }
+
+/*
+UPnPXMLDevice - helper struct
+*/
 type UPnPXMLDevice struct {
 	XMLName  xml.Name         `xml:"device"`
 	Services []UPnPXMLService `xml:"serviceList>service"`
 	Device   []UPnPXMLDevice2 `xml:"deviceList>device"`
 }
+
+/*
+UPnPXMLDevice2 - helper struct
+*/
 type UPnPXMLDevice2 struct {
 	XMLName  xml.Name         `xml:"device"`
 	Services []UPnPXMLService `xml:"serviceList>service"`
 	Device   []UPnPXMLDevice  `xml:"deviceList>device"`
 }
+
+/*
+UPnPXMLService - helper struct
+*/
 type UPnPXMLService struct {
 	XMLName     xml.Name `xml:"service"`
 	ServiceType string   `xml:"serviceType"`
 	ControlURL  string   `xml:"controlURL"`
 }
 
-const UPnPTargetService = "urn:schemas-upnp-org:service:WANIPConnection:1"
+const upnpTargetService = "urn:schemas-upnp-org:service:WANIPConnection:1"
 
+/*
+UPnPServiceManager is manager for UPnP and getting public IP from router
+*/
 type UPnPServiceManager struct {
-	controlUrls []string
+	controlURLs []string
 	Logger      *webtools.ConsoleLogger
 	localIP     string
 	mappedUrls  webtools.SafeMap[int, string] //In format externalPort, protocol
 }
 
-// Creates new UPnP service manager
-// It is recommended to call Shutdown on end
+/*
+NewUPnPServiceManager creates new UPnP service manager
+It is recommended to call Shutdown on end
+*/
 func NewUPnPServiceManager(localIP string) *UPnPServiceManager {
 	return &UPnPServiceManager{
-		controlUrls: make([]string, 0),
+		controlURLs: make([]string, 0),
 		Logger:      webtools.NewConsoleLogger("UPnP", 0),
 		mappedUrls:  webtools.MakeSafeMap[int, string](),
 		localIP:     localIP,
 	}
 }
 
-// Setups UPnP manager for usage
+/*
+SetupUPnP setups UPnP manager for usage
+*/
 func (upnp *UPnPServiceManager) SetupUPnP() error {
 	upnp.Logger.Log(2, "Getting UPnP device...")
 	//New client for SSDP service that works in UPnP server. It is located on that specific IP and port (it is local, not some internet service)
@@ -95,14 +117,14 @@ func (upnp *UPnPServiceManager) SetupUPnP() error {
 		n, source, err := connSSDP.ReadFrom(buffer)
 		if err != nil {
 			upnp.Logger.Log(3, "Error reading from SSDP: "+err.Error())
-			upnp.Logger.Log(2, "Found "+strconv.Itoa(len(upnp.controlUrls))+" UPnP devices")
+			upnp.Logger.Log(2, "Found "+strconv.Itoa(len(upnp.controlURLs))+" UPnP devices")
 			return err
 		}
 
 		//Process responce
 		responce := buffer[:n]
 		upnp.Logger.Log(0, "Got SSDP responce from: "+source.String()+" with data: "+string(responce))
-		var responceLocationURL string = ""
+		var responceLocationURL = ""
 		readerResponce := bufio.NewReader(strings.NewReader(string(responce)))
 		for {
 			//Get location
@@ -142,11 +164,11 @@ func (upnp *UPnPServiceManager) SetupUPnP() error {
 
 		//Get base URL
 		splitLocationsOfSSDP := strings.Split(responceLocationURL, "/")
-		baseLocationUrl := ""
+		baseLocationURL := ""
 		if len(splitLocationsOfSSDP) >= 3 {
-			baseLocationUrl = strings.Join(splitLocationsOfSSDP[:3], "/")
+			baseLocationURL = strings.Join(splitLocationsOfSSDP[:3], "/")
 		} else {
-			baseLocationUrl = responceLocationURL
+			baseLocationURL = responceLocationURL
 		}
 
 		//Get XML
@@ -175,41 +197,39 @@ func (upnp *UPnPServiceManager) SetupUPnP() error {
 			continue
 		}
 		//fmt.Println(xmlRoot)
-		var controlURL string = recurseDevices(xmlRoot.Device, baseLocationUrl)
+		var controlURL = recurseDevices(xmlRoot.Device, baseLocationURL)
 		if controlURL == "" {
 			//No valid service was found
 			upnp.Logger.Log(3, "No valid controlUrl was found.")
 			continue
 		}
 		upnp.Logger.Log(1, "Found controlURL: "+controlURL)
-		upnp.controlUrls = append(upnp.controlUrls, controlURL)
+		upnp.controlURLs = append(upnp.controlURLs, controlURL)
 	}
 }
 
-func recurseDevices(devices []UPnPXMLDevice, baseLocationUrl string) string {
+func recurseDevices(devices []UPnPXMLDevice, baseLocationURL string) string {
 	for _, device := range devices {
 		for _, service := range device.Services {
-			if service.ServiceType == UPnPTargetService {
+			if service.ServiceType == upnpTargetService {
 				//Service is valid type, check if is relative or absolute URL
 				if strings.HasPrefix(service.ControlURL, "http") {
 					return service.ControlURL
-				} else {
-					return strings.TrimSuffix(baseLocationUrl, "/") + service.ControlURL
 				}
+				return strings.TrimSuffix(baseLocationURL, "/") + service.ControlURL
 			}
 		}
 		for _, device := range device.Device {
 			for _, service := range device.Services {
-				if service.ServiceType == UPnPTargetService {
+				if service.ServiceType == upnpTargetService {
 					//Service is valid type, check if is relative or absolute URL
 					if strings.HasPrefix(service.ControlURL, "http") {
 						return service.ControlURL
-					} else {
-						return strings.TrimSuffix(baseLocationUrl, "/") + service.ControlURL
 					}
+					return strings.TrimSuffix(baseLocationURL, "/") + service.ControlURL
 				}
 			}
-			url := recurseDevices(device.Device, baseLocationUrl)
+			url := recurseDevices(device.Device, baseLocationURL)
 			if url != "" {
 				return url
 			}
@@ -218,9 +238,11 @@ func recurseDevices(devices []UPnPXMLDevice, baseLocationUrl string) string {
 	return ""
 }
 
-// Adds UPnP mapping to all avaliable control URLs
+/*
+AddUPnPPort adds UPnP mapping to all avaliable control URLs
+*/
 func (upnp *UPnPServiceManager) AddUPnPPort(externalPort int, internalPort int, protocol string, description string) error {
-	if len(upnp.controlUrls) == 0 {
+	if len(upnp.controlURLs) == 0 {
 		upnp.Logger.Log(3, "No UPnP control URLs found!")
 		return errors.New("no control urls found")
 	}
@@ -233,7 +255,7 @@ func (upnp *UPnPServiceManager) AddUPnPPort(externalPort int, internalPort int, 
 	soapAddPortBody := `<?xml version="1.0"?>
 	<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
     <s:Body>
-        <u:AddPortMapping xmlns:u="` + UPnPTargetService + `">
+        <u:AddPortMapping xmlns:u="` + upnpTargetService + `">
             <NewRemoteHost></NewRemoteHost>
             <NewExternalPort>` + strconv.Itoa(externalPort) + `</NewExternalPort>
             <NewProtocol>` + protocol + `</NewProtocol>
@@ -247,22 +269,22 @@ func (upnp *UPnPServiceManager) AddUPnPPort(externalPort int, internalPort int, 
 	</s:Envelope>`
 
 	//Create POST request for SOAP
-	for _, controlUrl := range upnp.controlUrls {
-		soapRequest, err := http.NewRequest("POST", controlUrl, bytes.NewBufferString(soapAddPortBody))
+	for _, controlURL := range upnp.controlURLs {
+		soapRequest, err := http.NewRequest("POST", controlURL, bytes.NewBufferString(soapAddPortBody))
 		if err != nil {
-			upnp.Logger.Log(3, "Error creating SOAP request for: "+controlUrl+" | Error:"+err.Error())
+			upnp.Logger.Log(3, "Error creating SOAP request for: "+controlURL+" | Error:"+err.Error())
 			continue
 		}
 
 		//Set headers
 		soapRequest.Header.Set("Content-Type", "text/xml")
-		soapRequest.Header.Set("SOAPAction", "\""+UPnPTargetService+"#AddPortMapping\"")
+		soapRequest.Header.Set("SOAPAction", "\""+upnpTargetService+"#AddPortMapping\"")
 
 		//Send request
 		soapClient := &http.Client{Timeout: 5 * time.Second}
 		soapResponce, err := soapClient.Do(soapRequest)
 		if err != nil {
-			upnp.Logger.Log(3, "Error sending SOAP request for: "+controlUrl+" | Error:"+err.Error())
+			upnp.Logger.Log(3, "Error sending SOAP request for: "+controlURL+" | Error:"+err.Error())
 			continue
 		}
 		defer soapResponce.Body.Close()
@@ -270,18 +292,20 @@ func (upnp *UPnPServiceManager) AddUPnPPort(externalPort int, internalPort int, 
 		//Check if created successfully
 		if soapResponce.StatusCode == http.StatusOK {
 			upnp.mappedUrls.Set(externalPort, protocol)
-			upnp.Logger.Log(2, "Successfully created UPnP at: "+controlUrl)
+			upnp.Logger.Log(2, "Successfully created UPnP at: "+controlURL)
 		} else {
 			soapBodyError, _ := io.ReadAll(soapResponce.Body)
-			upnp.Logger.Log(3, "Error creating UPnP for: "+controlUrl+" | Error code:"+strconv.Itoa(soapResponce.StatusCode)+" | Error message: "+string(soapBodyError))
+			upnp.Logger.Log(3, "Error creating UPnP for: "+controlURL+" | Error code:"+strconv.Itoa(soapResponce.StatusCode)+" | Error message: "+string(soapBodyError))
 		}
 	}
 	return nil
 }
 
-// Removes UPnP mapping to all avaliable control URLs
+/*
+RemoveUPnPPort removes UPnP mapping to all avaliable control URLs
+*/
 func (upnp *UPnPServiceManager) RemoveUPnPPort(externalPort int, protocol string) error {
-	if len(upnp.controlUrls) == 0 {
+	if len(upnp.controlURLs) == 0 {
 		upnp.Logger.Log(3, "No UPnP control URLs found!")
 		return errors.New("no control urls found")
 	}
@@ -304,22 +328,22 @@ func (upnp *UPnPServiceManager) RemoveUPnPPort(externalPort int, protocol string
     </s:Envelope>`
 
 	//Create POST request for SOAP
-	for _, controlUrl := range upnp.controlUrls {
-		soapRequest, err := http.NewRequest("POST", controlUrl, bytes.NewBufferString(soapRemovePortBody))
+	for _, controlURL := range upnp.controlURLs {
+		soapRequest, err := http.NewRequest("POST", controlURL, bytes.NewBufferString(soapRemovePortBody))
 		if err != nil {
-			upnp.Logger.Log(3, "Error creating SOAP request for: "+controlUrl+" | Error:"+err.Error())
+			upnp.Logger.Log(3, "Error creating SOAP request for: "+controlURL+" | Error:"+err.Error())
 			continue
 		}
 
 		//Set headers
 		soapRequest.Header.Set("Content-Type", "text/xml")
-		soapRequest.Header.Set("SOAPAction", "\""+UPnPTargetService+"#DeletePortMapping\"")
+		soapRequest.Header.Set("SOAPAction", "\""+upnpTargetService+"#DeletePortMapping\"")
 
 		//Send request
 		soapClient := &http.Client{Timeout: 5 * time.Second}
 		soapResponce, err := soapClient.Do(soapRequest)
 		if err != nil {
-			upnp.Logger.Log(3, "Error sending SOAP request for: "+controlUrl+" | Error:"+err.Error())
+			upnp.Logger.Log(3, "Error sending SOAP request for: "+controlURL+" | Error:"+err.Error())
 			continue
 		}
 		defer soapResponce.Body.Close()
@@ -327,16 +351,18 @@ func (upnp *UPnPServiceManager) RemoveUPnPPort(externalPort int, protocol string
 		//Check if removed successfully
 		if soapResponce.StatusCode == http.StatusOK {
 			upnp.mappedUrls.Delete(externalPort)
-			upnp.Logger.Log(2, "Successfully removed UPnP at: "+controlUrl)
+			upnp.Logger.Log(2, "Successfully removed UPnP at: "+controlURL)
 		} else {
 			soapBodyError, _ := io.ReadAll(soapResponce.Body)
-			upnp.Logger.Log(3, "Error removing UPnP for: "+controlUrl+" | Error code:"+strconv.Itoa(soapResponce.StatusCode)+" | Error message: "+string(soapBodyError))
+			upnp.Logger.Log(3, "Error removing UPnP for: "+controlURL+" | Error code:"+strconv.Itoa(soapResponce.StatusCode)+" | Error message: "+string(soapBodyError))
 		}
 	}
 	return nil
 }
 
-// Shuts down all open UPnP ports
+/*
+Shutdown shuts down all open UPnP ports
+*/
 func (upnp *UPnPServiceManager) Shutdown() {
 	upnp.Logger.Log(2, "Shutting down UPnP Service manager...")
 	for _, val := range upnp.mappedUrls.GetData() {
@@ -345,7 +371,9 @@ func (upnp *UPnPServiceManager) Shutdown() {
 	upnp.Logger.Log(2, "Shutting down UPnP Service manager complete.")
 }
 
-// Gets this PC local IP
+/*
+GetThisComputerLocalIP gets this PC local IP
+*/
 func GetThisComputerLocalIP() (string, error) {
 	//Get all adresses
 	addresses, err := net.InterfaceAddrs()
@@ -365,9 +393,11 @@ func GetThisComputerLocalIP() (string, error) {
 	return "", fmt.Errorf("no local IP found")
 }
 
-// Gets router public IP using SOAP
+/*
+GetRouterPublicIP gets router public IP using SOAP
+*/
 func (upnp *UPnPServiceManager) GetRouterPublicIP() ([]string, error) {
-	if len(upnp.controlUrls) == 0 {
+	if len(upnp.controlURLs) == 0 {
 		upnp.Logger.Log(3, "No UPnP control URLs found!")
 		return nil, errors.New("no control urls found")
 	}
@@ -383,22 +413,22 @@ func (upnp *UPnPServiceManager) GetRouterPublicIP() ([]string, error) {
 
 	//Create POST request for SOAP
 	result := make([]string, 0)
-	for _, controlUrl := range upnp.controlUrls {
-		soapRequest, err := http.NewRequest("POST", controlUrl, bytes.NewBufferString(soapAddPortBody))
+	for _, controlURL := range upnp.controlURLs {
+		soapRequest, err := http.NewRequest("POST", controlURL, bytes.NewBufferString(soapAddPortBody))
 		if err != nil {
-			upnp.Logger.Log(3, "Error creating SOAP request for: "+controlUrl+" | Error:"+err.Error())
+			upnp.Logger.Log(3, "Error creating SOAP request for: "+controlURL+" | Error:"+err.Error())
 			continue
 		}
 
 		//Set headers
 		soapRequest.Header.Set("Content-Type", "text/xml")
-		soapRequest.Header.Set("SOAPAction", "\""+UPnPTargetService+"#GetExternalIPAddress\"")
+		soapRequest.Header.Set("SOAPAction", "\""+upnpTargetService+"#GetExternalIPAddress\"")
 
 		//Send request
 		soapClient := &http.Client{Timeout: 5 * time.Second}
 		soapResponce, err := soapClient.Do(soapRequest)
 		if err != nil {
-			upnp.Logger.Log(3, "Error sending SOAP request for: "+controlUrl+" | Error:"+err.Error())
+			upnp.Logger.Log(3, "Error sending SOAP request for: "+controlURL+" | Error:"+err.Error())
 			continue
 		}
 		defer soapResponce.Body.Close()
@@ -419,10 +449,10 @@ func (upnp *UPnPServiceManager) GetRouterPublicIP() ([]string, error) {
 			beginIndex += 22 // Offset of begin
 			ip := soapBodyString[beginIndex:endIndex]
 			result = append(result, ip)
-			upnp.Logger.Log(2, "Successfully got router public IP: "+ip+" at: "+controlUrl)
+			upnp.Logger.Log(2, "Successfully got router public IP: "+ip+" at: "+controlURL)
 		} else {
 			soapBodyError, _ := io.ReadAll(soapResponce.Body)
-			upnp.Logger.Log(3, "Error creating SOAP request for: "+controlUrl+" | Error code:"+strconv.Itoa(soapResponce.StatusCode)+" | Error message: "+string(soapBodyError))
+			upnp.Logger.Log(3, "Error creating SOAP request for: "+controlURL+" | Error code:"+strconv.Itoa(soapResponce.StatusCode)+" | Error message: "+string(soapBodyError))
 		}
 	}
 	return result, nil
