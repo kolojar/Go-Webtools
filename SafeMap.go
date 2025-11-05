@@ -2,14 +2,14 @@ package webtools
 
 import "sync"
 
-// Value pair
+// ThreeValuePair Value pair
 type ThreeValuePair[A any, B any, C any] struct {
 	A A
 	B B
 	C C
 }
 
-// Value pair
+// FiveValuePair Value pair
 type FiveValuePair[A any, B any, C any, D any, E any] struct {
 	A A
 	B B
@@ -18,7 +18,7 @@ type FiveValuePair[A any, B any, C any, D any, E any] struct {
 	E E
 }
 
-// Value pair
+// FourValuePair Value pair
 type FourValuePair[A any, B any, C any, D any] struct {
 	A A
 	B B
@@ -26,24 +26,19 @@ type FourValuePair[A any, B any, C any, D any] struct {
 	D D
 }
 
-// Value pair
+// KeyValuePair Value pair
 type KeyValuePair[K comparable, V any] struct {
 	Key   K
 	Value V
 }
 
-// Safe locking map for Go Routines
+// SafeMap provides safe locking map for Go Routines
 type SafeMap[K comparable, V any] struct {
 	m     map[K]V
 	mutex *sync.RWMutex
 }
 
-// Creates new Safe Map
-func MakeSafeMap[K comparable, V any]() SafeMap[K, V] {
-	return SafeMap[K, V]{m: map[K]V{}, mutex: &sync.RWMutex{}}
-}
-
-// Check if value is in map
+// Has checks if value is in map
 func (m SafeMap[K, V]) Has(key K) bool {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
@@ -51,36 +46,33 @@ func (m SafeMap[K, V]) Has(key K) bool {
 	return ok
 }
 
-// Gets safely value from map
+// MakeSafeMap creates new Safe Map
+func MakeSafeMap[K comparable, V any]() SafeMap[K, V] {
+	return SafeMap[K, V]{m: map[K]V{}, mutex: &sync.RWMutex{}}
+}
+
+// Get gets safely value from map
 func (m *SafeMap[K, V]) Get(key K) V {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 	return m.m[key]
 }
 
-// Sets safely value to map
+// Set sets safely value to map
 func (m *SafeMap[K, V]) Set(key K, value V) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	m.m[key] = value
 }
 
-// Deletes safely value to map
+// Delete deletes safely value to map
 func (m *SafeMap[K, V]) Delete(key K) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	delete(m.m, key)
 }
 
-// Gets and check if value is in map
-func (m SafeMap[K, V]) GetHas(key K) (V, bool) {
-	m.mutex.RLock()
-	defer m.mutex.RUnlock()
-	v, ok := m.m[key]
-	return v, ok
-}
-
-// Gets keys safely value to map
+// GetKeys gets keys safely value to map
 func (m *SafeMap[K, V]) GetKeys() []K {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
@@ -91,7 +83,7 @@ func (m *SafeMap[K, V]) GetKeys() []K {
 	return result
 }
 
-// Gets values safely value to map
+// GetValues gets values safely value to map
 func (m *SafeMap[K, V]) GetValues() []V {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
@@ -102,14 +94,14 @@ func (m *SafeMap[K, V]) GetValues() []V {
 	return result
 }
 
-// Retuns lenght of map
+// Len retuns lenght of map
 func (m *SafeMap[K, V]) Len() int {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 	return len(m.m)
 }
 
-// Clears map
+// Clear clears map
 func (m *SafeMap[K, V]) Clear() {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
@@ -118,7 +110,7 @@ func (m *SafeMap[K, V]) Clear() {
 	}
 }
 
-// Gets keys and values safely value to map
+// GetData gets keys and values safely value to map
 func (m *SafeMap[K, V]) GetData() []KeyValuePair[K, V] {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
@@ -129,17 +121,16 @@ func (m *SafeMap[K, V]) GetData() []KeyValuePair[K, V] {
 	return result
 }
 
-// Sets new Mutex
+// SetMutex sets new Mutex
 func (m *SafeMap[K, V]) SetMutex(mutex *sync.RWMutex) bool {
 	if mutex == nil {
 		return false
-	} else {
-		m.mutex = mutex
-		return true
 	}
+	m.mutex = mutex
+	return true
 }
 
-// Gets Mutex
-func (m *SafeMap[K, V]) GetMutex(mutex *sync.RWMutex) *sync.RWMutex {
+// GetMutex gets Mutex
+func (m *SafeMap[K, V]) GetMutex() *sync.RWMutex {
 	return m.mutex
 }

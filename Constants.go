@@ -1,8 +1,26 @@
 package webtools
 
-const BUFFER_SIZE = 1024 * 16
+/*
+BufferSize is shared buffer size over all tools
+*/
+const BufferSize = 1024 * 16
 
-const TCP_READ_DATA_STATUS = uint8(3)
-const TCP_CONNECT_STATUS = uint8(0)
-const TCP_DISCONNECT_STATUS = uint8(1)
-const TCP_FINISHED_READ_FUNC_STATUS = uint8(2)
+/*
+ReadDataStatus is status of read
+*/
+const ReadDataStatus = uint8(3)
+
+/*
+ConnectStatus is status of connect
+*/
+const ConnectStatus = uint8(0)
+
+/*
+DisconnectStatus is status of disconnect
+*/
+const DisconnectStatus = uint8(1)
+
+/*
+FinishedReadFuncStatus is status of finished reading of one read function and switching to other
+*/
+const FinishedReadFuncStatus = uint8(2)

@@ -1,4 +1,4 @@
-package httpTools
+package http
 
 import (
 	"bytes"
@@ -12,38 +12,31 @@ import (
 	"webtools"
 )
 
-// Primitive HTTPClient
-type HTTPClient struct {
-	client        *http.Client
-	address       string
-	Logger        *webtools.ConsoleLogger
-	reportTraffic bool
-}
-
-func (cl *HTTPClient) GetReportTraffic() bool {
-	return cl.reportTraffic
+/*
+Client is primitive HTTP client
+*/
+type Client struct {
+	client  *http.Client
+	address string
+	Logger  *webtools.ConsoleLogger
 }
 
 /*
-Creates new HTTP Client and makes it ready for usage. Timeout is in seconds
+NewClient creates new HTTP Client and makes it ready for usage. Timeout is in seconds
 */
-func NewHTTPClient(address string, timeout int64, reportTraffic bool) (*HTTPClient, error) {
-	level := uint8(0)
-	if !reportTraffic {
-		level = 2
-	}
+func NewClient(address string, timeout int64, reportTraffic bool) (*Client, error) {
 	if !strings.HasPrefix(address, "http://") && !strings.HasPrefix(address, "https://") {
 		return nil, errors.New("invalid url format, must start with http:// or https://")
 	}
-	return &HTTPClient{client: &http.Client{Timeout: time.Duration(timeout) * time.Second}, address: address, Logger: webtools.NewConsoleLogger("HTTPClient", level), reportTraffic: reportTraffic}, nil
+	return &Client{client: &http.Client{Timeout: time.Duration(timeout) * time.Second}, address: address, Logger: webtools.NewConsoleLoggerForTraffic("HTTPClient", reportTraffic)}, nil
 }
 
 /*
-Creates HTTP request coresponding to HTTP Client
+NewRequest creates HTTP request coresponding to HTTP Client
 */
-func (cl *HTTPClient) NewRequest(method string, contentType string, data []byte) (*http.Request, error) {
+func (cl *Client) NewRequest(method string, contentType string, data []byte) (*http.Request, error) {
 	//Make reader
-	var reader io.Reader = nil
+	var reader io.Reader
 	if data != nil {
 		reader = bytes.NewReader(data)
 	}
@@ -60,9 +53,9 @@ func (cl *HTTPClient) NewRequest(method string, contentType string, data []byte)
 }
 
 /*
-Sends raw request
+SendRequestRaw sends raw request
 */
-func (cl *HTTPClient) SendRequestRaw(request *http.Request) *http.Response {
+func (cl *Client) SendRequestRaw(request *http.Request) *http.Response {
 	cl.Logger.Log(1, "Sending - "+request.Method+" - "+request.URL.String())
 	responce, err := cl.client.Do(request)
 	if err != nil {
@@ -77,9 +70,9 @@ func (cl *HTTPClient) SendRequestRaw(request *http.Request) *http.Response {
 }
 
 /*
-Sends request and returns responce. Do not forget to close bodu on responce
+SendRequest sends request and returns responce. Do not forget to close body on responce
 */
-func (cl *HTTPClient) SendRequest(method string, contentType string, data []byte) *http.Response {
+func (cl *Client) SendRequest(method string, contentType string, data []byte) *http.Response {
 	request, err := cl.NewRequest(method, contentType, data)
 	if err != nil {
 		cl.Logger.Log(3, "Error creating request: "+err.Error())
@@ -91,9 +84,9 @@ func (cl *HTTPClient) SendRequest(method string, contentType string, data []byte
 }
 
 /*
-Sends request and returns responce data
+SendRequestData sends request and returns responce data
 */
-func (cl *HTTPClient) SendRequestData(method string, contentType string, data []byte) []byte {
+func (cl *Client) SendRequestData(method string, contentType string, data []byte) []byte {
 	//Get responce
 	responce := cl.SendRequest(method, contentType, data)
 	defer responce.Body.Close()
@@ -108,9 +101,9 @@ func (cl *HTTPClient) SendRequestData(method string, contentType string, data []
 }
 
 /*
-Get Hijack address for TCP client
+GetHijackAddress gets address for TCP client
 */
-func (cl *HTTPClient) GetHijackAddress() string {
+func (cl *Client) GetHijackAddress() string {
 	cl.Logger.Log(2, "Getting host address...")
 	resp := cl.SendRequest("GET", "", nil)
 	host := resp.Request.URL.Hostname()

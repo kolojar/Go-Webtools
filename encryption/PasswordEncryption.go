@@ -8,6 +8,9 @@ import (
 	"io"
 )
 
+/*
+PasswordObject is simple password object for storing one password
+*/
 type PasswordObject struct {
 	Hash string // In hex format
 	Salt string // In hex format

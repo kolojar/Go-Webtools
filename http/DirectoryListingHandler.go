@@ -1,4 +1,7 @@
-package httpTools
+/*
+Package http provides tools for working with HTML files and tools for HTTP traffic
+*/
+package http
 
 import (
 	"fmt"
@@ -8,10 +11,10 @@ import (
 )
 
 /*
-Renders directory listing to this request
+HandleDirectoryListingHTTP renders directory listing to this request
 Returns if it was handeled
 */
-func HandleDirectoryListingHTTP(w http.ResponseWriter, realPath string, urlPath string, httpServer *HTTPServer) bool {
+func HandleDirectoryListingHTTP(w http.ResponseWriter, realPath string, urlPath string, httpServer *Server) bool {
 	//Check for directory
 	_, isDir, err := ReadFile(realPath)
 	if err != nil {
@@ -30,7 +33,7 @@ func HandleDirectoryListingHTTP(w http.ResponseWriter, realPath string, urlPath 
 	}
 
 	//Create HTML
-	creator := NewHTMLCreator(true, "en", "directoryListing")
+	creator := NewHTMLCreator(true, "en", "directoryListing", true)
 	creator.AddBodyElement(NewHTMLHxElement(1, "Current directory: "+urlPath))
 	list := NewHTMLListElement()
 
@@ -77,7 +80,7 @@ type directoryListingEntry struct {
 Gets items in folder for directory listing
 Path must be path in HTTP server
 */
-func getItemsInFolderRelative(realPath string, urlPath string, sv *HTTPServer) ([]directoryListingEntry, error) {
+func getItemsInFolderRelative(realPath string, urlPath string, _ *Server) ([]directoryListingEntry, error) {
 	//Read folder
 	entries, err := os.ReadDir(realPath)
 	if err != nil {

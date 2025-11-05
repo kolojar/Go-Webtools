@@ -1,4 +1,7 @@
-package tcpTools
+/*
+Package tcp provides tools for handeling TCP traffic
+*/
+package tcp
 
 import (
 	"bytes"
@@ -10,32 +13,41 @@ import (
 	"webtools"
 )
 
-type TCPClientSimpleReadFunc func(client *TCPClientSimple, data []byte, status uint8)
+/*
+ClientSimpleReadFunc is function definition for reading data from ClientSimple
+*/
+type ClientSimpleReadFunc func(client *ClientSimple, data []byte, status uint8)
 
 /*
-Simple TCP Client that allows read basic not framed streams and basic framed streams with internal framing implementation.
+ClientSimple is simple TCP Client that allows read basic not framed streams and basic framed streams with internal framing implementation.
 For advanced or custom framing use universal TCP client and setup all functions as you want.
 If you do not know how to use universal client, feel free to copy this one and edit it as you want. This client features 2 functions of manipulating with connections - not framed and framed
 */
-type TCPClientSimple struct {
-	readFunc        TCPClientSimpleReadFunc
-	universalClient *TCPClientUniversal
-}
-
-func (tcp *TCPClientSimple) IsAlive() bool {
-	return tcp.universalClient.IsAlive()
-}
-
-func (tcp *TCPClientSimple) GetConn() *net.TCPConn {
-	return tcp.universalClient.GetConn()
+type ClientSimple struct {
+	readFunc        ClientSimpleReadFunc
+	universalClient *ClientUniversal
 }
 
 /*
-Creates new simple TCP Client but does not starts it
+IsAlive gets if server is alive
+*/
+func (cl *ClientSimple) IsAlive() bool {
+	return cl.universalClient.IsAlive()
+}
+
+/*
+GetConn gets raw TCP connection
+*/
+func (cl *ClientSimple) GetConn() *net.TCPConn {
+	return cl.universalClient.GetConn()
+}
+
+/*
+NewClientSimple creates new simple TCP Client but does not starts it
 Set countOfNotFramedReads to negative number to read not framed stream infinitelly, set it to 0 to start reading framed immediately
 */
-func NewTCPClientSimple(address string, countOfNotFramedReads int, writeOneLastNoFrame bool, readFunc TCPClientSimpleReadFunc, reportTraffic bool) (*TCPClientSimple, error) {
-	cl := &TCPClientSimple{readFunc: readFunc}
+func NewClientSimple(address string, countOfNotFramedReads int, writeOneLastNoFrame bool, readFunc ClientSimpleReadFunc, reportTraffic bool) (*ClientSimple, error) {
+	cl := &ClientSimple{readFunc: readFunc}
 	var err error
 	cl.universalClient, err = NewTCPClientUniversal(address, reportTraffic)
 	if err != nil {
@@ -47,38 +59,44 @@ func NewTCPClientSimple(address string, countOfNotFramedReads int, writeOneLastN
 }
 
 /*
-Creates new simple TCP Client from existing connection but does not starts reading
+NewClientSimpleFromConnection creates new simple TCP Client from existing connection but does not starts reading
 Set countOfNotFramedReads to negative number to read not framed stream infinitelly, set it to 0 to start reading framed immediately
 Set writeOneLastNoFrame to true to write one last write before switching to other function using old not framed function
 */
-func NewTCPClientSimpleFromConnection(conn *net.TCPConn, countOfNotFramedReads int, writeOneLastNoFrame bool, readFunc TCPClientSimpleReadFunc, reportTraffic bool) *TCPClientSimple {
-	cl := &TCPClientSimple{readFunc: readFunc}
+func NewClientSimpleFromConnection(conn *net.TCPConn, countOfNotFramedReads int, writeOneLastNoFrame bool, readFunc ClientSimpleReadFunc, reportTraffic bool) *ClientSimple {
+	cl := &ClientSimple{readFunc: readFunc}
 	cl.universalClient = NewTCPClientUniversalFromConnection(conn, reportTraffic)
 	cl.universalClient.Logger.Prefix = "TCPClientSimple"
 	cl.generateReadFuncStructure(countOfNotFramedReads, writeOneLastNoFrame)
 	return cl
 }
 
-func (cl *TCPClientSimple) SetLogger(logger *webtools.ConsoleLogger) {
+/*
+SetLogger sets logger
+*/
+func (cl *ClientSimple) SetLogger(logger *webtools.ConsoleLogger) {
 	cl.universalClient.Logger = logger
 }
 
-func (cl *TCPClientSimple) GetLogger() *webtools.ConsoleLogger {
+/*
+GetLogger gets logger
+*/
+func (cl *ClientSimple) GetLogger() *webtools.ConsoleLogger {
 	return cl.universalClient.Logger
 }
 
 /*
-Setups encryption, it is strongly recommended to use encryption with framed connection
+SetupEncryption setups encryption, it is strongly recommended to use encryption with framed connection
 */
-func (cl *TCPClientSimple) SetupEncryption(useEncryption bool, password []byte) {
+func (cl *ClientSimple) SetupEncryption(useEncryption bool, password []byte) {
 	cl.universalClient.SetupEncryption(useEncryption, password)
 }
 
 // Generates HanderFuncs for universal client, this function is not needed but because I have 2 constructors, I do not want to repeat code
-func (cl *TCPClientSimple) generateReadFuncStructure(noFrameCount int, writeOneLastNoFrame bool) {
+func (cl *ClientSimple) generateReadFuncStructure(noFrameCount int, writeOneLastNoFrame bool) {
 	// Generate not framed handler
 	cl.universalClient.HandlerFuncs = append(cl.universalClient.HandlerFuncs,
-		TCPClientUniversalHanderFuncs{
+		ClientUniversalHanderFuncs{
 			UseCount:               noFrameCount,        // Limit of not framed connections
 			ReadHandler:            HandleTCPRead,       // Function resposible for handleling reading from connection, has loop for connection limit
 			ReadFunc:               cl.readFuncLocal,    // Function that handles read events from prevous function
@@ -88,7 +106,7 @@ func (cl *TCPClientSimple) generateReadFuncStructure(noFrameCount int, writeOneL
 
 	// Generate framed handler
 	cl.universalClient.HandlerFuncs = append(cl.universalClient.HandlerFuncs,
-		TCPClientUniversalHanderFuncs{
+		ClientUniversalHanderFuncs{
 			UseCount:               -1,                      // Limit of framed connections
 			ReadHandler:            HandleTCPReadFramed,     // Function resposible for handleling reading from connection, has loop for connection limit
 			ReadFunc:               cl.readFuncLocal,        // Function that handles read events from prevous function
@@ -98,19 +116,19 @@ func (cl *TCPClientSimple) generateReadFuncStructure(noFrameCount int, writeOneL
 }
 
 /*
-Connects to TCP server and start reading loop, does not locks execution thread
+Connect connects to TCP server and start reading loop, does not locks execution thread
 */
-func (tcp *TCPClientSimple) Connect() bool {
-	return tcp.universalClient.Connect()
+func (cl *ClientSimple) Connect() bool {
+	return cl.universalClient.Connect()
 }
 
 /*
-Handles TCP Read
+HandleTCPRead handles TCP Read
 Implements this function: type TCPClientUniversalReadHandlerFunc func(conn *net.TCPConn, limit int, logger *ConsoleLogger, readFunc TCPClientUniversalOnReadFuncIntenal) (bool, error)
 */
-func HandleTCPRead(cl *TCPClientUniversal, limit int, logger *webtools.ConsoleLogger, readFunc TCPClientUniversalOnReadFuncIntenal) (bool, error) {
+func HandleTCPRead(cl *ClientUniversal, limit int, _ *webtools.ConsoleLogger, readFunc ClientUniversalOnReadFuncIntenal) (bool, error) {
 	for i := 0; i < limit || limit < 0; i++ {
-		buffer := make([]byte, webtools.BUFFER_SIZE)
+		buffer := make([]byte, webtools.BufferSize)
 		n, err := cl.GetConn().Read(buffer)
 		if err != nil {
 			// Exit on errors
@@ -125,10 +143,10 @@ func HandleTCPRead(cl *TCPClientUniversal, limit int, logger *webtools.ConsoleLo
 }
 
 /*
-Handles TCP Read with frame support
+HandleTCPReadFramed handles TCP Read with frame support
 Implements this function: type TCPClientUniversalReadHandlerFunc func(conn *net.TCPConn, limit int, logger *ConsoleLogger, readFunc TCPClientUniversalOnReadFuncIntenal) (bool, error)
 */
-func HandleTCPReadFramed(cl *TCPClientUniversal, limit int, logger *webtools.ConsoleLogger, readFunc TCPClientUniversalOnReadFuncIntenal) (bool, error) {
+func HandleTCPReadFramed(cl *ClientUniversal, limit int, _ *webtools.ConsoleLogger, readFunc ClientUniversalOnReadFuncIntenal) (bool, error) {
 	var data []byte
 	var n int
 	for i := 0; i < limit || limit < 0; i++ {
@@ -156,20 +174,20 @@ func HandleTCPReadFramed(cl *TCPClientUniversal, limit int, logger *webtools.Con
 }
 
 /*
-Handles TCP Write
+WriteToTCPHandler handles TCP Write
 Implements: type TCPClientUniversalOnWriteHandlerFunc func(cl *TCPClientUniversal, data []byte, otherData map[string]any) error
 */
-func WriteToTCPHandler(cl *TCPClientUniversal, data []byte, otherData map[string]any) error {
+func WriteToTCPHandler(cl *ClientUniversal, data []byte, _ map[string]any) error {
 	// Write
 	_, err := cl.GetConn().Write(data)
 	return err
 }
 
 /*
-Handles TCP Write with frames
+WriteToTCPFramedHandler handles TCP Write with frames
 Implements: type TCPClientUniversalOnWriteHandlerFunc func(cl *TCPClientUniversal, data []byte, otherData map[string]any) error
 */
-func WriteToTCPFramedHandler(cl *TCPClientUniversal, data []byte, otherData map[string]any) error {
+func WriteToTCPFramedHandler(cl *ClientUniversal, data []byte, otherData map[string]any) error {
 	var frame bytes.Buffer
 	err := binary.Write(&frame, binary.BigEndian, uint32(len(data)))
 	if err != nil {
@@ -183,23 +201,23 @@ func WriteToTCPFramedHandler(cl *TCPClientUniversal, data []byte, otherData map[
 Helper function for read event fired by read handler (used just as redirector)
 Implements: type TCPClientUniversalOnReadFunc func(cl *TCPClientUniversal, data []byte, status uint8, otherData map[string]any)
 */
-func (tcp *TCPClientSimple) readFuncLocal(cl *TCPClientUniversal, data []byte, status uint8, otherData map[string]any) {
+func (cl *ClientSimple) readFuncLocal(_ *ClientUniversal, data []byte, status uint8, _ map[string]any) {
 	// Process read - redirect read data to main read function
-	if tcp.readFunc != nil {
-		tcp.readFunc(tcp, data, status)
+	if cl.readFunc != nil {
+		cl.readFunc(cl, data, status)
 	}
 }
 
 /*
-Sends data to server
+Send sends data to server
 */
-func (tcp *TCPClientSimple) Send(data []byte) {
-	tcp.universalClient.Send(data, nil)
+func (cl *ClientSimple) Send(data []byte) {
+	cl.universalClient.Send(data, nil)
 }
 
 /*
-Stops TCP client
+Stop stops TCP client
 */
-func (tcp *TCPClientSimple) Stop() {
-	tcp.universalClient.Stop()
+func (cl *ClientSimple) Stop() {
+	cl.universalClient.Stop()
 }

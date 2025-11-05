@@ -1,4 +1,4 @@
-package udpTools
+package udp
 
 import (
 	"encoding/hex"
@@ -10,50 +10,47 @@ import (
 )
 
 // Cleanup timeout in seconds
-const CLEANUP_TIMEOUT = 10
+const cleanupTimeout = 10
 
 /*
-UDP server connection object
+ServerConn is connection object of Server
 */
-type UDPServerConn struct {
-	origin   *UDPServer
+type ServerConn struct {
+	origin   *Server
 	Address  *net.UDPAddr
 	lastSeen time.Time
 }
 
 /*
-Sends data to client
+Send sends data to client
 */
-func (udpConn *UDPServerConn) Send(data []byte) {
-	udpConn.origin.WriteToClient(udpConn, data)
+func (conn *ServerConn) Send(data []byte) {
+	conn.origin.WriteToClient(conn, data)
 }
 
 /*
-Closes connection to client
+Close closes connection to client
 */
-func (udpConn *UDPServerConn) Close() {
-	udpConn.origin.conns.Delete(udpConn.Address.String())
-	udpConn.origin.Logger.Log(0, "Closed connection on "+udpConn.Address.String())
-	if udpConn.origin.readFunc != nil {
-		udpConn.origin.readFunc(udpConn, nil, true)
+func (conn *ServerConn) Close() {
+	conn.origin.conns.Delete(conn.Address.String())
+	conn.origin.Logger.Log(0, "Closed connection on "+conn.Address.String())
+	if conn.origin.readFunc != nil {
+		conn.origin.readFunc(conn, nil, true)
 	}
 	//udpConn.Client.Stop()
 }
 
 /*
-Standardized type of function
-*UDPServerConn = Connection
-String = message
-Bool = is ended
+ServerReadFunc is function definition for reading data from Server
 */
-type UDPServerReadFunc func(conn *UDPServerConn, data []byte, ended bool)
+type ServerReadFunc func(conn *ServerConn,data []byte,ended bool)
 
 /*
-Basic UDP server
+Server is basic UDP server
 */
-type UDPServer struct {
+type Server struct {
 	listener      *net.UDPConn
-	readFunc      UDPServerReadFunc
+	readFunc      ServerReadFunc
 	address       *net.UDPAddr
 	Logger        *webtools.ConsoleLogger
 	requestedStop bool
@@ -71,9 +68,9 @@ func (udp *UDPServer) GetAddress() *net.UDPAddr {
 }
 
 /*
-Creates new UDP Server but does not starts it
+NewServer creates new UDP Server but does not starts it
 */
-func NewUDPServer(address string, readFunc UDPServerReadFunc, reportTraffic bool) (*UDPServer, error) {
+func NewServer(address string, readFunc ServerReadFunc, reportTraffic bool) (*Server, error) {
 	//Make address
 	addressObj, err := net.ResolveUDPAddr("udp", address)
 	if err != nil {
@@ -81,20 +78,20 @@ func NewUDPServer(address string, readFunc UDPServerReadFunc, reportTraffic bool
 	}
 
 	//Make UDP sv
-	return &UDPServer{address: addressObj, readFunc: readFunc, Logger: webtools.NewConsoleLoggerForTraffic("UDPServer", reportTraffic), conns: webtools.MakeSafeMap[string, *UDPServerConn]()}, nil
+	return &Server{address: addressObj, readFunc: readFunc, Logger: webtools.NewConsoleLoggerForTraffic("UDPServer", reportTraffic), conns: webtools.MakeSafeMap[string, *ServerConn]()}, nil
 }
 
 /*
-Setups UDP framer for server
+SetupFraming setups UDP framer for server
 */
-func (udp *UDPServer) SetupFraming(framer *UDPFramer) {
+func (udp *Server) SetupFraming(framer *Framer) {
 	udp.udpFramer = framer
 }
 
 /*
-Starts UDP Server, locks execution thread
+Start starts UDP Server, locks execution thread
 */
-func (udp *UDPServer) Start() {
+func (udp *Server) Start() {
 	//Check if already running
 	if udp.isAlive {
 		return
@@ -128,7 +125,7 @@ func (udp *UDPServer) Start() {
 Handles UDP Read
 */
 func handleUDPRead(listener *net.UDPConn, logger *webtools.ConsoleLogger, readFunc func(*net.UDPAddr, []byte, bool)) bool {
-	buffer := make([]byte, webtools.BUFFER_SIZE)
+	buffer := make([]byte, webtools.BufferSize)
 	//Get connection and data
 	n, addr, err := listener.ReadFromUDP(buffer)
 	if err != nil {
@@ -161,13 +158,13 @@ func handleUDPRead(listener *net.UDPConn, logger *webtools.ConsoleLogger, readFu
 /*
 Handles UDP Read for server
 */
-func (udp *UDPServer) readFuncLocal(addr *net.UDPAddr, data []byte, ended bool) {
+func (udp *Server) readFuncLocal(addr *net.UDPAddr, data []byte, ended bool) {
 	if !ended {
 		//Get connection association
-		var udpConn *UDPServerConn = udp.conns.Get(addr.String())
+		var udpConn *ServerConn = udp.conns.Get(addr.String())
 		if udpConn == nil {
 			//No connection, create new
-			udpConn = &UDPServerConn{origin: udp, lastSeen: time.Now(), Address: addr}
+			udpConn = &ServerConn{origin: udp, lastSeen: time.Now(), Address: addr}
 			udpConn.origin.conns.Set(addr.String(), udpConn)
 		}
 		udpConn.lastSeen = time.Now()
@@ -184,9 +181,9 @@ func (udp *UDPServer) readFuncLocal(addr *net.UDPAddr, data []byte, ended bool) 
 }
 
 /*
-Writes to Client
+WriteToClient writes to Client
 */
-func (udp *UDPServer) WriteToClient(conn *UDPServerConn, data []byte) {
+func (udp *Server) WriteToClient(conn *ServerConn, data []byte) {
 	//writeToUDP(true, conn.origin.listener, conn.Address, data, udp.Logger)
 	processSendForUDP(true, udp.listener, conn.Address, data, udp.Logger, udp.udpFramer)
 	//udp.WriteToClient(conn, data)
@@ -223,7 +220,7 @@ func writeToUDP(isServer bool, listener *net.UDPConn, addr *net.UDPAddr, data []
 }
 
 /*
-Stops UDP server
+Stop stops UDP server
 */
 func (udp *UDPServer) Stop() {
 	if udp.udpFramer != nil {
@@ -244,9 +241,9 @@ func (udp *UDPServer) Stop() {
 }
 
 /*
-Removes old not used UDP connections
+CleanupConnections removes old not used UDP connections
 */
-func (udp *UDPServer) CleanupConnections(forceAll bool) {
+func (udp *Server) CleanupConnections(forceAll bool) {
 	oldCount := udp.conns.Len()
 	for _, d := range udp.conns.GetData() {
 		k := d.Key
@@ -261,7 +258,7 @@ func (udp *UDPServer) CleanupConnections(forceAll bool) {
 			v.Close()
 			continue
 		}
-		if time.Since(v.lastSeen).Seconds() >= CLEANUP_TIMEOUT {
+		if time.Since(v.lastSeen).Seconds() >= cleanupTimeout {
 			//Remove not used connection
 			v.Close()
 			continue

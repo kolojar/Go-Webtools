@@ -7,17 +7,27 @@ import (
 )
 
 /*
-Generates random Id based on random and current time
+AlphabetLetters are all English alphabet letters
 */
-func GenerateRandomId() string {
+const AlphabetLetters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+
+/*
+NumberLetters are all number characters
+*/
+const NumberLetters = "0123456789"
+
+/*
+GenerateRandomID generates random Id based on random and current time
+*/
+func GenerateRandomID() string {
 	return strconv.FormatUint(rand.Uint64(), 36) + "-" + strconv.FormatInt(time.Now().UnixNano(), 36)
 }
 
 /*
-Generates random string
+GenerateRandomString generates random string
 */
 func GenerateRandomString(lenght int) string {
-	const letters = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+	letters := NumberLetters + AlphabetLetters
 	result := ""
 	for i := 0; i < lenght; i++ {
 		result += string(letters[rand.IntN(len(letters))])
@@ -26,7 +36,7 @@ func GenerateRandomString(lenght int) string {
 }
 
 /*
-Removes element from slice
+RemoveElement removes element from slice
 */
 func RemoveElement[T comparable](array []T, item T) []T {
 	result := make([]T, 0)
@@ -37,3 +47,11 @@ func RemoveElement[T comparable](array []T, item T) []T {
 	}
 	return result
 }
+
+/*
+Server connection interface, removed because not used
+*/
+/*type IServerConn interface {
+	Send([]byte)
+	Close()
+}*/

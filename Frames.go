@@ -5,28 +5,46 @@ import (
 	"strconv"
 )
 
-const WEBTOOLS_FRAME_SEPARATOR = byte(rune(';'))
-const WEBTOOLS_FRAME_TYPE_CONNECT = uint8(1)
-const WEBTOOLS_FRAME_TYPE_CLOSE = uint8(2)
-const WEBTOOLS_FRAME_TYPE_DATA = uint8(3)
+/*
+FrameSeparatorChar is separator character in WebTools frames
+*/
+const FrameSeparatorChar = byte(rune(';'))
 
+/*
+FrameTypeConnect is signal of connect in WebTools frames
+*/
+const FrameTypeConnect = uint8(1)
+
+/*
+FrameTypeClose is signal of close in WebTools frames
+*/
+const FrameTypeClose = uint8(2)
+
+/*
+FrameTypeData is signal of data in WebTools frames
+*/
+const FrameTypeData = uint8(3)
+
+/*
+UnpackedWebtoolsFrame is object of unpacked frame
+*/
 type UnpackedWebtoolsFrame struct {
 	Operation uint8
-	Id        []byte
+	ID        []byte
 	Data      []byte
 }
 
 /*
-Packs webtools frame
+PackWebtoolsFrame packs webtools frame
 */
 func PackWebtoolsFrame(operation uint8, id []byte, data []byte) []byte {
 	frame := make([]byte, 0)
 	frame = append(frame, operation)
-	frame = append(frame, WEBTOOLS_FRAME_SEPARATOR)
+	frame = append(frame, FrameSeparatorChar)
 	frame = append(frame, id...)
-	frame = append(frame, WEBTOOLS_FRAME_SEPARATOR)
+	frame = append(frame, FrameSeparatorChar)
 	frame = append(frame, []byte(strconv.Itoa(len(data)))...)
-	frame = append(frame, WEBTOOLS_FRAME_SEPARATOR)
+	frame = append(frame, FrameSeparatorChar)
 	if data != nil {
 		frame = append(frame, data...)
 	}
@@ -34,7 +52,7 @@ func PackWebtoolsFrame(operation uint8, id []byte, data []byte) []byte {
 }
 
 /*
-Unpacks webtools frame, operation 0 means error
+UnpackWebtoolsFrame unpacks webtools frame, operation 0 means error
 */
 func UnpackWebtoolsFrame(frame []byte, logger *ConsoleLogger) []UnpackedWebtoolsFrame {
 	//Invalid frame
@@ -50,18 +68,18 @@ func UnpackWebtoolsFrame(frame []byte, logger *ConsoleLogger) []UnpackedWebtools
 
 	//Get operation
 	operation := frame[0]
-	if frame[1] != WEBTOOLS_FRAME_SEPARATOR {
+	if frame[1] != FrameSeparatorChar {
 		logger.Log(3, "Invalid frame at index 1. | Data lenght: "+strconv.Itoa(len(frame))+" | Data in hex: "+hex.EncodeToString(frame))
 		return nil
 	}
 
 	//Get id and len of rest of frame
 	var id []byte
-	var idEndIndex int = -1
+	var idEndIndex = -1
 	var data []byte
 	var subframes []UnpackedWebtoolsFrame
 	for i := 2; i < len(frame); i++ {
-		if frame[i] == WEBTOOLS_FRAME_SEPARATOR {
+		if frame[i] == FrameSeparatorChar {
 			if idEndIndex == -1 {
 				//Get id
 				id = frame[2:i]
@@ -95,7 +113,7 @@ func UnpackWebtoolsFrame(frame []byte, logger *ConsoleLogger) []UnpackedWebtools
 
 	//Make result
 	result := make([]UnpackedWebtoolsFrame, 0)
-	result = append(result, UnpackedWebtoolsFrame{Operation: operation, Id: id, Data: data})
+	result = append(result, UnpackedWebtoolsFrame{Operation: operation, ID: id, Data: data})
 	if subframes != nil {
 		result = append(result, subframes...)
 	}
