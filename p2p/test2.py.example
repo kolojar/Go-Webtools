@@ -1,0 +1,190 @@
+import socket
+import http.client
+import urllib.request
+import re
+import xml.etree.ElementTree as ET
+import time
+import sys
+
+# --- UPnP Public IP Getter (Standard Library Only) ---
+
+# UPnP/SSDP constants
+SSDP_IP = '239.255.255.250'
+SSDP_PORT = 1900
+SSDP_MX = 2  # Max wait time in seconds for responses
+SSDP_ST = 'urn:schemas-upnp-org:device:InternetGatewayDevice:1'
+SERVICE_TYPE = 'urn:schemas-upnp-org:service:WANIPConnection:1'
+TIMEOUT = 5 # General timeout for socket and HTTP connections
+
+# M-SEARCH request payload
+M_SEARCH_REQUEST = (
+    f'M-SEARCH * HTTP/1.1\r\n'
+    f'HOST: {SSDP_IP}:{SSDP_PORT}\r\n'
+    f'MAN: "ssdp:discover"\r\n'
+    f'MX: {SSDP_MX}\r\n'
+    f'ST: {SSDP_ST}\r\n'
+    f'\r\n'
+)
+
+def discover_igd():
+    """
+    Performs SSDP discovery to find the router's device description URL.
+    Returns (base_url, control_url) or (None, None).
+    """
+    print("--- 1. Starting SSDP Discovery (M-SEARCH) ---")
+    
+    # 1. Setup UDP Socket
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.settimeout(TIMEOUT)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.sendto(M_SEARCH_REQUEST.encode(), (SSDP_IP, SSDP_PORT))
+    except Exception as e:
+        print(f"[ERROR] Socket error during M-SEARCH: {e}")
+        return None, None
+
+    response_data = b''
+    location_url = None
+
+    # 2. Listen for responses
+    start_time = time.time()
+    while (time.time() - start_time) < SSDP_MX:
+        try:
+            data, addr = sock.recvfrom(1024)
+            response_data += data
+            
+            # Simple header parsing to find LOCATION
+            location_match = re.search(r'Location:\s*(.*)\r\n', data.decode(), re.I)
+            if location_match:
+                location_url = location_match.group(1).strip()
+                print(f"[SUCCESS] Found device description URL: {location_url}")
+                break
+        except socket.timeout:
+            # Expected if MX time runs out
+            break
+        except Exception as e:
+            # Handle other socket/decoding errors
+            print(f"[WARNING] Error reading SSDP response: {e}")
+
+    sock.close()
+
+    if not location_url:
+        print("[INFO] No SSDP response containing a LOCATION header was received.")
+        return None, None
+
+    # Determine the base URL (http://ip:port)
+    base_url_match = re.match(r'(https?://[^/]+)', location_url)
+    if not base_url_match:
+        print("[ERROR] Could not determine base URL from location.")
+        return None, None
+    base_url = base_url_match.group(0)
+
+    # 3. Fetch and Parse XML Description
+    print("--- 2. Fetching and Parsing Device XML ---")
+    control_url = None
+    try:
+        with urllib.request.urlopen(location_url, timeout=TIMEOUT) as response:
+            xml_data = response.read()
+            
+        # Parse XML to find the WANIPConnection service
+        root = ET.fromstring(xml_data)
+        
+        # Define namespace map for easier searching (UPnP uses namespaces heavily)
+        namespaces = {'ns': 'urn:schemas-upnp-org:device-1-0'} 
+        
+        # Search for the service type and extract the control URL
+        service_xpath = f".//{{*}}service[{{*}}serviceType='{SERVICE_TYPE}']"
+        wan_service = root.find(service_xpath)
+        
+        if wan_service is None:
+            # If the direct search fails, try a broader approach, common in nested devices
+            device_xpath = ".//device/deviceList/device"
+            for device_elem in root.findall(device_xpath, namespaces):
+                service_xpath = f".//service[serviceType='{SERVICE_TYPE}']"
+                wan_service = device_elem.find(service_xpath)
+                if wan_service is not None:
+                    break
+
+        if wan_service is None:
+            print(f"[INFO] Could not find service type '{SERVICE_TYPE}' in router XML.")
+            return None, None
+            
+        control_url_elem = wan_service.find('{*}controlURL')
+        if control_url_elem is not None:
+            control_url = control_url_elem.text.strip()
+
+    except Exception as e:
+        print(f"[ERROR] Error fetching or parsing XML: {e}")
+        return None, None
+
+    if not control_url:
+        print("[ERROR] Found WAN service but could not extract control URL.")
+        return None, None
+        
+    print(f"[SUCCESS] Extracted Control URL: {control_url}")
+    return base_url, control_url
+
+def get_external_ip(base_url, control_url):
+    """
+    Sends the SOAP request to the control URL to get the external IP.
+    """
+    print("--- 3. Sending SOAP Request (GetExternalIPAddress) ---")
+
+    soap_action = "urn:schemas-upnp-org:service:WANIPConnection:1#GetExternalIPAddress"
+    
+    # SOAP XML Payload for the GetExternalIPAddress action
+    soap_body = f"""<?xml version="1.0"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+<s:Body>
+<u:GetExternalIPAddress xmlns:u="urn:schemas-upnp-org:service:WANIPConnection:1"/>
+</s:Body>
+</s:Envelope>
+"""
+
+    headers = {
+        'Content-Type': 'text/xml; charset="utf-8"',
+        'SOAPACTION': f'"{soap_action}"',
+        'Content-Length': str(len(soap_body))
+    }
+
+    try:
+        # Build the full target URL
+        full_url = base_url + control_url
+        
+        # Use urllib to send the POST request
+        request = urllib.request.Request(full_url, data=soap_body.encode('utf-8'), headers=headers, method='POST')
+        
+        with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
+            soap_response = response.read()
+            
+        # 4. Parse SOAP Response
+        print(soap_response)
+        ip_root = ET.fromstring(soap_response)
+        
+        # UPnP SOAP responses use standard SOAP/UPnP namespaces
+        # We look for the <NewExternalIPAddress> tag
+        ip_element = ip_root.find('.//{*}NewExternalIPAddress')
+        
+        if ip_element is not None and ip_element.text:
+            public_ip = ip_element.text.strip()
+            print("\n==============================================")
+            print(f"✅ Public IP Address: {public_ip}")
+            print("==============================================")
+        else:
+            print("[ERROR] Failed to extract IP from SOAP response XML.")
+            
+    except Exception as e:
+        print(f"[ERROR] Error during SOAP request: {e}")
+        print("This usually means the router refused the request or encountered an internal error.")
+
+def get_public_ip_upnp():
+    """Main function to orchestrate the UPnP IP retrieval process."""
+    base_url, control_url = discover_igd()
+    
+    if base_url and control_url:
+        get_external_ip(base_url, control_url)
+    else:
+        print("\n[FAILED] Could not complete the discovery phase. Cannot proceed with SOAP request.")
+
+if __name__ == '__main__':
+    get_public_ip_upnp()

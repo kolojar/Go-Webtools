@@ -58,6 +58,14 @@ func (m *SafeMap[K, V]) Get(key K) V {
 	return m.m[key]
 }
 
+// GetHas gets safely value from map and returns if value is in map
+func (m *SafeMap[K, V]) GetHas(key K) (V, bool) {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+	v, has := m.m[key]
+	return v, has
+}
+
 // Set sets safely value to map
 func (m *SafeMap[K, V]) Set(key K, value V) {
 	m.mutex.Lock()

@@ -38,6 +38,7 @@ type ConsoleLogger struct {
 	LogReportFunction LogReportFunc
 	//saveToFile        bool
 	Prefix        string
+	Preprefix     string
 	minPrintLevel uint8
 }
 
@@ -75,7 +76,7 @@ func (logger *ConsoleLogger) LogWithSourceID(logType uint8, message string, sour
 		logTypePrefix = "GENERAL"
 		colorlogTypePrefix = ANSIISetTextColorSequence + "34m"
 	}
-	logMsg := "[" + time.Now().Format("02/01/2006 15:04:05.000") + " - " + logTypePrefix + " - " + logger.Prefix + "]: " + message
+	logMsg := "[" + time.Now().Format("02/01/2006 15:04:05.000") + " - " + logTypePrefix + " - " + FormatByBool(logger.Preprefix != "", logger.Preprefix+" - ", "") + logger.Prefix + "]: " + message
 	if logType >= logger.minPrintLevel {
 		fmt.Println(colorlogTypePrefix + logMsg + ANSIITotalResetSequence)
 	}

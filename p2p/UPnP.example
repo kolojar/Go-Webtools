@@ -1,0 +1,351 @@
+package main
+
+import (
+	"bufio"
+	"bytes"
+	"encoding/xml"
+	"fmt"
+	"io"
+	"log"
+	"net"
+	"net/http"
+	"strings"
+	"time"
+)
+
+// --- SSDP A KONSTANTY MAPOVÁNÍ PORTŮ ---
+const (
+	SSDPAddr = "239.255.255.250:1900" // Standardní multicastová adresa a port UPnP
+	SearchTarget = "ssdp:all"        // Cíl hledání: Objev všechna UPnP zařízení
+	ReadTimeout  = 3 * time.Second   // Jak dlouho čekat na odpovědi
+
+	// Konstanty pro mapování portů (IGD - Internet Gateway Device)
+	TargetService = "urn:schemas-upnp-org:service:WANIPConnection:1" // Služba, která řídí přesměrování portů
+	InternalPort  = 54321                                           // Interní port pro tvou P2P aplikaci
+	ExternalPort  = 54321                                           // Externí port, který uvidí svět
+	Protocol      = "TCP"                                           // Protokol (TCP nebo UDP)
+	Description   = "MyGoP2PApp"                                    // Popis pro router
+)
+
+// M-SEARCH request payload
+const MSearchRequest = "M-SEARCH * HTTP/1.1\r\n" +
+	"HOST: 239.255.255.250:1900\r\n" +
+	"MAN: \"ssdp:discover\"\r\n" +
+	"MX: 3\r\n" + // Max. doba čekání na odpověď v sekundách
+	"ST: %s\r\n" + // Cíl hledání
+	"\r\n"
+
+// AddPortMappingBody je šablona pro SOAP žádost na přidání mapování portu.
+// %s: serviceType, %d: ExternalPort, %s: Protocol, %d: InternalPort, %s: InternalClient (lokální IP), %s: Description
+const AddPortMappingBody = `<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+    <s:Body>
+        <u:AddPortMapping xmlns:u="%s">
+            <NewRemoteHost></NewRemoteHost>
+            <NewExternalPort>%d</NewExternalPort>
+            <NewProtocol>%s</NewProtocol>
+            <NewInternalPort>%d</NewInternalPort>
+            <NewInternalClient>%s</NewInternalClient>
+            <NewEnabled>1</NewEnabled>
+            <NewPortMappingDescription>%s</NewPortMappingDescription>
+            <NewLeaseDuration>0</NewLeaseDuration>
+        </u:AddPortMapping>
+    </s:Body>
+</s:Envelope>`
+
+// DeletePortMappingBody je šablona pro SOAP žádost na odstranění mapování portu.
+// %s: serviceType, %d: ExternalPort, %s: Protocol
+const DeletePortMappingBody = `<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+    <s:Body>
+        <u:DeletePortMapping xmlns:u="%s">
+            <NewRemoteHost></NewRemoteHost>
+            <NewExternalPort>%d</NewExternalPort>
+            <NewProtocol>%s</NewProtocol>
+        </u:DeletePortMapping>
+    </s:Body>
+</s:Envelope>`
+
+
+// --- STRUKTURY PRO PARSOVÁNÍ XML ---
+
+// Root reprezentuje kořenový element UPnP XML popisu
+type Root struct {
+	XMLName xml.Name `xml:"root"`
+	Device  Device   `xml:"device"`
+}
+
+// Device reprezentuje zařízení (např. router)
+type Device struct {
+	XMLName  xml.Name `xml:"device"`
+	Services []Service `xml:"serviceList>service"`
+}
+
+// Service reprezentuje jednu službu (např. WANIPConnection)
+type Service struct {
+	XMLName     xml.Name `xml:"service"`
+	ServiceType string   `xml:"serviceType"`
+	ControlURL  string   `xml:"controlURL"` // Sem se posílají SOAP požadavky
+}
+
+// --- POMOCNÉ FUNKCE ---
+
+// findLocation skenuje odpověď SSDP a extrahuje hlavičku 'LOCATION'.
+func findLocation(response []byte) string {
+	reader := bufio.NewReader(strings.NewReader(string(response)))
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			break
+		}
+
+		if strings.HasPrefix(strings.ToUpper(line), "LOCATION:") {
+			url := strings.TrimSpace(line[len("LOCATION:"):])
+			return url
+		}
+	}
+	return ""
+}
+
+// getBaseURL extrahuje základní URL (schéma://host:port) z plné URL
+// např. z http://192.168.1.1:8080/desc.xml vrátí http://192.168.1.1:8080
+func getBaseURL(locationURL string) string {
+	parts := strings.Split(locationURL, "/")
+	if len(parts) >= 3 {
+		return strings.Join(parts[:3], "/")
+	}
+	return locationURL
+}
+
+// getLocalIP získá lokální IP adresu počítače v síti.
+func getLocalIP() (string, error) {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return "", err
+	}
+
+	for _, addr := range addrs {
+		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipnet.IP.To4() != nil {
+				return ipnet.IP.String(), nil
+			}
+		}
+	}
+	return "", fmt.Errorf("nebyla nalezena lokální IPv4 adresa")
+}
+
+// fetchXML stáhne XML soubor popisu zařízení z dané URL.
+func fetchXML(url string) ([]byte, error) {
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("chyba při stahování XML: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("chybný stav HTTP: %s", resp.Status)
+	}
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("chyba při čtení odpovědi: %w", err)
+	}
+	return data, nil
+}
+
+// findControlURL parsuje XML a najde řídicí URL pro službu WANIPConnection.
+func findControlURL(xmlData []byte, baseURL string) (string, error) {
+	var root Root
+	if err := xml.Unmarshal(xmlData, &root); err != nil {
+		return "", fmt.Errorf("chyba při parsování XML: %w", err)
+	}
+
+	for _, service := range root.Device.Services {
+		if service.ServiceType == TargetService {
+			// ControlURL je často relativní, musíme ji spojit se základní URL
+			if strings.HasPrefix(service.ControlURL, "http") {
+				return service.ControlURL, nil
+			}
+			// Odstranění koncové '/' z baseURL pro správné spojení
+			baseURL = strings.TrimSuffix(baseURL, "/")
+			return baseURL + service.ControlURL, nil
+		}
+	}
+	return "", fmt.Errorf("řídicí URL pro službu %s nebyla nalezena", TargetService)
+}
+
+// addPortMapping pošle SOAP žádost na router k přidání mapování portu.
+func addPortMapping(controlURL, serviceType string) error {
+	localIP, err := getLocalIP()
+	if err != nil {
+		return fmt.Errorf("nepodařilo se získat lokální IP adresu: %w", err)
+	}
+	
+	soapBody := fmt.Sprintf(AddPortMappingBody, serviceType, ExternalPort, Protocol, InternalPort, localIP, Description)
+	
+	log.Printf("P2P aplikace potřebuje přesměrovat port %d/%s na lokální IP: %s", ExternalPort, Protocol, localIP)
+	
+	req, err := http.NewRequest("POST", controlURL, bytes.NewBufferString(soapBody))
+	if err != nil {
+		return fmt.Errorf("chyba při vytváření požadavku: %w", err)
+	}
+
+	// Nastavení povinných SOAP hlaviček
+	req.Header.Set("Content-Type", "text/xml")
+	req.Header.Set("SOAPAction", fmt.Sprintf("\"%s#AddPortMapping\"", serviceType))
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("chyba při odesílání SOAP žádosti: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusOK {
+		log.Printf("✅ Úspěšně přidáno mapování portu %d/%s pro %s (interní IP: %s).", ExternalPort, Protocol, Description, localIP)
+		return nil
+	}
+	
+	// Přečtení chybové odpovědi
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	return fmt.Errorf("❌ CHYBA: Nepodařilo se přidat mapování portu, status: %s, odpověď: %s", resp.Status, string(bodyBytes))
+}
+
+// deletePortMapping pošle SOAP žádost na router k odstranění mapování portu.
+func deletePortMapping(controlURL, serviceType string) error {
+	log.Printf("P2P aplikace se odpojuje. Pokus o odstranění mapování portu %d/%s.", ExternalPort, Protocol)
+
+	soapBody := fmt.Sprintf(DeletePortMappingBody, serviceType, ExternalPort, Protocol)
+
+	req, err := http.NewRequest("POST", controlURL, bytes.NewBufferString(soapBody))
+	if err != nil {
+		return fmt.Errorf("chyba při vytváření požadavku na odstranění: %w", err)
+	}
+
+	// Nastavení povinných SOAP hlaviček
+	req.Header.Set("Content-Type", "text/xml")
+	req.Header.Set("SOAPAction", fmt.Sprintf("\"%s#DeletePortMapping\"", serviceType))
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("chyba při odesílání SOAP žádosti na odstranění: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusOK {
+		log.Printf("✅ Úspěšně odstraněno mapování portu %d/%s.", ExternalPort, Protocol)
+		return nil
+	}
+	
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	// V UPnP je běžné, že router vrátí chybu, pokud se port už v tabulce nenachází.
+	// Proto logujeme chybu, ale nepanikaříme.
+	return fmt.Errorf("❌ CHYBA: Nepodařilo se odstranit mapování portu, status: %s, odpověď: %s", resp.Status, string(bodyBytes))
+}
+
+// --- HLAVNÍ FUNKCE DISCOVERY ---
+
+// discoverDevices odesílá M-SEARCH požadavek, poslouchá odpovědi a pokouší se o mapování portu.
+func discoverDevices() {
+	log.Printf("Start UPnP/SSDP objevování pro cíl: %s", SearchTarget)
+
+	// Zbytek kódu v této funkci (až do bodu, kde se přidává port) zůstává stejný
+	addr, err := net.ResolveUDPAddr("udp4", SSDPAddr)
+	if err != nil {
+		log.Fatalf("Chyba při řešení UDP adresy: %v", err)
+	}
+
+	conn, err := net.DialUDP("udp4", nil, addr)
+	if err != nil {
+		log.Fatalf("Chyba při vytáčení UDP: %v", err)
+	}
+	defer conn.Close()
+
+	searchMsg := fmt.Sprintf(MSearchRequest, SearchTarget)
+	if _, err := conn.Write([]byte(searchMsg)); err != nil {
+		log.Fatalf("Chyba při odesílání M-SEARCH zprávy: %v", err)
+	}
+
+	if err := conn.SetReadDeadline(time.Now().Add(ReadTimeout)); err != nil {
+		log.Fatalf("Chyba při nastavení časového limitu čtení: %v", err)
+	}
+
+	foundLocations := make(map[string]struct{})
+	buffer := make([]byte, 1024)
+	
+	fmt.Println("\n--- Poslouchání odpovědí UPnP ---")
+	
+	for {
+		n, _, err := conn.ReadFrom(buffer)
+		if err != nil {
+			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+				log.Println("Dosažen časový limit objevování. Ukončení smyčky.")
+				break
+			}
+			log.Printf("Chyba při čtení odpovědi: %v", err)
+			continue
+		}
+
+		response := buffer[:n]
+		locationURL := findLocation(response)
+
+		if locationURL != "" {
+			if _, exists := foundLocations[locationURL]; !exists {
+				foundLocations[locationURL] = struct{}{}
+				
+				fmt.Printf("\n [NALEZENO] Popis zařízení URL: %s\n", locationURL)
+				
+				// LOGIKA PRO MAPOVÁNÍ PORTŮ A ODEBRÁNÍ:
+				if strings.Contains(strings.ToLower(locationURL), "wanip") || strings.Contains(strings.ToLower(locationURL), "internetgatewaydevice") {
+					baseURL := getBaseURL(locationURL)
+					
+					xmlData, err := fetchXML(locationURL)
+					if err != nil {
+						log.Printf("Chyba při stahování XML: %v", err)
+						continue
+					}
+
+					controlURL, err := findControlURL(xmlData, baseURL)
+					if err != nil {
+						log.Printf("Chyba při hledání ControlURL: %v", err)
+						continue
+					}
+					log.Printf("Nalezena ControlURL pro službu %s: %s", TargetService, controlURL)
+					
+					// ZKUSIT PŘIDAT MAPOVÁNÍ PORTU
+					if err := addPortMapping(controlURL, TargetService); err == nil {
+						
+						// !!! KLÍČOVÁ ZMĚNA: POUŽITÍ DEFER PRO ZARUČENÉ ODSTRANĚNÍ PORTU !!!
+						// Tato anonymní funkce se zavolá, jakmile se funkce discoverDevices ukončí.
+						defer func() {
+							if err := deletePortMapping(controlURL, TargetService); err != nil {
+								// Logujeme jako poznámku, protože mazání portu je pokus o úklid.
+								log.Printf("POZNÁMKA: Automatické odstranění portu selhalo. %v", err)
+							} else {
+								log.Println("✅ Automatické odstranění portu po ukončení aplikace bylo úspěšné.")
+							}
+						}()
+						
+						log.Println("🎉 Přesměrování portu dokončeno! Port bude automaticky odstraněn při ukončení programu.")
+						
+						// Nyní se zde spustí HLAVNÍ KÓD TVÉ P2P APLIKACE.
+						// Pro demo účely budeme čekat 10 sekund a pak se program vrátí a spustí defer.
+						fmt.Println("\n--- UPnP nastaveno. Simulace běhu P2P aplikace... (10s) ---")
+						time.Sleep(10 * time.Second) 
+						fmt.Println("--- Simulace P2P aplikace skončila. Spouští se úklid (defer deletePortMapping). ---")
+						
+						return // Ukončí discoverDevices a spustí defer
+					} else {
+						// Chybové hlášení při přidání již bylo vypsáno v addPortMapping
+						log.Println("Nepodařilo se automaticky nastavit přesměrování. Zkontroluj, zda tvůj router podporuje UPnP.")
+					}
+				}
+			}
+		}
+	}
+
+	fmt.Printf("\n--- Objevování dokončeno. Nalezeno %d unikátních zařízení. ---\n", len(foundLocations))
+}
+
+func main() {
+	discoverDevices()
+}

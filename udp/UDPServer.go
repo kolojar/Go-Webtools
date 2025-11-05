@@ -43,7 +43,7 @@ func (conn *ServerConn) Close() {
 /*
 ServerReadFunc is function definition for reading data from Server
 */
-type ServerReadFunc func(*ServerConn, []byte, bool)
+type ServerReadFunc func(conn *ServerConn, data []byte, ended bool)
 
 /*
 Server is basic UDP server
@@ -54,14 +54,15 @@ type Server struct {
 	address       *net.UDPAddr
 	Logger        *webtools.ConsoleLogger
 	requestedStop bool
-	isRunning     bool
+	isAlive       bool
 	conns         webtools.SafeMap[string, *ServerConn]
 	udpFramer     *Framer
 }
 
-/*
-GetAddress gets address of server
-*/
+func (udp *Server) IsAlive() bool {
+	return udp.isAlive
+}
+
 func (udp *Server) GetAddress() *net.UDPAddr {
 	return udp.address
 }
@@ -92,7 +93,7 @@ Start starts UDP Server, locks execution thread
 */
 func (udp *Server) Start() {
 	//Check if already running
-	if udp.isRunning {
+	if udp.isAlive {
 		return
 	}
 
@@ -106,7 +107,7 @@ func (udp *Server) Start() {
 		udp.Logger.Log(3, "Error listening to "+udp.address.String()+" with error: "+err.Error())
 		return
 	}
-	udp.isRunning = true
+	udp.isAlive = true
 	udp.Logger.Log(2, "Started listening on "+udp.address.String())
 
 	//Listener loop
@@ -117,7 +118,7 @@ func (udp *Server) Start() {
 			processDataForUDP(addrFrom, data, ended, udp.readFuncLocal, udp.Logger, udp.udpFramer, true, udp.listener)
 		})
 	}
-	udp.isRunning = false
+	udp.isAlive = false
 }
 
 /*
@@ -131,9 +132,16 @@ func handleUDPRead(listener *net.UDPConn, logger *webtools.ConsoleLogger, readFu
 		if addr == nil {
 			if !strings.Contains(err.Error(), "use of closed network connection") {
 				logger.Log(3, "Error getting UDP connection from: "+err.Error())
+			} else {
+				if readFunc != nil {
+					readFunc(nil, nil, true)
+				}
 			}
 		} else {
 			logger.Log(3, "Error reading from: "+addr.String()+" | Error: "+err.Error())
+			if readFunc != nil {
+				readFunc(addr, nil, true)
+			}
 		}
 		return false
 	}
@@ -193,6 +201,10 @@ func writeToUDP(isServer bool, listener *net.UDPConn, addr *net.UDPAddr, data []
 		logger.Log(1, "Invalid data, cancelling write.")
 		return
 	}
+	if listener == nil {
+		logger.Log(3, "Invalid listener.")
+		return
+	}
 
 	//Write
 	logger.Log(0, "Writing to: "+addr.String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data))
@@ -211,7 +223,10 @@ func writeToUDP(isServer bool, listener *net.UDPConn, addr *net.UDPAddr, data []
 Stop stops UDP server
 */
 func (udp *Server) Stop() {
-	if !udp.isRunning {
+	if udp.udpFramer != nil {
+		udp.udpFramer.StopKeepAlive()
+	}
+	if !udp.isAlive {
 		return
 	}
 	//

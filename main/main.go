@@ -12,6 +12,7 @@ import (
 	"time"
 	"webtools"
 	"webtools/http"
+	"webtools/p2p"
 	"webtools/proxy"
 	"webtools/tcp"
 	"webtools/udp"
@@ -19,7 +20,9 @@ import (
 
 func main() {
 	fmt.Println("Hello world")
-	framer := udp.NewUDPFramerSimple(50, 5, true, 50)
+	framer := udp.NewUDPFramerSimple(nil, 50, 5, true, 50, true)
+	ip, _ := p2p.GetThisComputerLocalIP()
+	upnp := p2p.NewUPnPServiceManager(ip)
 	switch os.Args[1] {
 	case "ts":
 		{
@@ -187,23 +190,98 @@ func main() {
 			ub, _ := udp.NewBridge("127.0.0.1:7777", "127.0.0.1:17777", true)
 			ub.Start()
 		}
-		/*case "dynamicsv":
+	case "p2psv":
 		{
-			sv := http.NewDynamicHTMLServer("127.0.0.1:8080", nil, nil, onInstanceChange, "", true)
-			creator := http.NewHTMLCreator(true, "en", "Test site", true)
-			creator.AddBodyElement(http.NewHTMLHxElement(1, "Example site"))
-			text := http.NewHTMLElementBase("p")
-			textPreClock := http.NewHTMLElementBase("span")
-			textPreClock.InnerHTML = "Current time: "
-			text.HTMLElements = append(text.HTMLElements, textPreClock)
-			textClock := http.NewHTMLElementBase("span")
-			sv.MakeDynamicElement(textClock, "clock")
-			text.HTMLElements = append(text.HTMLElements, textClock)
-			creator.AddBodyElement(text)
-			sv.AddPage("/test", creator)
+			sv, _ := p2p.NewP2PCoordinator("0.0.0.0:1234", true, true)
 			sv.Start()
-		}*/
+			break
+		}
+	case "p2pcl":
+		{
+			cl, _ := p2p.NewP2PClientUDP("127.0.0.1:1234", 5678, p2pReadFunc, true)
+			cl.SetupUPnP(upnp)
+			cl.ConnectToCoordinator()
+			webtools.ReadLineFromConsole("Wait")
+		}
+	case "p2pcl2":
+		{
+			println("p2pCl2")
+			cl, _ := p2p.NewP2PClientUDP("127.0.0.1:1234", 5679, p2pReadFunc2, true)
+			cl.SetupUPnP(upnp)
+			cl.ConnectToCoordinator()
+			data, _ := webtools.ReadLineFromConsole("Enter target id: ")
+			cl.ConnectToPeer([]byte(strings.ReplaceAll(string(data), "\n", "")))
+			cl.Send([]byte(strings.ReplaceAll(string(data), "\n", "")), []byte("Hello"))
+			webtools.ReadLineFromConsole("wait")
+		}
+	case "p2pcl3":
+		{
+			cl, _ := p2p.NewP2PClientUDP("127.0.0.1:1234", 5677, p2pReadFunc2, true)
+			cl.SetupUPnP(upnp)
+			cl.ConnectToCoordinator()
+			data, _ := webtools.ReadLineFromConsole("Enter target id: ")
+			cl.ConnectToPeer([]byte(strings.ReplaceAll(string(data), "\n", "")))
+			cl.Send([]byte(strings.ReplaceAll(string(data), "\n", "")), []byte("Hello"))
+			webtools.ReadLineFromConsole("wait")
+		}
+	case "upnp":
+		{
+			localIp, _ := p2p.GetThisComputerLocalIP()
+			fmt.Println(localIp)
+			//time.Sleep(5 * time.Second)
+			upnp := p2p.NewUPnPServiceManager(localIp)
+			println(upnp.SetupUPnP().Error())
+			upnp.AddUPnPPort(5555, 5555, "TCP", "This it test")
+			time.Sleep(10 * time.Second)
+			//upnp.RemoveUPnPPort(5555, "TCP")
+			upnp.Shutdown()
+		}
+
+	case "upnpCleanup":
+		{
+			upnp.GetRouterPublicIP()
+			upnp.RemoveUPnPPort(5677, "UDP")
+			upnp.RemoveUPnPPort(5678, "UDP")
+			upnp.RemoveUPnPPort(5679, "UDP")
+			upnp.RemoveUPnPPort(5677, "TCP")
+			upnp.RemoveUPnPPort(5678, "TCP")
+			upnp.RemoveUPnPPort(5679, "TCP")
+			//upnp.RemoveUPnPPort(5555, "TCP")
+			upnp.Shutdown()
+		}
+	case "p2ppsu":
+		{
+			proxy, _ := proxy.NewP2PProxyServerUDP("127.0.0.1:1234", 5678, "127.0.0.1:7777", true)
+			proxy.Start()
+		}
+	case "p2ppcu":
+		{
+			data, _ := webtools.ReadLineFromConsole("Enter target id: ")
+			proxy, _ := proxy.NewP2PProxyClientUDP("127.0.0.1:1234", 5679, []byte(strings.ReplaceAll(string(data), "\n", "")), "127.0.0.1:17777", true)
+			proxy.Connect()
+			for {
+				time.Sleep(100 * time.Millisecond)
+			}
+		}
+	case "checkcgnat":
+		{
+			p2p, _ := p2p.NewP2PClientUDP("127.0.0.1:1234", 5678, nil, true)
+			p2p.SetupUPnP(upnp)
+			if p2p.ConnectToCoordinator() {
+				p2p.CheckCGNAT()
+			}
+			p2p.Stop()
+			upnp.Shutdown()
+		}
 	}
+}
+
+func p2pReadFunc(client *p2p.P2PClient, sourceId []byte, data []byte, ended bool, _ *webtools.ConsoleLogger) {
+	client.Send(sourceId, data)
+}
+
+func p2pReadFunc2(client *p2p.P2PClient, sourceId []byte, data []byte, ended bool, _ *webtools.ConsoleLogger) {
+	fmt.Println(string(data))
 }
 
 var rc = 0
