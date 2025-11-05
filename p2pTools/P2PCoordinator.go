@@ -98,7 +98,7 @@ func NewP2PCoordinator(address string, allowRelay bool, reportTraffic bool) (*P2
 	if err != nil {
 		return nil, err
 	}
-	p2p.tcpServer.Logger.Prefix = "P2PCoordinator - " + p2p.udpServer.Logger.Prefix
+	p2p.tcpServer.Logger.Prefix = "P2PCoordinator - " + p2p.tcpServer.Logger.Prefix
 
 	return p2p, nil
 }
