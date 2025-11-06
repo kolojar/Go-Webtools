@@ -9,7 +9,7 @@ import (
 )
 
 /*
-P2P Proxy server for UDP object
+P2PProxyServerTCP is server for proxied TCP traffic over P2P
 */
 type P2PProxyServerTCP struct {
 	idToClient       webtools.SafeMap[string, *P2PProxyServerTCPConn]
@@ -20,7 +20,7 @@ type P2PProxyServerTCP struct {
 }
 
 /*
-P2P Proxy server for UDP connection object
+P2PProxyServerTCPConn is connection object of P2PProxyServerTCP
 */
 type P2PProxyServerTCPConn struct {
 	tcpClient *tcp.ClientSimple
@@ -30,36 +30,36 @@ type P2PProxyServerTCPConn struct {
 }
 
 /*
-Creates frame and sends it to P2P
+SendToP2P creates frame and sends it to P2P
 */
-func (cl *P2PProxyServerTCPConn) SendToP2P(operation uint8, data []byte) {
-	cl.origin.p2pClient.Send(cl.sourceID, webtools.PackWebtoolsFrame(operation, cl.ID, data))
+func (conn *P2PProxyServerTCPConn) SendToP2P(operation uint8, data []byte) {
+	conn.origin.p2pClient.Send(conn.sourceID, webtools.PackWebtoolsFrame(operation, conn.ID, data))
 }
 
 /*
-Creates frame and sends it to UDP
+SendToTCP sends data to UDP
 */
-func (cl *P2PProxyServerTCPConn) SendToUDP(data []byte) {
-	cl.tcpClient.Send(data)
+func (conn *P2PProxyServerTCPConn) SendToTCP(data []byte) {
+	conn.tcpClient.Send(data)
 }
 
 /*
-Closes connection to client
+Close closes connection to client
 */
-func (cl *P2PProxyServerTCPConn) Close(isInitiator bool) {
-	if cl == nil || cl.tcpClient == nil {
+func (conn *P2PProxyServerTCPConn) Close(isInitiator bool) {
+	if conn == nil || conn.tcpClient == nil {
 		return
 	}
-	cl.tcpClient.Stop()
-	cl.origin.idToClient.Delete(string(cl.ID))
+	conn.tcpClient.Stop()
+	conn.origin.idToClient.Delete(string(conn.ID))
 	if isInitiator {
-		cl.SendToP2P(webtools.FrameTypeClose, nil)
+		conn.SendToP2P(webtools.FrameTypeClose, nil)
 	}
-	cl.origin.clientToID.Delete(cl.tcpClient)
+	conn.origin.clientToID.Delete(conn.tcpClient)
 }
 
 /*
-Creates new P2P Proxy Server for UDP but does not starts it
+NewP2PProxyServerTCP creates new P2P Proxy Server for TCP but does not starts it
 */
 func NewP2PProxyServerTCP(p2pCoordinatorAddress string, p2pPortForIncommingConns int, tcpServerAddress string, reportTraffic bool) (*P2PProxyServerTCP, error) {
 	sv := &P2PProxyServerTCP{
@@ -113,10 +113,9 @@ func (sv *P2PProxyServerTCP) handleP2PReadFunc(_ *p2p.Client, sourceID []byte, f
 				sv.clientToID.Set(cl, string(frame.ID))
 				sv.idToClient.Get(string(frame.ID)).SendToP2P(webtools.FrameTypeConnect, frame.Data)
 				return
-			} else {
-				logger.Log(3, "Could not find connection to ID: "+string(frame.ID))
-				return
 			}
+			logger.Log(3, "Could not find connection to ID: "+string(frame.ID))
+			return
 		}
 		cl := sv.idToClient.Get(string(frame.ID))
 		if !cl.tcpClient.IsAlive() {
@@ -134,7 +133,7 @@ func (sv *P2PProxyServerTCP) handleP2PReadFunc(_ *p2p.Client, sourceID []byte, f
 		case webtools.FrameTypeData:
 			{
 				//Send to UDP
-				cl.SendToUDP(frame.Data)
+				cl.SendToTCP(frame.Data)
 			}
 		}
 	}
@@ -160,7 +159,7 @@ func (sv *P2PProxyServerTCP) handleTCPReadFunc(tcp *tcp.ClientSimple, data []byt
 }
 
 /*
-Starts P2P Proxy Server for UDP. Locks execution thread
+Start starts P2P Proxy Server for TCP. Locks execution thread
 */
 func (sv *P2PProxyServerTCP) Start() bool {
 	if !sv.p2pClient.ConnectToCoordinator() {
@@ -173,7 +172,7 @@ func (sv *P2PProxyServerTCP) Start() bool {
 }
 
 /*
-Stops P2P Proxy Server for UDP
+Stop stops P2P Proxy Server for TCP
 */
 func (sv *P2PProxyServerTCP) Stop() {
 	sv.p2pClient.Stop()

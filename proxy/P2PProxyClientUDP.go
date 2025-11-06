@@ -8,7 +8,7 @@ import (
 )
 
 /*
-P2P Proxy client for UDP object
+P2PProxyClientUDP is client for proxied UDP traffic over P2P
 */
 type P2PProxyClientUDP struct {
 	clientToID         webtools.SafeMap[*udp.ServerConn, string]
@@ -20,12 +20,15 @@ type P2PProxyClientUDP struct {
 	p2pServerID        []byte
 }
 
+/*
+IsAlive gets if client is alive
+*/
 func (cl *P2PProxyClientUDP) IsAlive() bool {
 	return cl.p2pClient.IsAlive()
 }
 
 /*
-Creates new P2P Proxy Client for UDP but does not starts it
+NewP2PProxyClientUDP creates new P2P Proxy Client for UDP but does not starts it
 */
 func NewP2PProxyClientUDP(p2pCoordinatorAddress string, p2pPortForIncommingConns int, p2pProxyServerID []byte, udpServerAddress string, reportTraffic bool) (*P2PProxyClientUDP, error) {
 	cl := &P2PProxyClientUDP{
@@ -132,7 +135,7 @@ func (cl *P2PProxyClientUDP) handleUDPReadFunc(udpConn *udp.ServerConn, data []b
 }
 
 /*
-Connects to P2P Proxy server and start reading loop, does not lock execution thread
+Connect connects to P2P Proxy server and start reading loop, does not lock execution thread
 */
 func (cl *P2PProxyClientUDP) Connect() bool {
 	if !cl.p2pClient.ConnectToCoordinator() {
@@ -146,7 +149,7 @@ func (cl *P2PProxyClientUDP) Connect() bool {
 }
 
 /*
-Stops P2P Proxy client
+Stop stops P2P Proxy client
 */
 func (cl *P2PProxyClientUDP) Stop() {
 	cl.p2pClient.Stop()
