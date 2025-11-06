@@ -72,6 +72,7 @@ type WebSocketInstanceServer struct {
 /*
 NewWebSocketInstanceServer creates new WebSocket server with instance support but does not starts it
 URL "/instanceServerWebsocketNewInstance" is reserved for server communication
+You can use URL "/instanceServerWebsocketNewInstance?action=delete" for instance deletion
 */
 func NewWebSocketInstanceServer(address string, readFunc WebSocketInstanceServerReadFunc, accessFunc WebSocketInstanceServerAccessFunc, rootPath string, reportTraffic bool) *WebSocketInstanceServer {
 	//Create instance server
@@ -90,7 +91,11 @@ func NewWebSocketInstanceServer(address string, readFunc WebSocketInstanceServer
 	//sv.wsServer.AddWebSocketURL("/instanceServerWebsocket", sv.readFuncInstanceManagerLocal)
 
 	//Create redirect HTML
-	sv.htmlCreatorRedirect.AddBodyElement(NewHTMLElementBaseWithData("p", "Please wait, you will be redirected in a moment..."))
+	metaElement := NewHTMLElementBase("meta")
+	metaElement.Attributes["name"] = "color-scheme"
+	metaElement.Attributes["content"] = "light dark"
+	sv.htmlCreatorRedirect.HeadElements = append(sv.htmlCreatorRedirect.HeadElements, metaElement)
+	sv.htmlCreatorRedirect.AddBodyElement(NewHTMLElementBaseWithData("pre", "Please wait, you will be redirected in a moment..."))
 	sv.htmlRedirectScript = NewHTMLElementBase("script")
 	sv.htmlCreatorRedirect.AddBodyElement(sv.htmlRedirectScript)
 	return sv
@@ -193,6 +198,16 @@ func (sv *WebSocketInstanceServer) accessFuncLocal(server *Server, w http.Respon
 	if !sv.checkCookies(serverIDCookie, instanceIDCookie) {
 		//Invalid
 		sv.createNewInstance(CreateURLFromParameters(r.URL.Path, params), w)
+		return true
+	}
+
+	if r.URL.Path == "/instanceServerWebsocketNewInstance" && r.Method == http.MethodGet && params["action"] == "delete" {
+		for _, v := range sv.instances.Get(instanceIDCookie.Value).webSocketConns {
+			v.Close()
+		}
+		sv.instances.Delete(instanceIDCookie.Value)
+		sv.wsServer.httpServer.Logger.Log(2, "Removed instance for: "+r.RemoteAddr+" with id: "+instanceIDCookie.Value)
+		fmt.Fprint(w, "Instance removed")
 		return true
 	}
 
