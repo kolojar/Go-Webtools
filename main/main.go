@@ -226,10 +226,10 @@ func main() {
 		}
 	case "upnp":
 		{
-			localIp, _ := p2p.GetThisComputerLocalIP()
-			fmt.Println(localIp)
+			localIP, _ := p2p.GetThisComputerLocalIP()
+			fmt.Println(localIP)
 			//time.Sleep(5 * time.Second)
-			upnp := p2p.NewUPnPServiceManager(localIp)
+			upnp := p2p.NewUPnPServiceManager(localIP)
 			println(upnp.SetupUPnP().Error())
 			upnp.AddUPnPPort(5555, 5555, "TCP", "This it test")
 			time.Sleep(10 * time.Second)
@@ -276,11 +276,11 @@ func main() {
 	}
 }
 
-func p2pReadFunc(client *p2p.Client, sourceId []byte, data []byte, ended bool, _ *webtools.ConsoleLogger) {
-	client.Send(sourceId, data)
+func p2pReadFunc(client *p2p.Client, sourceID []byte, data []byte, _ bool, _ *webtools.ConsoleLogger) {
+	client.Send(sourceID, data)
 }
 
-func p2pReadFunc2(client *p2p.Client, sourceId []byte, data []byte, ended bool, _ *webtools.ConsoleLogger) {
+func p2pReadFunc2(_ *p2p.Client, _ []byte, data []byte, _ bool, _ *webtools.ConsoleLogger) {
 	fmt.Println(string(data))
 }
 

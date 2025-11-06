@@ -59,10 +59,16 @@ type Server struct {
 	udpFramer     *Framer
 }
 
+/*
+IsAlive gets if server is alive
+*/
 func (udp *Server) IsAlive() bool {
 	return udp.isAlive
 }
 
+/*
+GetAddress gets address of server
+*/
 func (udp *Server) GetAddress() *net.UDPAddr {
 	return udp.address
 }
