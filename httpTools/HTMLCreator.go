@@ -1,4 +1,4 @@
-package http
+package httpTools
 
 import (
 	"strconv"

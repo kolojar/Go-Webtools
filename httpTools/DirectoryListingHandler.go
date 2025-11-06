@@ -1,7 +1,7 @@
 /*
 Package http provides tools for working with HTML files and tools for HTTP traffic
 */
-package http
+package httpTools
 
 import (
 	"fmt"

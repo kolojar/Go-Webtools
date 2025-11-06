@@ -2,18 +2,18 @@ package proxy
 
 import (
 	"webtools"
-	"webtools/http"
+	"webtools/httpTools"
 	"webtools/udp"
 )
 
 /*
-HTTPProxyClientUDP is client for proxied UDP traffic over HTTP
+HTTPProxyClientUDP is client for proxied UDP traffic over httpTools
 */
 type HTTPProxyClientUDP struct {
 	clientToID         webtools.SafeMap[*udp.ServerConn, string]
 	idToClient         webtools.SafeMap[string, *udp.ServerConn]
 	udpServer          *udp.Server
-	httpClient         *http.WebSocketClient
+	httpClient         *httpTools.WebSocketClient
 	pendingConnections webtools.SafeMap[string, *udp.ServerConn]
 	pendingConnsData   webtools.SafeMap[*udp.ServerConn, [][]byte]
 }
@@ -26,12 +26,12 @@ func (cl *HTTPProxyClientUDP) IsAlive() bool {
 }
 
 /*
-NewHTTPProxyClientUDP creates new HTTP Proxy Client for UDP but does not starts it, if you want to use default connection endpoint, add /websocket to end of address
+NewHTTPProxyClientUDP creates new http Proxy Client for UDP but does not starts it, if you want to use default connection endpoint, add /websocket to end of address
 */
 func NewHTTPProxyClientUDP(httpProxyAddress string, tcpServerAddress string, reportTraffic bool) (*HTTPProxyClientUDP, error) {
 	cl := &HTTPProxyClientUDP{clientToID: webtools.MakeSafeMap[*udp.ServerConn, string](), pendingConnections: webtools.MakeSafeMap[string, *udp.ServerConn](), idToClient: webtools.MakeSafeMap[string, *udp.ServerConn](), pendingConnsData: webtools.MakeSafeMap[*udp.ServerConn, [][]byte]()}
 	var err error
-	cl.httpClient, err = http.NewWebSocketClient(httpProxyAddress, cl.handleWebTransportReadFunc, reportTraffic)
+	cl.httpClient, err = httpTools.NewWebSocketClient(httpProxyAddress, cl.handleWebTransportReadFunc, reportTraffic)
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +44,7 @@ func NewHTTPProxyClientUDP(httpProxyAddress string, tcpServerAddress string, rep
 	return cl, nil
 }
 
-func (cl *HTTPProxyClientUDP) handleWebTransportReadFunc(_ *http.WebSocketClient, frame []byte, status uint8, isBinary bool) {
+func (cl *HTTPProxyClientUDP) handleWebTransportReadFunc(_ *httpTools.WebSocketClient, frame []byte, status uint8, isBinary bool) {
 	_ = isBinary //Get rid of unneded property
 	if status == webtools.DisconnectStatus {
 		// Close all connections
@@ -125,7 +125,7 @@ func (cl *HTTPProxyClientUDP) handleUDPReadFunc(udpConn *udp.ServerConn, data []
 }
 
 /*
-Connect connects to HTTP Proxy server and start reading loop, does not locks execution thread
+Connect connects to httpTools Proxy server and start reading loop, does not locks execution thread
 */
 func (cl *HTTPProxyClientUDP) Connect() {
 	cl.httpClient.Connect()
