@@ -1,4 +1,4 @@
-package httpTools
+package httptools
 
 import (
 	"crypto/sha1"
@@ -11,7 +11,7 @@ import (
 	"slices"
 	"strings"
 	"webtools"
-	tcptools "webtools/tcp"
+	"webtools/tcp"
 )
 
 const webSocketGUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
@@ -40,7 +40,7 @@ WebSocketServerConn is connection object of WebSocketServer
 */
 type WebSocketServerConn struct {
 	origin    *WebSocketServer
-	Client    *tcptools.ClientUniversal
+	Client    *tcp.ClientUniversal
 	IsBinary  bool
 	firstRead bool
 	urlParams map[string]string
@@ -53,6 +53,18 @@ GetConn gets raw TCP connection
 */
 func (httpConn *WebSocketServerConn) GetConn() *net.TCPConn {
 	return httpConn.Client.GetConn()
+}
+
+/*
+GetCookie gets specific cookie
+*/
+func (httpConn *WebSocketServerConn) GetCookie(name string) *http.Cookie {
+	for _, v := range httpConn.Cookies {
+		if v.Name == name {
+			return v
+		}
+	}
+	return nil
 }
 
 /*
@@ -95,8 +107,7 @@ WebSocketServer is HTTP WebSocket server for JavaScript with standards
 */
 type WebSocketServer struct {
 	httpServer                *Server
-	Logger                    *webtools.ConsoleLogger
-	conns                     webtools.SafeMap[*tcptools.ClientUniversal, *WebSocketServerConn]
+	conns                     webtools.SafeMap[*tcp.ClientUniversal, *WebSocketServerConn]
 	onAccessFunc              AccessFunc
 	websocketURLsAndReadFuncs webtools.SafeMap[string, WebSocketServerReadFunc]
 	reportTraffic             bool
@@ -117,15 +128,22 @@ func (sv *WebSocketServer) GetAddress() string {
 }
 
 /*
+GetLogger gets logger
+*/
+func (sv *WebSocketServer) GetLogger() *webtools.ConsoleLogger {
+	return sv.httpServer.Logger
+}
+
+/*
 NewWebSocketServer creates new HTTP WebSocket Server but does not starts it
 This readFunc is asociated with "/websocket" url
 */
 func NewWebSocketServer(address string, readFunc WebSocketServerReadFunc, onAccessFunc AccessFunc, rootPath string, reportTraffic bool) *WebSocketServer {
 	wsURLAndFuncs := webtools.MakeSafeMap[string, WebSocketServerReadFunc]()
 	wsURLAndFuncs.Set("/websocket", readFunc)
-	sv := &WebSocketServer{Logger: webtools.NewConsoleLoggerForTraffic("HTTP-WSServer", reportTraffic), reportTraffic: reportTraffic, conns: webtools.MakeSafeMap[*tcptools.ClientUniversal, *WebSocketServerConn](), onAccessFunc: onAccessFunc, websocketURLsAndReadFuncs: wsURLAndFuncs}
+	sv := &WebSocketServer{reportTraffic: reportTraffic, conns: webtools.MakeSafeMap[*tcp.ClientUniversal, *WebSocketServerConn](), onAccessFunc: onAccessFunc, websocketURLsAndReadFuncs: wsURLAndFuncs}
 	sv.httpServer = NewServer(address, sv.handleHTTPAccess, rootPath, false)
-	sv.httpServer.Logger = sv.Logger
+	sv.httpServer.Logger.Prefix = "HTTP-WSServer"
 	return sv
 }
 
@@ -157,7 +175,7 @@ func (sv *WebSocketServer) GetHTTPServer() *Server {
 func (sv *WebSocketServer) handleHTTPAccess(_ *Server, w http.ResponseWriter, r *http.Request, params map[string]string) bool {
 	if r.Method == http.MethodGet && slices.Contains(sv.websocketURLsAndReadFuncs.GetKeys(), r.URL.Path) {
 		//Websocket request - Correct URL and Method
-		sv.Logger.Log(1, "Preparing connection from: "+r.RemoteAddr)
+		sv.httpServer.Logger.Log(1, "Preparing connection from: "+r.RemoteAddr)
 
 		//Verify if connection wants WebSocket
 		if !strings.Contains(r.Header.Get("Upgrade"), "websocket") || !strings.Contains(r.Header.Get("Connection"), "Upgrade") {
@@ -186,15 +204,15 @@ func (sv *WebSocketServer) handleHTTPAccess(_ *Server, w http.ResponseWriter, r 
 		//Hijack connection
 		conn, _, err := w.(http.Hijacker).Hijack()
 		if err != nil {
-			sv.Logger.Log(3, "Failed to hijact connection from: "+r.RemoteAddr+" | Error: "+err.Error())
+			sv.httpServer.Logger.Log(3, "Failed to hijact connection from: "+r.RemoteAddr+" | Error: "+err.Error())
 			return true
 		}
 
 		//Make client
-		cl := tcptools.NewTCPClientUniversalFromConnection(conn.(*net.TCPConn), sv.reportTraffic)
-		cl.Logger = sv.Logger
+		cl := tcp.NewTCPClientUniversalFromConnection(conn.(*net.TCPConn), sv.reportTraffic)
+		cl.Logger = sv.httpServer.Logger
 		cl.HandlerFuncs = append(cl.HandlerFuncs,
-			tcptools.ClientUniversalHanderFuncs{
+			tcp.ClientUniversalHanderFuncs{
 				UseCount:               -1,
 				ReadHandler:            HandleWebSocketFrameRead,
 				ReadFunc:               sv.readFuncLocal,
@@ -219,7 +237,7 @@ func (sv *WebSocketServer) handleHTTPAccess(_ *Server, w http.ResponseWriter, r 
 /*
 HandleWebSocketFrameRead handles reading of WebSocket frame, is used in TCPClientUniversal
 */
-func HandleWebSocketFrameRead(cl *tcptools.ClientUniversal, limit int, logger *webtools.ConsoleLogger, readFunc tcptools.ClientUniversalOnReadFuncIntenal) (bool, error) {
+func HandleWebSocketFrameRead(cl *tcp.ClientUniversal, limit int, logger *webtools.ConsoleLogger, readFunc tcp.ClientUniversalOnReadFuncIntenal) (bool, error) {
 	for i := 0; i < limit || limit < 0; i++ {
 		//Read header of frame
 		header := make([]byte, 2)
@@ -359,7 +377,7 @@ func PackWebSocketFrame(payload []byte, opcode uint8, logger *webtools.ConsoleLo
 /*
 WriteToWebSocketFrameHandler handles packing frame and wrtiting it to WebSocket, is used in TCPClientUniversal
 */
-func WriteToWebSocketFrameHandler(cl *tcptools.ClientUniversal, data []byte, otherData map[string]any) error {
+func WriteToWebSocketFrameHandler(cl *tcp.ClientUniversal, data []byte, otherData map[string]any) error {
 	//Get opcode
 	opcode := otherData["opcode"]
 	if opcode == nil || opcode == "" {
@@ -369,10 +387,10 @@ func WriteToWebSocketFrameHandler(cl *tcptools.ClientUniversal, data []byte, oth
 
 	//Send
 	//	writeToTCP(conn, PackWebSocketFrame(payload, opcode, logger), logger)
-	return tcptools.WriteToTCPHandler(cl, PackWebSocketFrame(data, opcode.(uint8), cl.Logger), otherData)
+	return tcp.WriteToTCPHandler(cl, PackWebSocketFrame(data, opcode.(uint8), cl.Logger), otherData)
 }
 
-func (sv *WebSocketServer) readFuncLocal(cl *tcptools.ClientUniversal, data []byte, status uint8, otherData map[string]any) {
+func (sv *WebSocketServer) readFuncLocal(cl *tcp.ClientUniversal, data []byte, status uint8, otherData map[string]any) {
 	if status != webtools.ReadDataStatus && status != webtools.DisconnectStatus && status != webtools.ConnectStatus {
 		//Non data requests
 		return
@@ -381,7 +399,7 @@ func (sv *WebSocketServer) readFuncLocal(cl *tcptools.ClientUniversal, data []by
 	//Get connection
 	var httpConn *WebSocketServerConn = sv.conns.Get(cl)
 	if httpConn == nil {
-		sv.Logger.Log(3, "Connection for client connected from: "+cl.GetConn().RemoteAddr().String()+" connected locally to: "+cl.GetConn().LocalAddr().String()+" not found!")
+		sv.httpServer.Logger.Log(3, "Connection for client connected from: "+cl.GetConn().RemoteAddr().String()+" connected locally to: "+cl.GetConn().LocalAddr().String()+" not found!")
 		return
 	}
 
@@ -396,7 +414,7 @@ func (sv *WebSocketServer) readFuncLocal(cl *tcptools.ClientUniversal, data []by
 	//Get isBinary
 	isBinaryRaw := otherData["isBinary"]
 	if isBinaryRaw == nil || isBinaryRaw == "" {
-		sv.Logger.Log(3, "No property 'isBinary' found in otherData")
+		sv.httpServer.Logger.Log(3, "No property 'isBinary' found in otherData")
 		return
 	}
 	isBinary := isBinaryRaw.(bool)
@@ -409,7 +427,7 @@ func (sv *WebSocketServer) readFuncLocal(cl *tcptools.ClientUniversal, data []by
 
 	// Check type
 	if isBinary != httpConn.IsBinary {
-		sv.Logger.Log(2, "Connection from: "+cl.GetConn().RemoteAddr().String()+" connected locally to: "+cl.GetConn().LocalAddr().String()+" has got data that are marked as "+webtools.FormatByBool(isBinary, "binary", "text")+" but this connection is marked as "+webtools.FormatByBool(httpConn.IsBinary, "binary", "text")+". Consilider changing properties of websocketConnection.")
+		sv.httpServer.Logger.Log(2, "Connection from: "+cl.GetConn().RemoteAddr().String()+" connected locally to: "+cl.GetConn().LocalAddr().String()+" has got data that are marked as "+webtools.FormatByBool(isBinary, "binary", "text")+" but this connection is marked as "+webtools.FormatByBool(httpConn.IsBinary, "binary", "text")+". Consilider changing properties of websocketConnection.")
 	}
 
 	//Process read

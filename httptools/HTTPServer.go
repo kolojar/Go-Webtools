@@ -1,4 +1,4 @@
-package httpTools
+package httptools
 
 import (
 	"errors"
@@ -150,6 +150,15 @@ func (sv *Server) httpHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	//Try access func
+	if sv.onAccessFunc != nil {
+		params := CreateParametersFromQuery(r.URL.RawQuery)
+		if sv.onAccessFunc(sv, w, r, params) {
+			return
+		}
+	}
+
+	//Try GET method
 	if r.Method == http.MethodGet {
 		urls := sv.ResolvePath(r.URL.Path)
 		for i := 0; i < len(urls); i++ {
@@ -166,12 +175,6 @@ func (sv *Server) httpHandler(w http.ResponseWriter, r *http.Request) {
 				//Get OK
 				return
 			}
-		}
-	}
-	if sv.onAccessFunc != nil {
-		_, params := CreateParametersFromURL(r.URL.RawQuery)
-		if sv.onAccessFunc(sv, w, r, params) {
-			return
 		}
 	}
 
@@ -330,17 +333,38 @@ func (sv *Server) ReadFileRelative(path string) ([]byte, bool, error) {
 }
 
 /*
-CreateParametersFromURL creates map from url parameters
+CreateParametersFromURL creates map from whole URL
 */
-func CreateParametersFromURL(text string) (string, map[string]string) {
+func CreateParametersFromURL(url string) (string, map[string]string) {
+	// Split ? parts
+	split := strings.SplitN(url, "?", 2)
+	if len(split) == 0 {
+		return "", nil
+	}
+	if len(split) == 1 {
+		return split[0], nil
+	}
+	return split[0], CreateParametersFromQuery(split[1])
+}
+
+/*
+CreateParametersFromQuery creates map from url parameters
+*/
+func CreateParametersFromQuery(query string) map[string]string {
 	// Split & parts
-	dataSplit := strings.Split(text, "&")
+	dataSplit := strings.Split(query, "&")
 	postArguments := map[string]string{}
 
 	// Go trought all of them
 	for i := 0; i < len(dataSplit); i++ {
 		// Split by "=" and unescape
 		split := strings.SplitN(dataSplit[i], "=", 2)
+		if len(split) == 0 {
+			continue
+		}
+		if split[0] == "" {
+			continue
+		}
 		unescapeKey, _ := url.QueryUnescape(split[0])
 		if len(split) == 1 {
 			postArguments[unescapeKey] = ""
@@ -350,17 +374,20 @@ func CreateParametersFromURL(text string) (string, map[string]string) {
 		}
 
 	}
-	return dataSplit[0], postArguments
+	return postArguments
 }
 
 /*
 CreateURLFromParameters creates url like parameters from map
 */
 func CreateURLFromParameters(preURL string, params map[string]string) string {
-	result := preURL + "&"
-	// Go trought all parameters in map and escape them
-	for k, v := range params {
-		result += url.QueryEscape(k) + "=" + url.QueryEscape(v) + "&"
+	result := preURL
+	if len(params) > 0 {
+		result += "?"
+		// Go trought all parameters in map and escape them
+		for k, v := range params {
+			result += url.QueryEscape(k) + "=" + url.QueryEscape(v) + "&"
+		}
 	}
 	result = strings.TrimSuffix(result, "&")
 	result = strings.TrimPrefix(result, "&")

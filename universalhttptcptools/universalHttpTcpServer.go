@@ -5,7 +5,7 @@ package universalhttptcp
 
 import (
 	"net"
-	"webtools/httpTools"
+	"webtools/httptools"
 	"webtools/tcp"
 )
 
@@ -14,7 +14,7 @@ ServerConn is connection object of Server
 */
 type ServerConn struct {
 	tcpConn *tcp.ServerConn
-	wsConn  *httpTools.WebSocketServerConn
+	wsConn  *httptools.WebSocketServerConn
 }
 
 /*
@@ -65,7 +65,7 @@ Server [rovides universal API for selecting TCP or/and HTTP WebSocket app hostin
 type Server struct {
 	tcpServer     *tcp.Server
 	readFunc      ServerReadFunc
-	httpServer    *httpTools.WebSocketServer
+	httpServer    *httptools.WebSocketServer
 	reportTraffic bool
 }
 
@@ -84,8 +84,8 @@ func (sv *Server) ConfigureTCP(address string, isFramed bool) error {
 
 // ConfigureWS configures usage of WebSockets on this server
 func (sv *Server) ConfigureWS(address string) {
-	sv.httpServer = httpTools.NewWebSocketServer(address, sv.readFuncWS, nil, "", sv.reportTraffic)
-	sv.httpServer.Logger.Prefix = "Universal - " + sv.httpServer.Logger.Prefix
+	sv.httpServer = httptools.NewWebSocketServer(address, sv.readFuncWS, nil, "", sv.reportTraffic)
+	sv.httpServer.GetLogger().Prefix = "Universal - " + sv.httpServer.GetLogger().Prefix
 }
 
 func (sv *Server) readFuncTCP(conn *tcp.ServerConn, data []byte, status uint8) {
@@ -94,7 +94,7 @@ func (sv *Server) readFuncTCP(conn *tcp.ServerConn, data []byte, status uint8) {
 	}
 }
 
-func (sv *Server) readFuncWS(conn *httpTools.WebSocketServerConn, data []byte, status uint8, isBinary bool) {
+func (sv *Server) readFuncWS(conn *httptools.WebSocketServerConn, data []byte, status uint8, isBinary bool) {
 	if sv.readFunc != nil {
 		sv.readFunc(&ServerConn{tcpConn: nil, wsConn: conn}, data, status, isBinary)
 	}

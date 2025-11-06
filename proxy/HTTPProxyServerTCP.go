@@ -2,7 +2,7 @@ package proxy
 
 import (
 	"webtools"
-	"webtools/httpTools"
+	"webtools/httptools"
 	"webtools/tcp"
 )
 
@@ -12,7 +12,7 @@ HTTPProxyServerTCP is server for proxied TCP traffic over HTTP
 type HTTPProxyServerTCP struct {
 	idToClient       webtools.SafeMap[string, *HTTPProxyServerTCPConn]
 	clientToID       webtools.SafeMap[*tcp.ClientSimple, string]
-	httpServer       *httpTools.WebSocketServer
+	httpServer       *httptools.WebSocketServer
 	tcpServerAddress string
 	reportTrafic     bool
 }
@@ -23,7 +23,7 @@ HTTPProxyServerTCPConn is connection object of HTTPProxyServerTCP
 type HTTPProxyServerTCPConn struct {
 	tcpClient *tcp.ClientSimple
 	id        []byte
-	source    *httpTools.WebSocketServerConn
+	source    *httptools.WebSocketServerConn
 	origin    *HTTPProxyServerTCP
 }
 
@@ -61,12 +61,12 @@ NewHTTPProxyServerTCP creates new HTTP Proxy Server for TCP but does not starts 
 */
 func NewHTTPProxyServerTCP(httpProxyAddress string, tcpServerAddress string, reportTraffic bool) *HTTPProxyServerTCP {
 	sv := &HTTPProxyServerTCP{tcpServerAddress: tcpServerAddress, clientToID: webtools.MakeSafeMap[*tcp.ClientSimple, string](), idToClient: webtools.MakeSafeMap[string, *HTTPProxyServerTCPConn](), reportTrafic: reportTraffic}
-	sv.httpServer = httpTools.NewWebSocketServer(httpProxyAddress, sv.handleWebSocketReadFunc, nil, "", reportTraffic)
-	sv.httpServer.Logger.Prefix = "HTTPProxyServerTCP - " + sv.httpServer.Logger.Prefix
+	sv.httpServer = httptools.NewWebSocketServer(httpProxyAddress, sv.handleWebSocketReadFunc, nil, "", reportTraffic)
+	sv.httpServer.GetLogger().Prefix = "HTTPProxyServerTCP - " + sv.httpServer.GetLogger().Prefix
 	return sv
 }
 
-func (sv *HTTPProxyServerTCP) handleWebSocketReadFunc(conn *httpTools.WebSocketServerConn, frame []byte, status uint8, isBinary bool) {
+func (sv *HTTPProxyServerTCP) handleWebSocketReadFunc(conn *httptools.WebSocketServerConn, frame []byte, status uint8, isBinary bool) {
 	_ = isBinary //Get rid of unneded property
 	if status == webtools.ConnectStatus {
 		conn.IsBinary = true
@@ -89,7 +89,7 @@ func (sv *HTTPProxyServerTCP) handleWebSocketReadFunc(conn *httpTools.WebSocketS
 	}
 
 	//Unpack frame
-	for _, frame := range webtools.UnpackWebtoolsFrame(frame, sv.httpServer.Logger) {
+	for _, frame := range webtools.UnpackWebtoolsFrame(frame, sv.httpServer.GetLogger()) {
 		if frame.Operation == 0 {
 			return
 		}

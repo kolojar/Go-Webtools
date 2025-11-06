@@ -1,4 +1,4 @@
-package httpTools
+package httptools
 
 import (
 	"strconv"
@@ -60,6 +60,20 @@ func NewHTMLElementBase(tagName string) *HTMLElementBase {
 		return element
 	}
 	return nil
+}
+
+/*
+NewHTMLElementBaseWithData creates new HTML Element base, needs name of tag - a, h1, div, ...
+Returns nil when tagName is invalid
+Sets innerHTML
+*/
+func NewHTMLElementBaseWithData(tagName string, innerHTML string) *HTMLElementBase {
+	element := NewHTMLElementBase(tagName)
+	if element == nil {
+		return nil
+	}
+	element.InnerHTML = innerHTML
+	return element
 }
 
 /*

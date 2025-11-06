@@ -3,7 +3,7 @@ package proxy
 import (
 	"net"
 	"webtools"
-	"webtools/httpTools"
+	"webtools/httptools"
 	"webtools/udp"
 )
 
@@ -13,7 +13,7 @@ HTTPProxyServerUDP is server for proxied UDP traffic over HTTP
 type HTTPProxyServerUDP struct {
 	idToClient       webtools.SafeMap[string, *HTTPProxyServerUDPConn]
 	clientToID       webtools.SafeMap[*udp.Client, string]
-	httpServer       *httpTools.WebSocketServer
+	httpServer       *httptools.WebSocketServer
 	udpServerAddress string
 	reportTrafic     bool
 }
@@ -24,7 +24,7 @@ HTTPProxyServerUDPConn is connection object of HTTPProxyServerUDP
 type HTTPProxyServerUDPConn struct {
 	udpClient *udp.Client
 	id        []byte
-	source    *httpTools.WebSocketServerConn
+	source    *httptools.WebSocketServerConn
 	origin    *HTTPProxyServerUDP
 }
 
@@ -59,12 +59,12 @@ NewHTTPProxyServerUDP creates new HTTP Proxy Server for UDP but does not starts 
 */
 func NewHTTPProxyServerUDP(httpProxyAddress string, udpServerAddress string, reportTraffic bool) *HTTPProxyServerUDP {
 	sv := &HTTPProxyServerUDP{udpServerAddress: udpServerAddress, clientToID: webtools.MakeSafeMap[*udp.Client, string](), idToClient: webtools.MakeSafeMap[string, *HTTPProxyServerUDPConn](), reportTrafic: reportTraffic}
-	sv.httpServer = httpTools.NewWebSocketServer(httpProxyAddress, sv.handleWebSocketReadFunc, nil, "", reportTraffic)
-	sv.httpServer.Logger.Prefix = "HTTPProxyServerUDP - " + sv.httpServer.Logger.Prefix
+	sv.httpServer = httptools.NewWebSocketServer(httpProxyAddress, sv.handleWebSocketReadFunc, nil, "", reportTraffic)
+	sv.httpServer.GetLogger().Prefix = "HTTPProxyServerUDP - " + sv.httpServer.GetLogger().Prefix
 	return sv
 }
 
-func (sv *HTTPProxyServerUDP) handleWebSocketReadFunc(conn *httpTools.WebSocketServerConn, frame []byte, status uint8, isBinary bool) {
+func (sv *HTTPProxyServerUDP) handleWebSocketReadFunc(conn *httptools.WebSocketServerConn, frame []byte, status uint8, isBinary bool) {
 	_ = isBinary //Get rid of unneded property
 	if status == webtools.ConnectStatus {
 		conn.IsBinary = true

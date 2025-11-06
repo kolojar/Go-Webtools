@@ -5,7 +5,7 @@ package proxy
 
 import (
 	"webtools"
-	"webtools/httpTools"
+	"webtools/httptools"
 	"webtools/tcp"
 )
 
@@ -16,7 +16,7 @@ type HTTPProxyClientTCP struct {
 	clientToID         webtools.SafeMap[*tcp.ServerConn, string]
 	idToClient         webtools.SafeMap[string, *tcp.ServerConn]
 	tcpServer          *tcp.Server
-	httpClient         *httpTools.WebSocketClient
+	httpClient         *httptools.WebSocketClient
 	pendingConnections webtools.SafeMap[string, *tcp.ServerConn]
 	pendingConnsData   webtools.SafeMap[*tcp.ServerConn, [][]byte]
 }
@@ -34,7 +34,7 @@ NewHTTPProxyClientTCP creates new HTTP Proxy Client for TCP but does not starts 
 func NewHTTPProxyClientTCP(httpProxyAddress string, tcpServerAddress string, reportTraffic bool) (*HTTPProxyClientTCP, error) {
 	cl := &HTTPProxyClientTCP{clientToID: webtools.MakeSafeMap[*tcp.ServerConn, string](), pendingConnections: webtools.MakeSafeMap[string, *tcp.ServerConn](), idToClient: webtools.MakeSafeMap[string, *tcp.ServerConn](), pendingConnsData: webtools.MakeSafeMap[*tcp.ServerConn, [][]byte]()}
 	var err error
-	cl.httpClient, err = httpTools.NewWebSocketClient(httpProxyAddress, cl.handleWebTransportReadFunc, reportTraffic)
+	cl.httpClient, err = httptools.NewWebSocketClient(httpProxyAddress, cl.handleWebTransportReadFunc, reportTraffic)
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +47,7 @@ func NewHTTPProxyClientTCP(httpProxyAddress string, tcpServerAddress string, rep
 	return cl, nil
 }
 
-func (cl *HTTPProxyClientTCP) handleWebTransportReadFunc(_ *httpTools.WebSocketClient, frame []byte, status uint8, isBinary bool) {
+func (cl *HTTPProxyClientTCP) handleWebTransportReadFunc(_ *httptools.WebSocketClient, frame []byte, status uint8, isBinary bool) {
 	_ = isBinary //Get rid of unneded property
 	if status == webtools.DisconnectStatus {
 		// Close all connections
