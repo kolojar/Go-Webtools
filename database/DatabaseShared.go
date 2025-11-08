@@ -116,14 +116,14 @@ ParsePasswordObjectDB parses bytes from reader to PasswordObject
 */
 func ParsePasswordObjectDB(reader io.Reader) (encryption.PasswordObject, error) {
 	//Read salt
-	var salt []byte = make([]byte, 64)
+	var salt = make([]byte, 64)
 	_, err := reader.Read(salt)
 	if err != nil {
 		return encryption.PasswordObject{}, err
 	}
 
 	//Read hash
-	var hash []byte = make([]byte, 64)
+	var hash = make([]byte, 64)
 	_, err = reader.Read(hash)
 	if err != nil {
 		return encryption.PasswordObject{}, err
