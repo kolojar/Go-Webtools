@@ -7,14 +7,17 @@ package database
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
+	"errors"
 	"io"
+	"webtools/encryption"
 )
 
 /*
 IDatabaseObject adds support for databases to use this objects
 */
 type IDatabaseObject interface {
-	ConvertToBytesDB(buffer *bytes.Buffer)
+	ConvertToBytesDB(buffer *bytes.Buffer) error
 	ParseBytesDB(io.Reader) (IDatabaseObject, error)
 }
 
@@ -106,4 +109,59 @@ func (str *LimitedStringDB) ParseBytesDB(reader io.Reader) error {
 	_, err := reader.Read(data)
 	str.data = string(data)
 	return err
+}
+
+/*
+ParsePasswordObjectDB parses bytes from reader to PasswordObject
+*/
+func ParsePasswordObjectDB(reader io.Reader) (encryption.PasswordObject, error) {
+	//Read salt
+	var salt []byte = make([]byte, 64)
+	_, err := reader.Read(salt)
+	if err != nil {
+		return encryption.PasswordObject{}, err
+	}
+
+	//Read hash
+	var hash []byte = make([]byte, 64)
+	_, err = reader.Read(hash)
+	if err != nil {
+		return encryption.PasswordObject{}, err
+	}
+
+	//Prepare salt
+	saltString := hex.EncodeToString(salt)
+
+	//Prepare hash
+	hashString := hex.EncodeToString(hash)
+
+	//Make object
+	return encryption.PasswordObject{Salt: saltString, Hash: hashString}, nil
+}
+
+/*
+ConvertPasswordObjectToBytesDB converts PasswordObject to bytes
+*/
+func ConvertPasswordObjectToBytesDB(buffer *bytes.Buffer, data encryption.PasswordObject) error {
+	//Prepare salt
+	salt, err := hex.DecodeString(data.Salt)
+	if err != nil {
+		return err
+	}
+	if len(salt) != 64 {
+		return errors.New("invalid salt size")
+	}
+
+	//Prepare hash
+	hash, err := hex.DecodeString(data.Hash)
+	if err != nil {
+		return err
+	}
+
+	//Write salt
+	buffer.WriteString(string(salt))
+
+	//Write hash
+	buffer.WriteString(string(hash))
+	return nil
 }
