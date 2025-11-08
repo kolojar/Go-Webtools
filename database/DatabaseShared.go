@@ -5,7 +5,6 @@ Please keep in mind that these databases are really simple
 package database
 
 import (
-	"bytes"
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
@@ -17,8 +16,19 @@ import (
 IDatabaseObject adds support for databases to use this objects
 */
 type IDatabaseObject interface {
-	ConvertToBytesDB(buffer *bytes.Buffer) error
+	ConvertToBytesDB(writer io.Writer) error
 	ParseBytesDB(io.Reader) error
+}
+
+/*
+ConvertStringToBytesDB converts string to bytes
+*/
+func ConvertStringToBytesDB(writer io.Writer, data string) {
+	//Write length
+	ConvertUint64ToBytesDB(writer, uint64(len(data)))
+
+	//Write data
+	writer.Write([]byte(data))
 }
 
 /*
@@ -26,8 +36,7 @@ ParseStringDB parses bytes from reader to string
 */
 func ParseStringDB(reader io.Reader) (string, error) {
 	//Read length
-	var lenght int32
-	err := binary.Read(reader, binary.BigEndian, &lenght)
+	lenght, err := ParseUint64DB(reader)
 	if err != nil {
 		return "", err
 	}
@@ -42,14 +51,26 @@ func ParseStringDB(reader io.Reader) (string, error) {
 }
 
 /*
-ConvertStringToBytesDB converts string to bytes
+ConvertUint64ToBytesDB converts uint64 to bytes
 */
-func ConvertStringToBytesDB(buffer *bytes.Buffer, data string) {
-	//Write length
-	binary.Write(buffer, binary.BigEndian, int32(len(data)))
+func ConvertUint64ToBytesDB(writer io.Writer, data uint64) {
+	//Write number
+	dataByte := make([]byte, 8)
+	binary.BigEndian.PutUint64(dataByte, data)
+	writer.Write(dataByte)
+}
 
-	//Write data
-	buffer.WriteString(data)
+/*
+ParseUint64DB parses bytes from reader to uint64
+*/
+func ParseUint64DB(reader io.Reader) (uint64, error) {
+	//Read number
+	dataByte := make([]byte, 8)
+	_, err := reader.Read(dataByte)
+	if err != nil {
+		return 0, err
+	}
+	return binary.BigEndian.Uint64(dataByte), nil
 }
 
 ///*
@@ -144,7 +165,7 @@ func ParsePasswordObjectDB(reader io.Reader) (encryption.PasswordObject, error) 
 /*
 ConvertPasswordObjectToBytesDB converts PasswordObject to bytes
 */
-func ConvertPasswordObjectToBytesDB(buffer *bytes.Buffer, data encryption.PasswordObject) error {
+func ConvertPasswordObjectToBytesDB(writer io.Writer, data encryption.PasswordObject) error {
 	//Prepare salt
 	salt, err := hex.DecodeString(data.Salt)
 	if err != nil {
@@ -161,9 +182,9 @@ func ConvertPasswordObjectToBytesDB(buffer *bytes.Buffer, data encryption.Passwo
 	}
 
 	//Write salt
-	buffer.WriteString(string(salt))
+	writer.Write(salt)
 
 	//Write hash
-	buffer.WriteString(string(hash))
+	writer.Write(hash)
 	return nil
 }

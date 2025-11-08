@@ -1,9 +1,9 @@
 package database
 
 import (
-	"bytes"
 	"io"
 	"os"
+	"reflect"
 	"webtools"
 )
 
@@ -16,6 +16,17 @@ type RAMDatabase[T IDatabaseObject] struct {
 	data   webtools.SafeMap[string, T]
 	path   string
 	Logger *webtools.ConsoleLogger
+}
+
+/*
+MakeEmptyCopy makes empty copy from any object
+*/
+func MakeEmptyCopy[T any](source T) T {
+	t := reflect.TypeOf(source)
+	if t.Kind() == reflect.Ptr {
+		return reflect.New(t.Elem()).Interface().(T)
+	}
+	return reflect.New(t).Elem().Interface().(T)
 }
 
 /*
@@ -64,8 +75,11 @@ func (db *RAMDatabase[T]) Delete(key string) {
 Save saves data of database to disk
 */
 func (db *RAMDatabase[T]) Save() error {
-	//Create DB file
 	db.Logger.Log(2, "Saving database, please wait...")
+	//Delete file if exists
+	os.Remove(db.path)
+
+	//Create DB file
 	file, err := os.Create(db.path)
 	if err != nil {
 		db.Logger.Log(3, "Error saving database: "+err.Error())
@@ -78,10 +92,9 @@ func (db *RAMDatabase[T]) Save() error {
 
 	//Write map values
 	for _, v := range db.data.GetData() {
-		result := bytes.NewBuffer(nil)
-		ConvertStringToBytesDB(result, v.Key)
-		v.Value.ConvertToBytesDB(result)
-		result.WriteTo(file)
+		ConvertStringToBytesDB(file, v.Key)
+		v.Value.ConvertToBytesDB(file)
+		file.Sync()
 	}
 	db.Logger.Log(2, "Database saved.")
 	return nil
@@ -108,6 +121,7 @@ func (db *RAMDatabase[T]) Load() error {
 	//}
 
 	//Read map values
+	//file.Read(make([]byte, 1))
 	for {
 		//Read key
 		key, err := ParseStringDB(file)
@@ -120,7 +134,7 @@ func (db *RAMDatabase[T]) Load() error {
 		}
 
 		//Read value
-		value := db.emptyObject
+		value := MakeEmptyCopy(db.emptyObject)
 		err = value.ParseBytesDB(file)
 		if err != nil {
 			if err == io.EOF {
