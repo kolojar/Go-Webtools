@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 
 	"webtools"
@@ -52,6 +53,8 @@ type Server struct {
 	startWebBrowser     bool
 	isAlive             bool
 	UseDirectoryListing bool
+	// Key is ErrorCode and value is path to errorPage, it is not relative to rootPath, error is placed in {ERROR}
+	ErrorPages map[int]string
 }
 
 /*
@@ -89,12 +92,13 @@ func TidyURLPath(url string) string {
 
 /*
 NewServer creates new HTTP server but does not starts it. Adds new host path to HTTP server (used for shared scripts, css, images)
+Set another host paths using HostPaths and own error sites using ErrorPages
 */
 func NewServer(address string, onAccessFunc AccessFunc, rootPath string, startWebBrowser bool) *Server {
 	if !strings.HasSuffix(rootPath, "/") {
 		rootPath += "/"
 	}
-	return &Server{address: address, HostPaths: map[string]string{}, Logger: webtools.NewConsoleLogger("HTTPServer", 0), onAccessFunc: onAccessFunc, startWebBrowser: startWebBrowser, rootPath: rootPath}
+	return &Server{address: address, ErrorPages: map[int]string{}, HostPaths: map[string]string{}, Logger: webtools.NewConsoleLogger("HTTPServer", 0), onAccessFunc: onAccessFunc, startWebBrowser: startWebBrowser, rootPath: rootPath}
 }
 
 /*
@@ -146,7 +150,7 @@ func (sv *Server) httpHandler(w http.ResponseWriter, r *http.Request) {
 	err2 := CheckInvalidNames(r.URL.Path)
 	if err2 != nil {
 		sv.Logger.Log(3, "Error in request: "+r.URL.Path+" | Error: "+err2.Error())
-		http.Error(w, "Invalid request", http.StatusInternalServerError)
+		sv.HandleError(w, "Invalid request", http.StatusInternalServerError)
 		return
 	}
 
@@ -168,7 +172,7 @@ func (sv *Server) httpHandler(w http.ResponseWriter, r *http.Request) {
 			if err != nil && !errors.Is(err, os.ErrNotExist) {
 				//Invalid error
 				sv.Logger.Log(3, "Error in GET request for: "+r.URL.Path+" | Error: "+err.Error())
-				http.Error(w, "Invalid request", http.StatusInternalServerError)
+				sv.HandleError(w, "Invalid request", http.StatusInternalServerError)
 				return
 			}
 			if err == nil {
@@ -180,7 +184,7 @@ func (sv *Server) httpHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Not found
 	sv.Logger.Log(3, "NOT FOUND - "+r.RemoteAddr+" - "+r.Method+" - "+r.URL.String())
-	http.NotFound(w, r)
+	sv.HandleError(w, "Not found", http.StatusNotFound)
 }
 
 /*
@@ -312,7 +316,7 @@ func (sv *Server) HandleHTTPGetRelative(w http.ResponseWriter, r *http.Request) 
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			//Invalid error
 			sv.Logger.Log(3, "Error in GET request for: "+r.URL.Path+" | Error: "+err.Error())
-			http.Error(w, "Invalid request", http.StatusInternalServerError)
+			sv.HandleError(w, "Invalid request", http.StatusInternalServerError)
 			return false
 		}
 		if err == nil {
@@ -392,6 +396,39 @@ func CreateURLFromParameters(preURL string, params map[string]string) string {
 	result = strings.TrimSuffix(result, "&")
 	result = strings.TrimPrefix(result, "&")
 	return result
+}
+
+/*
+HandleError handles HTTP errors
+*/
+func (sv *Server) HandleError(w http.ResponseWriter, errText string, code int) {
+	//Get page location
+	location, has := sv.ErrorPages[code]
+	if !has {
+		sv.Logger.Log(2, "Error page for code: "+strconv.Itoa(code)+" not found.")
+		http.Error(w, errText, code)
+		return
+	}
+
+	//Read data
+	data, isDir, err := ReadFileString(location)
+	if err != nil {
+		sv.Logger.Log(2, "Error page for code: "+strconv.Itoa(code)+" not found.")
+		http.Error(w, errText, code)
+		return
+	}
+
+	// Check dir
+	if isDir {
+		sv.Logger.Log(2, "Error page for code: "+strconv.Itoa(code)+" not found.")
+		http.Error(w, errText, code)
+		return
+	}
+
+	//Send data
+	data = strings.ReplaceAll(data, "{ERROR}", errText)
+	w.Header().Add("Content-Type", "text/html")
+	fmt.Fprint(w, data)
 }
 
 /*
