@@ -18,7 +18,7 @@ IDatabaseObject adds support for databases to use this objects
 */
 type IDatabaseObject interface {
 	ConvertToBytesDB(buffer *bytes.Buffer) error
-	ParseBytesDB(io.Reader) (IDatabaseObject, error)
+	ParseBytesDB(io.Reader) error
 }
 
 /*
@@ -27,7 +27,7 @@ ParseStringDB parses bytes from reader to string
 func ParseStringDB(reader io.Reader) (string, error) {
 	//Read length
 	var lenght int32
-	err := binary.Read(reader, binary.BigEndian, lenght)
+	err := binary.Read(reader, binary.BigEndian, &lenght)
 	if err != nil {
 		return "", err
 	}

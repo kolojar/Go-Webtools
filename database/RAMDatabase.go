@@ -2,35 +2,41 @@ package database
 
 import (
 	"bytes"
-	"encoding/binary"
 	"io"
 	"os"
 	"webtools"
 )
 
 /*
-RAMDatabase is database that is completly stored in RAM and loaded from disk on start and saved everytime some change is made
+RAMDatabase is database that is completly stored in RAM and loaded from disk on start
 */
 type RAMDatabase[T IDatabaseObject] struct {
-	emptyObject    T
-	oneValueLength uint64
-	keyLength      int32
-	data           webtools.SafeMap[string, T]
-	path           string
-	Logger         *webtools.ConsoleLogger
+	emptyObject T
+	//oneValueLength uint64
+	data   webtools.SafeMap[string, T]
+	path   string
+	Logger *webtools.ConsoleLogger
 }
 
 /*
 NewRAMDatabase creates new RAM Database
 */
-func NewRAMDatabase[T IDatabaseObject](path string, emptyObject T) *RAMDatabase[T] {
+func NewRAMDatabase[T IDatabaseObject](path string, emptyObject T) (*RAMDatabase[T], error) {
+	//Calculate one valueLength
+	//emptyObjectBytes := bytes.NewBuffer(nil)
+	//err := emptyObject.ConvertToBytesDB(emptyObjectBytes)
+	//if err != nil {
+	//	return nil, err
+	//}
+
+	//Create object
 	var inst = RAMDatabase[T]{}
-	inst.oneValueLength = 0
+	//inst.oneValueLength = uint64(emptyObjectBytes.Len())
 	inst.data = webtools.MakeSafeMap[string, T]()
 	inst.path = path
 	inst.Logger = webtools.NewConsoleLoggerForTraffic("RAMDB", false)
 	inst.emptyObject = emptyObject
-	return &inst
+	return &inst, nil
 }
 
 /*
@@ -59,7 +65,7 @@ Save saves data of database to disk
 */
 func (db *RAMDatabase[T]) Save() error {
 	//Create DB file
-	db.Logger.Log(1, "Saving database, please wait...")
+	db.Logger.Log(2, "Saving database, please wait...")
 	file, err := os.Create(db.path)
 	if err != nil {
 		db.Logger.Log(3, "Error saving database: "+err.Error())
@@ -68,7 +74,7 @@ func (db *RAMDatabase[T]) Save() error {
 	defer file.Close()
 
 	//Write length of one value
-	binary.Write(file, binary.BigEndian, db.oneValueLength)
+	//binary.Write(file, binary.BigEndian, db.oneValueLength)
 
 	//Write map values
 	for _, v := range db.data.GetData() {
@@ -77,7 +83,7 @@ func (db *RAMDatabase[T]) Save() error {
 		v.Value.ConvertToBytesDB(result)
 		result.WriteTo(file)
 	}
-	db.Logger.Log(1, "Database saved.")
+	db.Logger.Log(2, "Database saved.")
 	return nil
 }
 
@@ -95,11 +101,11 @@ func (db *RAMDatabase[T]) Load() error {
 	defer file.Close()
 
 	//Read length of one value
-	err = binary.Read(file, binary.BigEndian, db.oneValueLength)
-	if err != nil {
-		db.Logger.Log(3, "Error loading database: "+err.Error())
-		return err
-	}
+	//err = binary.Read(file, binary.BigEndian, db.oneValueLength)
+	//if err != nil {
+	//	db.Logger.Log(3, "Error loading database: "+err.Error())
+	//	return err
+	//}
 
 	//Read map values
 	for {
@@ -109,24 +115,25 @@ func (db *RAMDatabase[T]) Load() error {
 			if err == io.EOF {
 				break
 			}
-			db.Logger.Log(3, "Error loading database: "+err.Error())
+			db.Logger.Log(3, "Error loading database key: "+err.Error())
 			return err
 		}
 
 		//Read value
-		value, err := db.emptyObject.ParseBytesDB(file)
+		value := db.emptyObject
+		err = value.ParseBytesDB(file)
 		if err != nil {
 			if err == io.EOF {
 				break
 			}
-			db.Logger.Log(3, "Error loading database: "+err.Error())
+			db.Logger.Log(3, "Error loading database value: "+err.Error())
 			return err
 		}
 
 		//Set to map
-		db.data.Set(key, value.(T))
+		db.data.Set(key, value)
 	}
 
-	db.Logger.Log(1, "Database loaded.")
+	db.Logger.Log(2, "Database loaded.")
 	return nil
 }
