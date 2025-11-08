@@ -21,12 +21,11 @@ type RAMDatabase[T IDatabaseObject] struct {
 }
 
 /*
-NewRAMDatabase creates new RAM Database, set keyLength to negative to disable limit
+NewRAMDatabase creates new RAM Database
 */
-func NewRAMDatabase[T IDatabaseObject](keyLength int32, path string, emptyObject T) *RAMDatabase[T] {
+func NewRAMDatabase[T IDatabaseObject](path string, emptyObject T) *RAMDatabase[T] {
 	var inst = RAMDatabase[T]{}
 	inst.oneValueLength = 0
-	inst.keyLength = keyLength
 	inst.data = webtools.MakeSafeMap[string, T]()
 	inst.path = path
 	inst.Logger = webtools.NewConsoleLoggerForTraffic("RAMDB", false)
@@ -74,9 +73,7 @@ func (db *RAMDatabase[T]) Save() error {
 	//Write map values
 	for _, v := range db.data.GetData() {
 		result := bytes.NewBuffer(nil)
-		limitedString := MakeLimitedStringDB(db.keyLength)
-		limitedString.Set(v.Key)
-		limitedString.ConvertToBytesDB(result)
+		ConvertStringToBytesDB(result, v.Key)
 		v.Value.ConvertToBytesDB(result)
 		result.WriteTo(file)
 	}
@@ -107,8 +104,7 @@ func (db *RAMDatabase[T]) Load() error {
 	//Read map values
 	for {
 		//Read key
-		limitedString := MakeLimitedStringDB(db.keyLength)
-		err := limitedString.ParseBytesDB(file)
+		key, err := ParseStringDB(file)
 		if err != nil {
 			if err == io.EOF {
 				break
@@ -128,7 +124,7 @@ func (db *RAMDatabase[T]) Load() error {
 		}
 
 		//Set to map
-		db.data.Set(limitedString.Get(), value.(T))
+		db.data.Set(key, value.(T))
 	}
 
 	db.Logger.Log(1, "Database loaded.")
