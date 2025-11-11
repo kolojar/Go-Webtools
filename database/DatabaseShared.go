@@ -17,7 +17,7 @@ IDatabaseObject adds support for databases to use this objects
 */
 type IDatabaseObject interface {
 	ConvertToBytesDB(writer io.Writer) error
-	ParseBytesDB(io.Reader) error
+	ParseBytesDB(reader io.Reader) error
 }
 
 /*

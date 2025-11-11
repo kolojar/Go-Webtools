@@ -55,6 +55,8 @@ type Server struct {
 	UseDirectoryListing bool
 	// Key is ErrorCode and value is path to errorPage, it is not relative to rootPath, error is placed in {ERROR}
 	ErrorPages map[int]string
+	// Any extension (.html, .css, ...) set here will be processed before calling onAccessFunc
+	HandleExtensionsWithPriority []string
 }
 
 /*
@@ -98,7 +100,7 @@ func NewServer(address string, onAccessFunc AccessFunc, rootPath string, startWe
 	if !strings.HasSuffix(rootPath, "/") {
 		rootPath += "/"
 	}
-	return &Server{address: address, ErrorPages: map[int]string{}, HostPaths: map[string]string{}, Logger: webtools.NewConsoleLogger("HTTPServer", 0), onAccessFunc: onAccessFunc, startWebBrowser: startWebBrowser, rootPath: rootPath}
+	return &Server{address: address, ErrorPages: map[int]string{}, HostPaths: map[string]string{}, Logger: webtools.NewConsoleLogger("HTTPServer", 0), onAccessFunc: onAccessFunc, startWebBrowser: startWebBrowser, rootPath: rootPath, HandleExtensionsWithPriority: make([]string, 0)}
 }
 
 /*
@@ -141,6 +143,15 @@ func (sv *Server) ResolvePath(url string) []string {
 	return result
 }
 
+func (sv *Server) checkPriorityExtension(url string) bool {
+	for _, val := range sv.HandleExtensionsWithPriority {
+		if strings.HasSuffix(url, val) {
+			return true
+		}
+	}
+	return false
+}
+
 /*
 Handles and sorts HTTP requests
 */
@@ -152,6 +163,29 @@ func (sv *Server) httpHandler(w http.ResponseWriter, r *http.Request) {
 		sv.Logger.Log(3, "Error in request: "+r.URL.Path+" | Error: "+err2.Error())
 		sv.HandleError(w, "Invalid request", http.StatusInternalServerError)
 		return
+	}
+
+	//Try GET method for priority
+	if r.Method == http.MethodGet {
+		if sv.checkPriorityExtension(r.URL.Path) {
+			//File has priority
+			urls := sv.ResolvePath(r.URL.Path)
+			for i := 0; i < len(urls); i++ {
+				//Sort out urls
+				url := urls[i]
+				err := HandleHTTPGet(w, r, url, sv)
+				if err != nil && !errors.Is(err, os.ErrNotExist) {
+					//Invalid error
+					sv.Logger.Log(3, "Error in GET request for: "+r.URL.Path+" | Error: "+err.Error())
+					sv.HandleError(w, "Invalid request", http.StatusInternalServerError)
+					return
+				}
+				if err == nil {
+					//Get OK
+					return
+				}
+			}
+		}
 	}
 
 	//Try access func

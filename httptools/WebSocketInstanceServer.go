@@ -21,6 +21,7 @@ type WebSocketInstanceServerInstance struct {
 	owner          *WebSocketInstanceServer
 	id             string
 	webSocketConns []*WebSocketServerConn
+	Parameters     webtools.SafeMap[string, any]
 }
 
 /*
@@ -183,7 +184,7 @@ func (sv *WebSocketInstanceServer) accessFuncLocal(server *Server, w http.Respon
 			SameSite: http.SameSiteLaxMode,
 		})
 		time.Sleep(time.Second)
-		sv.instances.Set(id, &WebSocketInstanceServerInstance{id: id, owner: sv, webSocketConns: make([]*WebSocketServerConn, 0)})
+		sv.instances.Set(id, &WebSocketInstanceServerInstance{Parameters: webtools.MakeSafeMap[string, any](), id: id, owner: sv, webSocketConns: make([]*WebSocketServerConn, 0)})
 		w.WriteHeader(http.StatusCreated)
 		fmt.Fprint(w, "done")
 		return true
