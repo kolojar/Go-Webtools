@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"io"
+	"time"
 	"webtools/encryption"
 )
 
@@ -187,4 +188,50 @@ func ConvertPasswordObjectToBytesDB(writer io.Writer, data encryption.PasswordOb
 	//Write hash
 	writer.Write(hash)
 	return nil
+}
+
+/*
+ConvertBoolToBytesDB converts bool to bytes
+*/
+func ConvertBoolToBytesDB(writer io.Writer, data bool) {
+	//Write bool
+	dataByte := make([]byte, 1)
+	dataByte[0] = 0
+	if data {
+		dataByte[0] = 1
+	}
+	writer.Write(dataByte)
+}
+
+/*
+ParseBoolDB parses bytes from reader to bool
+*/
+func ParseBoolDB(reader io.Reader) (bool, error) {
+	//Read bool
+	dataByte := make([]byte, 1)
+	_, err := reader.Read(dataByte)
+	if err != nil {
+		return false, err
+	}
+	return dataByte[0] == 1, nil
+}
+
+/*
+ConvertTimeToBytesDB converts time to bytes
+*/
+func ConvertTimeToBytesDB(writer io.Writer, data time.Time) {
+	//Write time
+	ConvertUint64ToBytesDB(writer, uint64(data.UnixNano()))
+}
+
+/*
+ParseTimeDB parses bytes from reader to time
+*/
+func ParseTimeDB(reader io.Reader) (time.Time, error) {
+	//Read time
+	timeNum, err := ParseUint64DB(reader)
+	if err != nil {
+		return time.Unix(0, 0), err
+	}
+	return time.Unix(0, int64(timeNum)), nil
 }

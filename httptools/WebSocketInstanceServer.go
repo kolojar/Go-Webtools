@@ -14,6 +14,8 @@ import (
 //go:embed views/WebSocketInstanceServerScript.js
 var redirectScriptTemplate string
 
+const invalidWebSocketError = "INVALID_WEB_SOCKET_INSTANCE"
+
 /*
 WebSocketInstanceServerInstance is instance of WebSocketInstanceServer
 */
@@ -39,9 +41,9 @@ func (instance *WebSocketInstanceServerInstance) GetID() string {
 }
 
 /*
-FilterClients filters WebSocket connections matching URL parameters
+FilterConns filters WebSocket connections matching URL parameters
 */
-func (instance *WebSocketInstanceServerInstance) FilterClients(filterURLParams map[string]string) []*WebSocketServerConn {
+func (instance *WebSocketInstanceServerInstance) FilterConns(filterURLParams map[string]string) []*WebSocketServerConn {
 	return FilterWebSocketClients(instance.webSocketConns, filterURLParams)
 }
 
@@ -143,6 +145,7 @@ func (sv *WebSocketInstanceServer) readFuncLocal(conn *WebSocketServerConn, data
 	//Check cookies
 	if !sv.checkCookies(serverIDCookie, instanceIDCookie) {
 		//Invalid
+		conn.Send([]byte(invalidWebSocketError))
 		conn.Close()
 		return
 	}

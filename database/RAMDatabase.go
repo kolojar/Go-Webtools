@@ -58,6 +58,13 @@ func (db *RAMDatabase[T]) Get(key string) T {
 }
 
 /*
+GetData gets all data from database
+*/
+func (db *RAMDatabase[T]) GetData() []webtools.KeyValuePair[string, T] {
+	return db.data.GetData()
+}
+
+/*
 Set set value to database
 */
 func (db *RAMDatabase[T]) Set(key string, value T) {
@@ -69,6 +76,13 @@ Delete deletes value from database
 */
 func (db *RAMDatabase[T]) Delete(key string) {
 	db.data.Delete(key)
+}
+
+/*
+Len gets lenght of database
+*/
+func (db *RAMDatabase[T]) Len() int {
+	return db.data.Len()
 }
 
 /*
