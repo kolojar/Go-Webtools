@@ -71,7 +71,7 @@ func (cl *P2PProxyClientTCP) handleP2PReadFunc(_ *p2p.Client, sourceID []byte, f
 		}
 
 		switch frame.Operation {
-		case webtools.ConnectStatus:
+		case webtools.FrameTypeConnect:
 			{
 				//Confirmed connection
 				conn := cl.pendingConnections.Get(string(frame.Data))
