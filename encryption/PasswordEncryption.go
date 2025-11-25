@@ -71,3 +71,10 @@ func GeneratePasswordSalt(lenght int) (string, error) {
 	}
 	return hex.EncodeToString(salt), nil
 }
+
+/*
+GeneratePasswordSaltPasswordObject generates salt for password object in hexadecimal format
+*/
+func GeneratePasswordSaltPasswordObject() (string, error) {
+	return GeneratePasswordSalt(64)
+}

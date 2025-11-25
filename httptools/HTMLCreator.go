@@ -254,7 +254,7 @@ type HTMLCreator struct {
 NewHTMLCreator creates new instance of HTML Creator
 */
 func NewHTMLCreator(generateStructure bool, lang string, title string, moveScriptsToEnd bool) *HTMLCreator {
-	return &HTMLCreator{GenerateStructure: generateStructure, Lang: lang, BodyElement: NewHTMLElementBase("body"), HeadElements: make([]IHTMLElement, 0), Title: title, MoveScriptsToEnd: moveScriptsToEnd}
+	return &HTMLCreator{GenerateStructure: generateStructure, Lang: lang, BodyElement: NewHTMLElementBase(webtools.FormatByBool(generateStructure, "body", "div")), HeadElements: make([]IHTMLElement, 0), Title: title, MoveScriptsToEnd: moveScriptsToEnd}
 }
 
 /*
