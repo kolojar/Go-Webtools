@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"bytes"
+	"fmt"
 	"webtools"
 	"webtools/p2p"
 	"webtools/udp"
@@ -110,6 +111,7 @@ func (cl *P2PProxyClientUDP) handleP2PReadFunc(_ *p2p.Client, sourceID []byte, f
 func (cl *P2PProxyClientUDP) handleUDPReadFunc(udpConn *udp.ServerConn, data []byte, ended bool) {
 	if cl.pendingConnsData.Get(udpConn) != nil {
 		//Already pending connection
+		fmt.Println("Pending")
 		cl.pendingConnsData.Set(udpConn, append(cl.pendingConnsData.Get(udpConn), data))
 		return
 	}
@@ -120,7 +122,7 @@ func (cl *P2PProxyClientUDP) handleUDPReadFunc(udpConn *udp.ServerConn, data []b
 		tempID := webtools.GenerateRandomID()
 		cl.pendingConnections.Set(tempID, udpConn)
 		cl.udpServer.Logger.Log(1, "Preparing new connection with temporary ID: "+tempID+" for connection connected to: "+udpConn.Address.String())
-		cl.p2pClient.Send(cl.p2pServerID, webtools.PackWebtoolsFrame(webtools.ConnectStatus, []byte("0"), []byte(tempID)))
+		cl.p2pClient.Send(cl.p2pServerID, webtools.PackWebtoolsFrame(webtools.FrameTypeConnect, []byte("0"), []byte(tempID)))
 		cl.pendingConnsData.Set(udpConn, append(make([][]byte, 0), data))
 		return
 	}

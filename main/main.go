@@ -20,7 +20,7 @@ import (
 
 func main() {
 	fmt.Println("Hello world")
-	framer := udp.NewUDPFramerSimple(nil, 50, 5, true, 50, true)
+	//framer := udp.NewUDPFramerSimple(nil, 50, 5, true, 50, true)
 	ip, _ := p2p.GetThisComputerLocalIP()
 	upnp := p2p.NewUPnPServiceManager(ip)
 	switch os.Args[1] {
@@ -47,14 +47,14 @@ func main() {
 	case "us":
 		{
 			server, _ := udp.NewServer("127.0.0.1:7777", readFuncUDPSv, true)
-			server.SetupFraming(framer)
+			//server.SetupFraming(framer)
 			server.Start()
 			break
 		}
 	case "uc":
 		{
-			client, _ := udp.NewClient("127.0.0.1:7777", readFuncUDPCl, true)
-			client.SetupFraming(framer)
+			client, _ := udp.NewClient("127.0.0.1:17777", readFuncUDPCl, true)
+			//client.SetupFraming(framer)
 			client.Connect()
 			for i := 0; i < 10; i++ {
 				client.Send([]byte("Test" + strconv.Itoa(i) + "|"))

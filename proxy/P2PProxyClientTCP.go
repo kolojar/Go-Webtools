@@ -120,7 +120,7 @@ func (cl *P2PProxyClientTCP) handleTCPReadFunc(tcpConn *tcp.ServerConn, data []b
 		tempID := webtools.GenerateRandomID()
 		cl.pendingConnections.Set(tempID, tcpConn)
 		cl.tcpServer.Logger.Log(1, "Preparing new connection with temporary ID: "+tempID+" for connection connected to: "+tcpConn.GetConn().RemoteAddr().String())
-		cl.p2pClient.Send(cl.p2pServerID, webtools.PackWebtoolsFrame(webtools.ConnectStatus, []byte("0"), []byte(tempID)))
+		cl.p2pClient.Send(cl.p2pServerID, webtools.PackWebtoolsFrame(webtools.FrameTypeConnect, []byte("0"), []byte(tempID)))
 		cl.pendingConnsData.Set(tcpConn, append(make([][]byte, 0), data))
 		return
 	}
