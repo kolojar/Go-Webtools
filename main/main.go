@@ -279,6 +279,21 @@ func main() {
 			sv.GetWSServer().GetHTTPServer().HostPaths["/test"] = "./test"
 			sv.Start()
 		}
+	case "p2pps":
+		{
+			proxy, _ := proxy.NewP2PProxyServerUniversal("127.0.0.1:1234", 5678, true)
+			proxy.ProxiedServices["test"] = webtools.KeyValuePair[bool, string]{Key: true, Value: "127.0.0.1:7777"}
+			proxy.Start()
+		}
+	case "p2ppc":
+		{
+			data, _ := webtools.ReadLineFromConsole("Enter target id: ")
+			proxy, _ := proxy.NewP2PProxyClientUniversal("127.0.0.1:1234", 5679, []byte(strings.ReplaceAll(string(data), "\n", "")), map[string]string{"test": "127.0.0.1:17777"}, true)
+			proxy.Connect()
+			for {
+				time.Sleep(100 * time.Millisecond)
+			}
+		}
 	}
 }
 

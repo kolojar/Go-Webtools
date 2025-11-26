@@ -22,6 +22,13 @@ type ServerConn struct {
 }
 
 /*
+GetOrigin gets origin
+*/
+func (conn *ServerConn) GetOrigin() *Server {
+	return conn.origin
+}
+
+/*
 Send sends data to client
 */
 func (conn *ServerConn) Send(data []byte) {

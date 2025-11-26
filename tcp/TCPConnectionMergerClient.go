@@ -64,7 +64,7 @@ func (cl *ConnectionMergerClient) handleRemoteTCPReadFunc(_ *ClientSimple, frame
 		}
 
 		switch frame.Operation {
-		case mergerFrameTypeListConnections:
+		case MergerFrameTypeListConnections:
 			{
 				//List remote TCP servers
 				var addresses []string
@@ -166,7 +166,7 @@ Connect connects to TCP Connection merger server and start reading loop, does no
 */
 func (cl *ConnectionMergerClient) Connect() {
 	cl.tcpClient.Connect()
-	cl.tcpClient.Send(webtools.PackWebtoolsFrame(mergerFrameTypeListConnections, []byte{0}, nil))
+	cl.tcpClient.Send(webtools.PackWebtoolsFrame(MergerFrameTypeListConnections, []byte{0}, nil))
 }
 
 /*

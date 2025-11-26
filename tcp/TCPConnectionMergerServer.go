@@ -6,7 +6,10 @@ import (
 	"webtools"
 )
 
-const mergerFrameTypeListConnections = uint8(4)
+/*
+MergerFrameTypeListConnections is frame operator for listing connections
+*/
+const MergerFrameTypeListConnections = uint8(4)
 
 /*
 ConnectionMergerServer is server for merged connections, it join multiple connections into one
@@ -96,7 +99,7 @@ func (sv *ConnectionMergerServer) handleMergedTCPReadFunc(conn *ServerConn, fram
 		}
 
 		//Sort connections
-		if sv.idToClient.Get(string(frame.ID)) == nil || frame.Operation == webtools.FrameTypeConnect || frame.Operation == mergerFrameTypeListConnections {
+		if sv.idToClient.Get(string(frame.ID)) == nil || frame.Operation == webtools.FrameTypeConnect || frame.Operation == MergerFrameTypeListConnections {
 			switch frame.Operation {
 			case webtools.FrameTypeConnect:
 				//Get connection list id
@@ -119,14 +122,14 @@ func (sv *ConnectionMergerServer) handleMergedTCPReadFunc(conn *ServerConn, fram
 				sv.clientToID.Set(cl, string(frame.ID))
 				sv.idToClient.Get(string(frame.ID)).SendToRemoteTCP(webtools.FrameTypeConnect, frame.Data)
 				return
-			case mergerFrameTypeListConnections:
+			case MergerFrameTypeListConnections:
 				//List available connections on server
 				addrs, err := json.Marshal(sv.tcpServerAddresses)
 				if err != nil {
 					conn.origin.Logger.Log(3, "Could not create connection list: "+err.Error())
 					return
 				}
-				conn.Send(webtools.PackWebtoolsFrame(mergerFrameTypeListConnections, []byte{0}, addrs))
+				conn.Send(webtools.PackWebtoolsFrame(MergerFrameTypeListConnections, []byte{0}, addrs))
 				return
 			default:
 				conn.origin.Logger.Log(3, "Could not find connection to id: "+string(frame.ID))
