@@ -34,6 +34,13 @@ func (conn *ServerConn) Send(data []byte) {
 }
 
 /*
+GetOrigin gets origin
+*/
+func (conn *ServerConn) GetOrigin() *Server {
+	return conn.origin
+}
+
+/*
 Close closes connection to client
 */
 func (conn *ServerConn) Close() {
