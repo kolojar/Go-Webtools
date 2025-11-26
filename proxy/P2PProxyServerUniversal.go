@@ -136,7 +136,8 @@ func (sv *P2PProxyServerUniversal) handleP2PReadFunc(_ *p2p.Client, sourceID []b
 
 		//Sort connections
 		if sv.idToClient.Get(string(frame.ID)) == nil {
-			if frame.Operation == webtools.FrameTypeConnect {
+			switch frame.Operation {
+			case webtools.FrameTypeConnect:
 				//Get proxy entry
 				split := strings.Split(string(frame.Data), string(webtools.FrameSeparatorChar))
 				entry, ok := sv.ProxiedServices[split[0]]
@@ -174,7 +175,7 @@ func (sv *P2PProxyServerUniversal) handleP2PReadFunc(_ *p2p.Client, sourceID []b
 				//Send data using P2P
 				sv.idToClient.Get(string(frame.ID)).SendToP2P(webtools.FrameTypeConnect, []byte(split[1]))
 				return
-			} else if frame.Operation == tcp.MergerFrameTypeListConnections {
+			case tcp.MergerFrameTypeListConnections:
 				//List connections
 				addrs, err := json.Marshal(sv.ProxiedServices)
 				if err != nil {
