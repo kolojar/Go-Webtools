@@ -92,10 +92,10 @@ func (p2p *Client) SetLoggerPrefix(prefix string) {
 }
 
 /*
-NewP2PClientUDP creates new P2P Client for UDP but does not starts it
+NewP2PClient creates new P2P Client for UDP but does not starts it
 Setup UPnP using SetupUPnP()
 */
-func NewP2PClientUDP(coordinatorAddress string, portForIncommingConns int, readFunc ClientReadFunc, reportTraffic bool) (*Client, error) {
+func NewP2PClient(coordinatorAddress string, portForIncommingConns int, readFunc ClientReadFunc, reportTraffic bool) (*Client, error) {
 	//New P2P
 	p2p := &Client{
 		ID:                        nil,
@@ -127,6 +127,7 @@ func NewP2PClientUDP(coordinatorAddress string, portForIncommingConns int, readF
 		return nil, err
 	}
 	p2p.udpIncommingConnsSv.Logger.Prefix = "P2PClientUDP - IncommingServerUDP"
+	p2p.udpIncommingConnsSv.SetupFraming(p2p.udpFramer)
 	p2p.tcpIncommingConnsSv, err = tcp.NewServer("0.0.0.0:"+strconv.Itoa(portForIncommingConns), p2p.readFuncIncommingServerTCP, reportTraffic, true)
 	if err != nil {
 		return nil, err
@@ -136,7 +137,7 @@ func NewP2PClientUDP(coordinatorAddress string, portForIncommingConns int, readF
 }
 
 /*
-SetupFraming setups UDP framer for whole client
+SetupFraming setups UDP framer for P2P client
 */
 func (p2p *Client) SetupFraming(framer *udp.Framer) {
 	p2p.udpFramer = framer
@@ -254,7 +255,7 @@ func (p2p *Client) readFuncCoordinator(_ *udp.Client, _ *net.UDPAddr, data []byt
 				//p2p.clientConnsToIDs.Set(client, args["targetID"])
 
 				//Wait for time
-				clientUDP.SetupFraming(p2p.udpFramer)
+				clientUDP.SetupFraming(udp.NewUDPFramerSimpleFromConfig(p2pFramerConfig, nil)) //WARNING: NIL MAY BE NOT ENOUGHT, ADD FUNCTION TO SEND OVER TCP WHEN FAILS, OR USING P2P - COMPLETLY REWORK THIS PUNCHING NONSENCE
 				p2p.udpOutcommingConnsCls.Set(string(frame.ID), webtools.KeyValuePair[*udp.Client, bool]{Key: clientUDP, Value: false})
 				p2p.tcpOutcommingConnsCls.Set(string(frame.ID), webtools.KeyValuePair[*tcp.ClientSimple, bool]{Key: nil, Value: false})
 				p2p.targetIDsConnectingStatus.Set(string(frame.ID), true)

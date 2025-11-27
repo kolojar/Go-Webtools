@@ -40,7 +40,7 @@ func NewP2PProxyClientUDP(p2pCoordinatorAddress string, p2pPortForIncommingConns
 		p2pServerID:        p2pProxyServerID,
 	}
 	var err error
-	cl.p2pClient, err = p2p.NewP2PClientUDP(p2pCoordinatorAddress, p2pPortForIncommingConns, cl.handleP2PReadFunc, reportTraffic)
+	cl.p2pClient, err = p2p.NewP2PClient(p2pCoordinatorAddress, p2pPortForIncommingConns, cl.handleP2PReadFunc, reportTraffic)
 	if err != nil {
 		return nil, err
 	}

@@ -69,7 +69,7 @@ func NewP2PProxyServerTCP(p2pCoordinatorAddress string, p2pPortForIncommingConns
 		reportTrafic:     reportTraffic,
 	}
 	var err error
-	sv.p2pClient, err = p2p.NewP2PClientUDP(p2pCoordinatorAddress, p2pPortForIncommingConns, sv.handleP2PReadFunc, reportTraffic)
+	sv.p2pClient, err = p2p.NewP2PClient(p2pCoordinatorAddress, p2pPortForIncommingConns, sv.handleP2PReadFunc, reportTraffic)
 	if err != nil {
 		return nil, err
 	}
