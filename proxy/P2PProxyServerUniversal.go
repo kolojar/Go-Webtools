@@ -3,6 +3,7 @@ package proxy
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net"
 	"strings"
 	"time"
@@ -106,7 +107,7 @@ func NewP2PProxyServerUniversal(p2pCoordinatorAddress string, p2pPortForIncommin
 		reportTrafic:    reportTraffic,
 	}
 	var err error
-	sv.p2pClient, err = p2p.NewP2PClientUDP(p2pCoordinatorAddress, p2pPortForIncommingConns, sv.handleP2PReadFunc, reportTraffic)
+	sv.p2pClient, err = p2p.NewP2PClient(p2pCoordinatorAddress, p2pPortForIncommingConns, sv.handleP2PReadFunc, reportTraffic)
 	if err != nil {
 		return nil, err
 	}
@@ -204,6 +205,7 @@ func (sv *P2PProxyServerUniversal) handleP2PReadFunc(_ *p2p.Client, sourceID []b
 		case webtools.FrameTypeData:
 			{
 				//Send to UDP
+				fmt.Println("FromP2P:", string(frame.Data))
 				cl.SendToLocalConnection(frame.Data)
 			}
 		}
@@ -211,6 +213,7 @@ func (sv *P2PProxyServerUniversal) handleP2PReadFunc(_ *p2p.Client, sourceID []b
 }
 
 func (sv *P2PProxyServerUniversal) handleUDPReadFunc(udp *udp.Client, _ *net.UDPAddr, data []byte, ended bool) {
+	fmt.Println("FromUDP:", string(data))
 	//Get P2P client
 	if sv.clientUDPToID.Get(udp) == "" || sv.idToClient.Get(sv.clientUDPToID.Get(udp)) == nil {
 		//Connection does not exists
@@ -230,6 +233,7 @@ func (sv *P2PProxyServerUniversal) handleUDPReadFunc(udp *udp.Client, _ *net.UDP
 }
 
 func (sv *P2PProxyServerUniversal) handleTCPReadFunc(tcp *tcp.ClientSimple, data []byte, status uint8) {
+	fmt.Println("FromTCP:", string(data))
 	//Get P2P client
 	if sv.clientTCPToID.Get(tcp) == "" || sv.idToClient.Get(sv.clientTCPToID.Get(tcp)) == nil {
 		//Connection does not exists
@@ -267,4 +271,18 @@ Stop stops P2P Proxy Server for UDP or TCP
 */
 func (sv *P2PProxyServerUniversal) Stop() {
 	sv.p2pClient.Stop()
+}
+
+/*
+SetupFraming setups UDP framer for P2P client
+*/
+func (sv *P2PProxyServerUniversal) SetupFramingP2PClient(framer *udp.Framer) {
+	sv.p2pClient.SetupFraming(framer)
+}
+
+/*
+SetupUPnP setups UPnP for P2P Client
+*/
+func (sv *P2PProxyServerUniversal) SetupUPnP(upnp *p2p.UPnPServiceManager) error {
+	return sv.p2pClient.SetupUPnP(upnp)
 }

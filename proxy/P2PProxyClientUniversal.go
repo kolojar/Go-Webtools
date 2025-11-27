@@ -81,7 +81,7 @@ func NewP2PProxyClientUniversal(p2pCoordinatorAddress string, p2pPortForIncommin
 		proxiedServicesFromServer:       map[string]webtools.KeyValuePair[bool, string]{},
 	}
 	var err error
-	cl.p2pClient, err = p2p.NewP2PClientUDP(p2pCoordinatorAddress, p2pPortForIncommingConns, cl.handleP2PReadFunc, reportTraffic)
+	cl.p2pClient, err = p2p.NewP2PClient(p2pCoordinatorAddress, p2pPortForIncommingConns, cl.handleP2PReadFunc, reportTraffic)
 	if err != nil {
 		return nil, err
 	}
@@ -198,6 +198,7 @@ func (cl *P2PProxyClientUniversal) handleP2PReadFunc(_ *p2p.Client, sourceID []b
 		case webtools.FrameTypeData:
 			{
 				//Resend data
+				fmt.Println("FromP2P:", string(frame.Data))
 				cl.idToClient.Get(string(frame.ID)).Send(frame.Data)
 			}
 		}
@@ -205,6 +206,7 @@ func (cl *P2PProxyClientUniversal) handleP2PReadFunc(_ *p2p.Client, sourceID []b
 }
 
 func (cl *P2PProxyClientUniversal) handleUDPReadFunc(udpConn *udp.ServerConn, data []byte, ended bool) {
+	fmt.Println("FromUDP:", string(data))
 	if cl.pendingConnsDataUDP.Get(udpConn) != nil {
 		//Already pending connection
 		fmt.Println("Pending")
@@ -233,6 +235,7 @@ func (cl *P2PProxyClientUniversal) handleUDPReadFunc(udpConn *udp.ServerConn, da
 }
 
 func (cl *P2PProxyClientUniversal) handleTCPReadFunc(tcpConn *tcp.ServerConn, data []byte, status uint8) {
+	fmt.Println("FromTCP:", string(data))
 	if cl.pendingConnsDataTCP.Get(tcpConn) != nil {
 		//Already pending connection
 		cl.pendingConnsDataTCP.Set(tcpConn, append(cl.pendingConnsDataTCP.Get(tcpConn), data))
@@ -284,4 +287,18 @@ func (cl *P2PProxyClientUniversal) Stop() {
 	for k := range cl.serversTCP {
 		k.Stop()
 	}
+}
+
+/*
+SetupFraming setups UDP framer for P2P client
+*/
+func (cl *P2PProxyClientUniversal) SetupFramingP2PClient(framer *udp.Framer) {
+	cl.p2pClient.SetupFraming(framer)
+}
+
+/*
+SetupUPnP setups UPnP for P2P Client
+*/
+func (cl *P2PProxyClientUniversal) SetupUPnP(upnp *p2p.UPnPServiceManager) error {
+	return cl.p2pClient.SetupUPnP(upnp)
 }

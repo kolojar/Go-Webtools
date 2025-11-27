@@ -20,7 +20,7 @@ import (
 
 func main() {
 	fmt.Println("Hello world")
-	//framer := udp.NewUDPFramerSimple(nil, 50, 5, true, 50, true)
+	framer := udp.NewUDPFramerSimple(nil, 50, 5, true, 50, true)
 	ip, _ := p2p.GetThisComputerLocalIP()
 	upnp := p2p.NewUPnPServiceManager(ip)
 	switch os.Args[1] {
@@ -47,18 +47,18 @@ func main() {
 	case "us":
 		{
 			server, _ := udp.NewServer("127.0.0.1:7777", readFuncUDPSv, true)
-			//server.SetupFraming(framer)
+			server.SetupFraming(framer)
 			server.Start()
 			break
 		}
 	case "uc":
 		{
 			client, _ := udp.NewClient("127.0.0.1:17777", readFuncUDPCl, true)
-			//client.SetupFraming(framer)
+			client.SetupFraming(framer)
 			client.Connect()
 			for i := 0; i < 10; i++ {
 				client.Send([]byte("Test" + strconv.Itoa(i) + "|"))
-				time.Sleep(time.Millisecond)
+				time.Sleep(time.Millisecond * 5)
 			}
 			time.Sleep(30 * time.Second)
 			client.Stop()
@@ -198,7 +198,7 @@ func main() {
 		}
 	case "p2pcl":
 		{
-			cl, _ := p2p.NewP2PClientUDP("127.0.0.1:1234", 5678, p2pReadFunc, true)
+			cl, _ := p2p.NewP2PClient("127.0.0.1:1234", 5678, p2pReadFunc, true)
 			cl.SetupUPnP(upnp)
 			cl.ConnectToCoordinator()
 			webtools.ReadLineFromConsole("Wait")
@@ -206,7 +206,7 @@ func main() {
 	case "p2pcl2":
 		{
 			println("p2pCl2")
-			cl, _ := p2p.NewP2PClientUDP("127.0.0.1:1234", 5679, p2pReadFunc2, true)
+			cl, _ := p2p.NewP2PClient("127.0.0.1:1234", 5679, p2pReadFunc2, true)
 			cl.SetupUPnP(upnp)
 			cl.ConnectToCoordinator()
 			data, _ := webtools.ReadLineFromConsole("Enter target id: ")
@@ -216,7 +216,7 @@ func main() {
 		}
 	case "p2pcl3":
 		{
-			cl, _ := p2p.NewP2PClientUDP("127.0.0.1:1234", 5677, p2pReadFunc2, true)
+			cl, _ := p2p.NewP2PClient("127.0.0.1:1234", 5677, p2pReadFunc2, true)
 			cl.SetupUPnP(upnp)
 			cl.ConnectToCoordinator()
 			data, _ := webtools.ReadLineFromConsole("Enter target id: ")
@@ -265,7 +265,7 @@ func main() {
 		}
 	case "checkcgnat":
 		{
-			p2p, _ := p2p.NewP2PClientUDP("127.0.0.1:1234", 5678, nil, true)
+			p2p, _ := p2p.NewP2PClient("127.0.0.1:1234", 5678, nil, true)
 			p2p.SetupUPnP(upnp)
 			if p2p.ConnectToCoordinator() {
 				p2p.CheckCGNAT()
@@ -281,14 +281,19 @@ func main() {
 		}
 	case "p2pps":
 		{
-			proxy, _ := proxy.NewP2PProxyServerUniversal("127.0.0.1:1234", 5678, true)
-			proxy.ProxiedServices["test"] = webtools.KeyValuePair[bool, string]{Key: true, Value: "127.0.0.1:7777"}
+			proxy, _ := proxy.NewP2PProxyServerUniversal("127.0.0.1:1234", 5678, false)
+			proxy.ProxiedServices["u7777"] = webtools.KeyValuePair[bool, string]{Key: true, Value: "127.0.0.1:7777"}
+			proxy.ProxiedServices["t7777"] = webtools.KeyValuePair[bool, string]{Key: false, Value: "127.0.0.1:7777"}
+			proxy.ProxiedServices["t8888"] = webtools.KeyValuePair[bool, string]{Key: false, Value: "127.0.0.1:8888"}
+			proxy.SetupFramingP2PClient(framer)
 			proxy.Start()
 		}
 	case "p2ppc":
 		{
 			data, _ := webtools.ReadLineFromConsole("Enter target id: ")
-			proxy, _ := proxy.NewP2PProxyClientUniversal("127.0.0.1:1234", 5679, []byte(strings.ReplaceAll(string(data), "\n", "")), map[string]string{"test": "127.0.0.1:17777"}, true)
+			proxy, _ := proxy.NewP2PProxyClientUniversal("127.0.0.1:1234", 5679, []byte(strings.ReplaceAll(string(data), "\n", "")),
+				map[string]string{"u7777": "127.0.0.1:17777", "t7777": "127.0.0.1:17777", "t8888": "127.0.0.1:18888"}, false)
+			proxy.SetupFramingP2PClient(framer)
 			proxy.Connect()
 			for {
 				time.Sleep(100 * time.Millisecond)
@@ -326,6 +331,7 @@ func readFuncUDPSv(conn *udp.ServerConn, data []byte, ended bool) {
 	if !ended {
 		conn.Send(data)
 	}
+	fmt.Println(string(data))
 }
 
 func readFuncUDPCl(_ *udp.Client, _ *net.UDPAddr, data []byte, _ bool) {

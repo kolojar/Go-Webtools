@@ -41,3 +41,5 @@
 - [X] Fix map sync error
 - [X] Add address fix to TCP server. Instead whole address object use just string of address, apply this fix to all UDP components.
 - [ ] Add dynamic cleanups to PROXIES!!!
+- [ ] Fix P2P Punching
+- [ ] Fix P2P Punching at line 258
