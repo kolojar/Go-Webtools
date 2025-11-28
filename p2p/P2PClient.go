@@ -255,7 +255,7 @@ func (p2p *Client) readFuncCoordinator(_ *udp.Client, _ *net.UDPAddr, data []byt
 				//p2p.clientConnsToIDs.Set(client, args["targetID"])
 
 				//Wait for time
-				clientUDP.SetupFraming(udp.NewUDPFramerSimpleFromConfig(p2pFramerConfig, nil)) //WARNING: NIL MAY BE NOT ENOUGHT, ADD FUNCTION TO SEND OVER TCP WHEN FAILS, OR USING P2P - COMPLETLY REWORK THIS PUNCHING NONSENCE
+				clientUDP.SetupFraming(p2p.udpFramer) //WARNING: NIL MAY BE NOT ENOUGHT, ADD FUNCTION TO SEND OVER TCP WHEN FAILS, OR USING P2P - COMPLETLY REWORK THIS PUNCHING NONSENCE
 				p2p.udpOutcommingConnsCls.Set(string(frame.ID), webtools.KeyValuePair[*udp.Client, bool]{Key: clientUDP, Value: false})
 				p2p.tcpOutcommingConnsCls.Set(string(frame.ID), webtools.KeyValuePair[*tcp.ClientSimple, bool]{Key: nil, Value: false})
 				p2p.targetIDsConnectingStatus.Set(string(frame.ID), true)

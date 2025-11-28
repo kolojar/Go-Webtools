@@ -19,6 +19,8 @@ type ServerConn struct {
 	origin   *Server
 	Address  *net.UDPAddr
 	lastSeen time.Time
+	//UserAttributes are used for setting own properties - IDs, passed values, etc... It does not interact with Server
+	UserAttributes map[string]string
 }
 
 /*
@@ -177,7 +179,7 @@ func (udp *Server) readFuncLocal(addr *net.UDPAddr, data []byte, ended bool) {
 		var udpConn *ServerConn = udp.conns.Get(addr.String())
 		if udpConn == nil {
 			//No connection, create new
-			udpConn = &ServerConn{origin: udp, lastSeen: time.Now(), Address: addr}
+			udpConn = &ServerConn{origin: udp, lastSeen: time.Now(), Address: addr, UserAttributes: map[string]string{}}
 			udpConn.origin.conns.Set(addr.String(), udpConn)
 		}
 		udpConn.lastSeen = time.Now()
@@ -211,7 +213,7 @@ func writeToUDP(isServer bool, listener *net.UDPConn, addr *net.UDPAddr, data []
 		return
 	}
 	if data == nil {
-		logger.Log(1, "Invalid data, cancelling write.")
+		//logger.Log(1, "Invalid data, cancelling write.")
 		return
 	}
 	if listener == nil {

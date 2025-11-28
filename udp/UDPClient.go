@@ -20,6 +20,8 @@ type Client struct {
 	address   *net.UDPAddr
 	isAlive   bool
 	udpFramer *Framer
+	//UserAttributes are used for setting own properties - IDs, passed values, etc... It does not interact with Client
+	UserAttributes map[string]string
 }
 
 /*
@@ -47,7 +49,7 @@ func NewClient(address string, readFunc ClientReadFunc, reportTraffic bool) (*Cl
 	}
 
 	//Make client
-	return &Client{address: addressObj, Logger: webtools.NewConsoleLoggerForTraffic("UDPClient", reportTraffic), readFunc: readFunc}, nil
+	return &Client{address: addressObj, Logger: webtools.NewConsoleLoggerForTraffic("UDPClient", reportTraffic), readFunc: readFunc, UserAttributes: map[string]string{}}, nil
 }
 
 /*

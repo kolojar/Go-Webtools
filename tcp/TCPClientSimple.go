@@ -26,6 +26,8 @@ If you do not know how to use universal client, feel free to copy this one and e
 type ClientSimple struct {
 	readFunc        ClientSimpleReadFunc
 	universalClient *ClientUniversal
+	//UserAttributes are used for setting own properties - IDs, passed values, etc... It does not interact with Client
+	UserAttributes map[string]string
 }
 
 /*

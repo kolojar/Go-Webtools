@@ -31,13 +31,41 @@ func main() {
 			server.Start()
 			break
 		}
+	case "ts2":
+		{
+			server, _ := tcp.NewServer("127.0.0.1:8888", readFuncTCPSv, true, true)
+			server.SetupEncryption(true, []byte("1234"))
+			server.Start()
+			break
+		}
 	case "tc":
 		{
-			client, _ := tcp.NewClientSimple("127.0.0.1:7777", 0, false, readFuncTCPCl, true)
+			client, _ := tcp.NewClientSimple("127.0.0.1:17777", 0, false, readFuncTCPCl, true)
 			client.SetupEncryption(true, []byte("1234"))
 			client.Connect()
-			for i := 0; i < 100; i++ {
-				client.Send([]byte("Test" + strconv.Itoa(i) + "|"))
+			//for i := 0; i < 100; i++ {
+			//	client.Send([]byte("Test" + strconv.Itoa(i) + "|"))
+			//}
+			for {
+				client.Send([]byte("7777-" + time.Now().Format(time.StampMilli)))
+				time.Sleep(time.Millisecond)
+			}
+			time.Sleep(3 * time.Second)
+			fmt.Println(rc)
+			//for client.IsAlive() {
+			//}
+		}
+	case "tc2":
+		{
+			client, _ := tcp.NewClientSimple("127.0.0.1:18888", 0, false, readFuncTCPCl, true)
+			client.SetupEncryption(true, []byte("1234"))
+			client.Connect()
+			//for i := 0; i < 100; i++ {
+			//	client.Send([]byte("Test" + strconv.Itoa(i) + "|"))
+			//}
+			for {
+				client.Send([]byte("8888-" + time.Now().Format(time.StampMilli)))
+				time.Sleep(time.Millisecond)
 			}
 			time.Sleep(3 * time.Second)
 			fmt.Println(rc)
@@ -281,19 +309,19 @@ func main() {
 		}
 	case "p2pps":
 		{
-			proxy, _ := proxy.NewP2PProxyServerUniversal("127.0.0.1:1234", 5678, false)
+			proxy, _ := proxy.NewP2PProxyServerUniversal("127.0.0.1:1234", 5678, true)
 			proxy.ProxiedServices["u7777"] = webtools.KeyValuePair[bool, string]{Key: true, Value: "127.0.0.1:7777"}
 			proxy.ProxiedServices["t7777"] = webtools.KeyValuePair[bool, string]{Key: false, Value: "127.0.0.1:7777"}
 			proxy.ProxiedServices["t8888"] = webtools.KeyValuePair[bool, string]{Key: false, Value: "127.0.0.1:8888"}
-			proxy.SetupFramingP2PClient(framer)
+			//proxy.SetupFramingP2PClient(framer)
 			proxy.Start()
 		}
 	case "p2ppc":
 		{
 			data, _ := webtools.ReadLineFromConsole("Enter target id: ")
 			proxy, _ := proxy.NewP2PProxyClientUniversal("127.0.0.1:1234", 5679, []byte(strings.ReplaceAll(string(data), "\n", "")),
-				map[string]string{"u7777": "127.0.0.1:17777", "t7777": "127.0.0.1:17777", "t8888": "127.0.0.1:18888"}, false)
-			proxy.SetupFramingP2PClient(framer)
+				map[string]string{"u7777": "127.0.0.1:17777", "t7777": "127.0.0.1:17777", "t8888": "127.0.0.1:18888"}, true)
+			//proxy.SetupFramingP2PClient(framer)
 			proxy.Connect()
 			for {
 				time.Sleep(100 * time.Millisecond)

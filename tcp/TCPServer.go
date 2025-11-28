@@ -14,6 +14,8 @@ ServerConn is connection object of Server
 type ServerConn struct {
 	origin *Server
 	Client *ClientSimple
+	//UserAttributes are used for setting own properties - IDs, passed values, etc... It does not interact with Server
+	UserAttributes map[string]string
 }
 
 /*
@@ -158,7 +160,7 @@ func (sv *Server) readFuncLocal(client *ClientSimple, data []byte, status uint8)
 	// Sort connection
 	var tcpConn *ServerConn = sv.conns.Get(client)
 	if tcpConn == nil {
-		tcpConn = &ServerConn{origin: sv, Client: client}
+		tcpConn = &ServerConn{origin: sv, Client: client, UserAttributes: map[string]string{}}
 		sv.conns.Set(client, tcpConn)
 	}
 	if status == webtools.DisconnectStatus {

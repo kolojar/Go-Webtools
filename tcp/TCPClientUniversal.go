@@ -63,6 +63,8 @@ type ClientUniversal struct {
 	isPreparedWithConnection        bool
 	useEncryption                   bool
 	encryptionPassword              []byte
+	//UserAttributes are used for setting own properties - IDs, passed values, etc... It does not interact with Client
+	UserAttributes map[string]string
 }
 
 /*

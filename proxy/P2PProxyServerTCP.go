@@ -15,7 +15,7 @@ type P2PProxyServerTCP struct {
 	idToClient       webtools.SafeMap[string, *P2PProxyServerTCPConn]
 	clientToID       webtools.SafeMap[*tcp.ClientSimple, string]
 	p2pClient        *p2p.Client
-	udpServerAddress string
+	tcpServerAddress string
 	reportTrafic     bool
 }
 
@@ -63,7 +63,7 @@ NewP2PProxyServerTCP creates new P2P Proxy Server for TCP but does not starts it
 */
 func NewP2PProxyServerTCP(p2pCoordinatorAddress string, p2pPortForIncommingConns int, tcpServerAddress string, reportTraffic bool) (*P2PProxyServerTCP, error) {
 	sv := &P2PProxyServerTCP{
-		udpServerAddress: tcpServerAddress,
+		tcpServerAddress: tcpServerAddress,
 		clientToID:       webtools.MakeSafeMap[*tcp.ClientSimple, string](),
 		idToClient:       webtools.MakeSafeMap[string, *P2PProxyServerTCPConn](),
 		reportTrafic:     reportTraffic,
@@ -102,7 +102,7 @@ func (sv *P2PProxyServerTCP) handleP2PReadFunc(_ *p2p.Client, sourceID []byte, f
 			if frame.Operation == webtools.FrameTypeConnect {
 				//Create new connection
 				frame.ID = []byte(webtools.GenerateRandomID())
-				cl, err := tcp.NewClientSimple(sv.udpServerAddress, -1, false, sv.handleTCPReadFunc, sv.reportTrafic)
+				cl, err := tcp.NewClientSimple(sv.tcpServerAddress, -1, false, sv.handleTCPReadFunc, sv.reportTrafic)
 				cl.GetLogger().Prefix = "P2PProxyServerTCP - " + cl.GetLogger().Prefix
 				if err != nil {
 					cl.GetLogger().Log(3, "Could not create connection with ID: "+string(frame.ID)+" to server.")
