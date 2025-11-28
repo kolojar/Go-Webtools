@@ -20,8 +20,8 @@ type P2PProxyServerUniversal struct {
 	//clientToID       webtools.SafeMap[*udp.Client, string]
 	p2pClient    *p2p.Client
 	reportTrafic bool
-	//Key is service name, values are isUDP and address
-	ProxiedServices map[string]webtools.KeyValuePair[bool, string]
+	//Key is service name, values are isUDP, reportTraffic, and address
+	ProxiedServices map[string]webtools.ThreeValuePair[bool, bool, string]
 }
 
 /*
@@ -33,6 +33,19 @@ type P2PProxyServerUniversalConn struct {
 	ID        []byte
 	sourceID  []byte
 	origin    *P2PProxyServerUniversal
+}
+
+/*
+IsAlive gets if connection is alive
+*/
+func (conn *P2PProxyServerUniversalConn) IsAlive() bool {
+	if conn.udpClient != nil {
+		return conn.udpClient.IsAlive()
+	}
+	if conn.tcpClient != nil {
+		return conn.tcpClient.IsAlive()
+	}
+	return false
 }
 
 /*
@@ -79,7 +92,7 @@ NewP2PProxyServerUniversal creates new P2P Proxy Server for UDP and TCP but does
 */
 func NewP2PProxyServerUniversal(p2pCoordinatorAddress string, p2pPortForIncommingConns int, reportTraffic bool) (*P2PProxyServerUniversal, error) {
 	sv := &P2PProxyServerUniversal{
-		ProxiedServices: map[string]webtools.KeyValuePair[bool, string]{},
+		ProxiedServices: map[string]webtools.ThreeValuePair[bool, bool, string]{},
 		//clientToID:       webtools.MakeSafeMap[*udp.Client, string](),
 		idToClient:   webtools.MakeSafeMap[string, *P2PProxyServerUniversalConn](),
 		reportTrafic: reportTraffic,
@@ -127,9 +140,9 @@ func (sv *P2PProxyServerUniversal) handleP2PReadFunc(_ *p2p.Client, sourceID []b
 				frame.ID = []byte(webtools.GenerateRandomID())
 
 				//Create new connection
-				if entry.Key {
+				if entry.A {
 					//UDP Connection
-					cl, err := udp.NewClient(entry.Value, sv.handleUDPReadFunc, sv.reportTrafic)
+					cl, err := udp.NewClient(entry.C, sv.handleUDPReadFunc, sv.reportTrafic && entry.B)
 					cl.Logger.Prefix = "P2PProxyServerUniversal - " + split[1] + " - " + cl.Logger.Prefix
 					if err != nil {
 						cl.Logger.Log(3, "Could not create connection with ID: "+string(frame.ID)+" to server.")
@@ -140,7 +153,7 @@ func (sv *P2PProxyServerUniversal) handleP2PReadFunc(_ *p2p.Client, sourceID []b
 					sv.idToClient.Set(string(frame.ID), &P2PProxyServerUniversalConn{udpClient: cl, tcpClient: nil, ID: frame.ID, sourceID: sourceID, origin: sv})
 				} else {
 					//TCP Connection
-					cl, err := tcp.NewClientSimple(entry.Value, -1, false, sv.handleTCPReadFunc, sv.reportTrafic)
+					cl, err := tcp.NewClientSimple(entry.C, -1, false, sv.handleTCPReadFunc, sv.reportTrafic && entry.B)
 					cl.GetLogger().Prefix = "P2PProxyServerUniversal - " + split[1] + " - " + cl.GetLogger().Prefix
 					if err != nil {
 						cl.GetLogger().Log(3, "Could not create connection with ID: "+string(frame.ID)+" to server.")
@@ -167,7 +180,7 @@ func (sv *P2PProxyServerUniversal) handleP2PReadFunc(_ *p2p.Client, sourceID []b
 			return
 		}
 		cl := sv.idToClient.Get(string(frame.ID))
-		if !cl.udpClient.IsAlive() {
+		if !cl.IsAlive() {
 			logger.Log(3, "Connection with ID: "+string(frame.ID)+" connected to: "+string(sourceID)+" closed")
 			return
 		}
@@ -223,7 +236,9 @@ func (sv *P2PProxyServerUniversal) handleTCPReadFunc(udp *tcp.ClientSimple, data
 	}
 
 	//Send to client
-	cl.SendToP2P(webtools.FrameTypeData, data)
+	if status == webtools.ReadDataStatus {
+		cl.SendToP2P(webtools.FrameTypeData, data)
+	}
 }
 
 /*

@@ -49,7 +49,7 @@ NewClientSimple creates new simple TCP Client but does not starts it
 Set countOfNotFramedReads to negative number to read not framed stream infinitelly, set it to 0 to start reading framed immediately
 */
 func NewClientSimple(address string, countOfNotFramedReads int, writeOneLastNoFrame bool, readFunc ClientSimpleReadFunc, reportTraffic bool) (*ClientSimple, error) {
-	cl := &ClientSimple{readFunc: readFunc}
+	cl := &ClientSimple{readFunc: readFunc, UserAttributes: map[string]string{}}
 	var err error
 	cl.universalClient, err = NewTCPClientUniversal(address, reportTraffic)
 	if err != nil {

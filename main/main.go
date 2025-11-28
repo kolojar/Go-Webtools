@@ -310,9 +310,9 @@ func main() {
 	case "p2pps":
 		{
 			proxy, _ := proxy.NewP2PProxyServerUniversal("127.0.0.1:1234", 5678, true)
-			proxy.ProxiedServices["u7777"] = webtools.KeyValuePair[bool, string]{Key: true, Value: "127.0.0.1:7777"}
-			proxy.ProxiedServices["t7777"] = webtools.KeyValuePair[bool, string]{Key: false, Value: "127.0.0.1:7777"}
-			proxy.ProxiedServices["t8888"] = webtools.KeyValuePair[bool, string]{Key: false, Value: "127.0.0.1:8888"}
+			proxy.ProxiedServices["u7777"] = webtools.ThreeValuePair[bool, bool, string]{A: true, B: false, C: "127.0.0.1:17777"}
+			proxy.ProxiedServices["t7777"] = webtools.ThreeValuePair[bool, bool, string]{A: false, B: true, C: "127.0.0.1:17777"}
+			proxy.ProxiedServices["t8888"] = webtools.ThreeValuePair[bool, bool, string]{A: false, B: true, C: "127.0.0.1:18888"}
 			//proxy.SetupFramingP2PClient(framer)
 			proxy.Start()
 		}
@@ -320,7 +320,11 @@ func main() {
 		{
 			data, _ := webtools.ReadLineFromConsole("Enter target id: ")
 			proxy, _ := proxy.NewP2PProxyClientUniversal("127.0.0.1:1234", 5679, []byte(strings.ReplaceAll(string(data), "\n", "")),
-				map[string]string{"u7777": "127.0.0.1:17777", "t7777": "127.0.0.1:17777", "t8888": "127.0.0.1:18888"}, true)
+				map[string]webtools.KeyValuePair[bool, string]{
+					"u7777": {Key: false, Value: "127.0.0.1:7777"},
+					"t7777": {Key: true, Value: "127.0.0.1:7777"},
+					"t8888": {Key: true, Value: "127.0.0.1:8888"},
+				}, true)
 			//proxy.SetupFramingP2PClient(framer)
 			proxy.Connect()
 			for {
