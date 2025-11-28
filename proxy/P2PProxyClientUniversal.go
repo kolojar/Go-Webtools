@@ -306,3 +306,10 @@ func (cl *P2PProxyClientUniversal) Stop() {
 		k.Stop()
 	}
 }
+
+/*
+SetupUPnP setups UPnP for P2P Client
+*/
+func (cl *P2PProxyClientUniversal) SetupUPnP(upnp *p2p.UPnPServiceManager) error {
+	return cl.p2pClient.SetupUPnP(upnp)
+}

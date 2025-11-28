@@ -260,3 +260,10 @@ Stop stops P2P Proxy Server for UDP and TCP
 func (sv *P2PProxyServerUniversal) Stop() {
 	sv.p2pClient.Stop()
 }
+
+/*
+SetupUPnP setups UPnP for P2P Client
+*/
+func (sv *P2PProxyServerUniversal) SetupUPnP(upnp *p2p.UPnPServiceManager) error {
+	return sv.p2pClient.SetupUPnP(upnp)
+}
