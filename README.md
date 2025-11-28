@@ -43,3 +43,4 @@
 - [ ] Add dynamic cleanups to PROXIES!!!
 - [ ] Fix P2P Punching
 - [ ] Fix P2P Punching at line 258
+- [ ] P2P Still not working with Satisfactory using TCP
