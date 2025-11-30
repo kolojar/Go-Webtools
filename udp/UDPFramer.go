@@ -190,11 +190,12 @@ func (framer *Framer) ProcessOrdered(id string, timeData uint64, address *net.UD
 	stored := false
 	for i := 0; i < len(framer.orderList); i++ {
 		if framer.orderList[i].B > timeData {
-			if i == 0 {
-				framer.orderList = slices.Insert(framer.orderList, 0, pair)
-			} else {
-				framer.orderList = slices.Insert(framer.orderList, i-1, pair)
-			}
+			//if i == 0 {
+			//	framer.orderList = slices.Insert(framer.orderList, 0, pair)
+			//} else {
+			//	framer.orderList = slices.Insert(framer.orderList, i-1, pair)
+			//}
+			framer.orderList = slices.Insert(framer.orderList, i, pair)
 			stored = true
 			break
 		}

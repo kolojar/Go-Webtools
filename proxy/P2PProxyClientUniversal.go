@@ -129,7 +129,7 @@ func (cl *P2PProxyClientUniversal) handleP2PReadFunc(_ *p2p.Client, sourceID []b
 
 					if entryServerValue.A {
 						//UDP Server
-						sv, err := udp.NewServer(localAddr.Value, cl.handleUDPReadFunc, cl.reportTraffic && localAddr.Key)
+						sv, err := udp.NewServer(localAddr.Value, cl.handleUDPReadFunc, localAddr.Key)
 						if err != nil {
 							cl.p2pClient.ClientCoordinator.Logger.Log(3, "Error creating TCP server for remote IP address: "+entryName+" with local address: "+localAddr.Value+". Stopping client...")
 							cl.Stop()
@@ -140,7 +140,7 @@ func (cl *P2PProxyClientUniversal) handleP2PReadFunc(_ *p2p.Client, sourceID []b
 						go sv.Start()
 					} else {
 						//TCP Server
-						sv, err := tcp.NewServer(localAddr.Value, cl.handleTCPReadFunc, cl.reportTraffic && localAddr.Key, false)
+						sv, err := tcp.NewServer(localAddr.Value, cl.handleTCPReadFunc, localAddr.Key, false)
 						if err != nil {
 							cl.p2pClient.ClientCoordinator.Logger.Log(3, "Error creating TCP server for remote IP address: "+entryName+" with local address: "+localAddr.Value+". Stopping client...")
 							cl.Stop()
@@ -260,12 +260,12 @@ func (cl *P2PProxyClientUniversal) handleTCPReadFunc(tcpConn *tcp.ServerConn, da
 		tcpConn.UserAttributes["tempID"] = tempID
 		cl.pendingConnections.Set(tempID, &P2PProxyClientUniversalConn{udpServerConn: nil, tcpServerConn: tcpConn, origin: cl})
 		cl.p2pClient.ClientCoordinator.Logger.Log(1, "Preparing new connection with temporary ID: "+tempID+" for connection connected to: "+tcpConn.GetConn().RemoteAddr().String())
-		cl.p2pClient.Send(cl.p2pServerID, webtools.PackWebtoolsFrame(webtools.FrameTypeConnect, []byte("0"), []byte(tempID+"|"+cl.tcpServers.Get(tcpConn.GetOrigin()))))
 		if status != webtools.ReadDataStatus {
 			cl.pendingConnsData.Set(tcpConn.UserAttributes["tempID"], make([][]byte, 0))
 		} else {
 			cl.pendingConnsData.Set(tcpConn.UserAttributes["tempID"], append(make([][]byte, 0), data))
 		}
+		cl.p2pClient.Send(cl.p2pServerID, webtools.PackWebtoolsFrame(webtools.FrameTypeConnect, []byte("0"), []byte(tempID+"|"+cl.tcpServers.Get(tcpConn.GetOrigin()))))
 		return
 	}
 
@@ -312,4 +312,11 @@ SetupUPnP setups UPnP for P2P Client
 */
 func (cl *P2PProxyClientUniversal) SetupUPnP(upnp *p2p.UPnPServiceManager) error {
 	return cl.p2pClient.SetupUPnP(upnp)
+}
+
+/*
+SetupFramingP2PClient setups UDP framer for P2P client
+*/
+func (cl *P2PProxyClientUniversal) SetupFramingP2PClient(framer *udp.Framer) {
+	cl.p2pClient.SetupFraming(framer)
 }
