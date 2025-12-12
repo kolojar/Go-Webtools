@@ -9,7 +9,9 @@ import (
 	"encoding/hex"
 	"errors"
 	"io"
+	"os"
 	"time"
+	"webtools"
 	"webtools/encryption"
 )
 
@@ -72,6 +74,27 @@ func ParseUint64DB(reader io.Reader) (uint64, error) {
 		return 0, err
 	}
 	return binary.BigEndian.Uint64(dataByte), nil
+}
+
+/*
+ConvertUint8ToBytesDB converts uint8 to bytes
+*/
+func ConvertUint8ToBytesDB(writer io.Writer, data uint8) {
+	//Write number
+	writer.Write([]byte{data})
+}
+
+/*
+ParseUint8DB parses bytes from reader to uint8
+*/
+func ParseUint8DB(reader io.Reader) (uint8, error) {
+	//Read number
+	dataByte := make([]byte, 1)
+	_, err := reader.Read(dataByte)
+	if err != nil {
+		return 0, err
+	}
+	return dataByte[0], nil
 }
 
 ///*
@@ -234,4 +257,48 @@ func ParseTimeDB(reader io.Reader) (time.Time, error) {
 		return time.Unix(0, 0), err
 	}
 	return time.Unix(0, int64(timeNum)), nil
+}
+
+/*
+ConvertSafeMapToBytesDB converts safeMap to bytes
+*/
+func ConvertSafeMapToBytesDB[K comparable, V any](writer io.Writer, data webtools.SafeMap[K, V], keyConvertDBFunc func(writer io.Writer, data K), valueConvertDBFunc func(writer io.Writer, data V)) {
+	if keyConvertDBFunc == nil || valueConvertDBFunc == nil {
+		return
+	}
+	ConvertUint64ToBytesDB(writer, uint64(data.Len()))
+	for _, v := range data.GetData() {
+		keyConvertDBFunc(writer, v.Key)
+		valueConvertDBFunc(writer, v.Value)
+	}
+}
+
+/*
+ParseSafeMapDB parses bytes from reader to safeMap
+*/
+func ParseSafeMapDB[K comparable, V any](reader io.Reader, keyParseDBFunc func(reader io.Reader) (K, error), valueParseDBFunc func(reader io.Reader) (V, error)) (webtools.SafeMap[K, V], error) {
+	data := webtools.MakeSafeMap[K, V]()
+	if keyParseDBFunc == nil || valueParseDBFunc == nil {
+		return data, os.ErrInvalid
+	}
+
+	//Read count
+	count, err := ParseUint64DB(reader)
+	if err != nil {
+		return data, err
+	}
+
+	//Read rows
+	for i := 0; i < int(count); i++ {
+		key, err := keyParseDBFunc(reader)
+		if err != nil {
+			return data, err
+		}
+		value, err := valueParseDBFunc(reader)
+		if err != nil {
+			return data, err
+		}
+		data.Set(key, value)
+	}
+	return data, nil
 }
