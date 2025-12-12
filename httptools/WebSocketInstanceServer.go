@@ -3,6 +3,7 @@ package httptools
 import (
 	_ "embed"
 	"fmt"
+	"io"
 	"net/http"
 	"slices"
 	"strings"
@@ -74,7 +75,7 @@ type WebSocketInstanceServer struct {
 
 /*
 NewWebSocketInstanceServer creates new WebSocket server with instance support but does not starts it
-URL "/instanceServerWebsocketNewInstance" is reserved for server communication
+URL "/instanceServerWebsocketNewInstance" is reserved for server communication -> Sets parameter "nextURLAfterInvalid" on finished setting up
 You can use URL "/instanceServerWebsocketNewInstance?action=delete" for instance deletion
 */
 func NewWebSocketInstanceServer(address string, readFunc WebSocketInstanceServerReadFunc, accessFunc WebSocketInstanceServerAccessFunc, rootPath string, reportTraffic bool) *WebSocketInstanceServer {
@@ -187,7 +188,14 @@ func (sv *WebSocketInstanceServer) accessFuncLocal(server *Server, w http.Respon
 			SameSite: http.SameSiteLaxMode,
 		})
 		time.Sleep(time.Second)
-		sv.instances.Set(id, &WebSocketInstanceServerInstance{Parameters: webtools.MakeSafeMap[string, any](), id: id, owner: sv, webSocketConns: make([]*WebSocketServerConn, 0)})
+		instance := &WebSocketInstanceServerInstance{Parameters: webtools.MakeSafeMap[string, any](), id: id, owner: sv, webSocketConns: make([]*WebSocketServerConn, 0)}
+
+		//Read URL
+		nextURL, err := io.ReadAll(r.Body)
+		if err == nil {
+			instance.Parameters.Set("nextURLAfterInvalid", string(nextURL))
+		}
+		sv.instances.Set(id, instance)
 		w.WriteHeader(http.StatusCreated)
 		fmt.Fprint(w, "done")
 		return true

@@ -115,7 +115,7 @@ func (db *RAMDatabase[T]) Save() error {
 }
 
 /*
-Load Load data of database from disk
+Load loads data of database from disk
 */
 func (db *RAMDatabase[T]) Load() error {
 	//Open DB file

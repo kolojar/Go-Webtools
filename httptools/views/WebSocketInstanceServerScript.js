@@ -15,4 +15,5 @@ xhr.addEventListener("load", () => {
     }
 });
 //Send data
-xhr.send();
+xhr.send(encodeURI(window.location.toString()));
+//# sourceMappingURL=WebSocketInstanceServerScript.js.map
