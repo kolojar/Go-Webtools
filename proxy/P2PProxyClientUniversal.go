@@ -290,7 +290,7 @@ func (cl *P2PProxyClientUniversal) Stop() {
 }
 
 /*
-SetupFraming setups UDP framer for P2P client
+SetupFramingP2PClient setups UDP framer for P2P client
 */
 func (cl *P2PProxyClientUniversal) SetupFramingP2PClient(framer *udp.Framer) {
 	cl.p2pClient.SetupFraming(framer)

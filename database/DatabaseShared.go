@@ -302,3 +302,42 @@ func ParseSafeMapDB[K comparable, V any](reader io.Reader, keyParseDBFunc func(r
 	}
 	return data, nil
 }
+
+/*
+ConvertArrayToBytesDB converts array to bytes
+*/
+func ConvertArrayToBytesDB[V any](writer io.Writer, data []V, convertDBFunc func(writer io.Writer, data V)) {
+	if convertDBFunc == nil {
+		return
+	}
+	ConvertUint64ToBytesDB(writer, uint64(len(data)))
+	for _, v := range data {
+		convertDBFunc(writer, v)
+	}
+}
+
+/*
+ParseArrayDB parses bytes from reader to array
+*/
+func ParseArrayDB[V any](reader io.Reader, parseDBFunc func(reader io.Reader) (V, error)) ([]V, error) {
+	data := make([]V, 0)
+	if parseDBFunc == nil {
+		return data, os.ErrInvalid
+	}
+
+	//Read count
+	count, err := ParseUint64DB(reader)
+	if err != nil {
+		return data, err
+	}
+
+	//Read rows
+	for i := 0; i < int(count); i++ {
+		val, err := parseDBFunc(reader)
+		if err != nil {
+			return nil, err
+		}
+		data = append(data, val)
+	}
+	return data, nil
+}
