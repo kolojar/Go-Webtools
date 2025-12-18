@@ -59,7 +59,7 @@ NewHTTPProxyServerUDP creates new HTTP Proxy Server for UDP but does not starts 
 */
 func NewHTTPProxyServerUDP(httpProxyAddress string, udpServerAddress string, reportTraffic bool) *HTTPProxyServerUDP {
 	sv := &HTTPProxyServerUDP{udpServerAddress: udpServerAddress, clientToID: webtools.MakeSafeMap[*udp.Client, string](), idToClient: webtools.MakeSafeMap[string, *HTTPProxyServerUDPConn](), reportTrafic: reportTraffic}
-	sv.httpServer = httptools.NewWebSocketServer(httpProxyAddress, sv.handleWebSocketReadFunc, nil, "", reportTraffic)
+	sv.httpServer = httptools.NewWebSocketServer(httpProxyAddress, sv.handleWebSocketReadFunc, nil, "", false, false, reportTraffic)
 	sv.httpServer.GetLogger().Prefix = "HTTPProxyServerUDP - " + sv.httpServer.GetLogger().Prefix
 	return sv
 }

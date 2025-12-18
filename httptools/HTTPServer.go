@@ -96,11 +96,11 @@ func TidyURLPath(url string) string {
 NewServer creates new HTTP server but does not starts it. Adds new host path to HTTP server (used for shared scripts, css, images)
 Set another host paths using HostPaths and own error sites using ErrorPages
 */
-func NewServer(address string, onAccessFunc AccessFunc, rootPath string, startWebBrowser bool) *Server {
+func NewServer(address string, onAccessFunc AccessFunc, rootPath string, startWebBrowser bool, reportHTTPTraffic bool) *Server {
 	if !strings.HasSuffix(rootPath, "/") {
 		rootPath += "/"
 	}
-	return &Server{address: address, ErrorPages: map[int]string{}, HostPaths: map[string]string{}, Logger: webtools.NewConsoleLogger("HTTPServer", 0), onAccessFunc: onAccessFunc, startWebBrowser: startWebBrowser, rootPath: rootPath, HandleExtensionsWithPriority: make([]string, 0)}
+	return &Server{address: address, ErrorPages: map[int]string{}, HostPaths: map[string]string{}, Logger: webtools.NewConsoleLoggerForTraffic("HTTPServer", reportHTTPTraffic), onAccessFunc: onAccessFunc, startWebBrowser: startWebBrowser, rootPath: rootPath, HandleExtensionsWithPriority: make([]string, 0)}
 }
 
 /*
@@ -156,7 +156,7 @@ func (sv *Server) checkPriorityExtension(url string) bool {
 Handles and sorts HTTP requests
 */
 func (sv *Server) httpHandler(w http.ResponseWriter, r *http.Request) {
-	sv.Logger.Log(1, r.RemoteAddr+" - "+r.Method+" - "+r.URL.String())
+	sv.Logger.Log(0, r.RemoteAddr+" - "+r.Method+" - "+r.URL.String())
 	//Check name
 	err2 := CheckInvalidNames(r.URL.Path)
 	if err2 != nil {

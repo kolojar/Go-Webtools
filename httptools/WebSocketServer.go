@@ -138,11 +138,11 @@ func (sv *WebSocketServer) GetLogger() *webtools.ConsoleLogger {
 NewWebSocketServer creates new HTTP WebSocket Server but does not starts it
 This readFunc is asociated with "/websocket" url
 */
-func NewWebSocketServer(address string, readFunc WebSocketServerReadFunc, onAccessFunc AccessFunc, rootPath string, reportTraffic bool) *WebSocketServer {
+func NewWebSocketServer(address string, readFunc WebSocketServerReadFunc, onAccessFunc AccessFunc, rootPath string, startWebBrowser bool, reportHTTPTraffic bool, reportWebSocketTraffic bool) *WebSocketServer {
 	wsURLAndFuncs := webtools.MakeSafeMap[string, WebSocketServerReadFunc]()
 	wsURLAndFuncs.Set("/websocket", readFunc)
-	sv := &WebSocketServer{reportTraffic: reportTraffic, conns: webtools.MakeSafeMap[*tcp.ClientUniversal, *WebSocketServerConn](), onAccessFunc: onAccessFunc, websocketURLsAndReadFuncs: wsURLAndFuncs}
-	sv.httpServer = NewServer(address, sv.handleHTTPAccess, rootPath, false)
+	sv := &WebSocketServer{reportTraffic: reportWebSocketTraffic, conns: webtools.MakeSafeMap[*tcp.ClientUniversal, *WebSocketServerConn](), onAccessFunc: onAccessFunc, websocketURLsAndReadFuncs: wsURLAndFuncs}
+	sv.httpServer = NewServer(address, sv.handleHTTPAccess, rootPath, startWebBrowser, reportHTTPTraffic)
 	sv.httpServer.Logger.Prefix = "HTTP-WSServer"
 	return sv
 }

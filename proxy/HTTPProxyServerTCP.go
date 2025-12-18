@@ -61,7 +61,7 @@ NewHTTPProxyServerTCP creates new HTTP Proxy Server for TCP but does not starts 
 */
 func NewHTTPProxyServerTCP(httpProxyAddress string, tcpServerAddress string, reportTraffic bool) *HTTPProxyServerTCP {
 	sv := &HTTPProxyServerTCP{tcpServerAddress: tcpServerAddress, clientToID: webtools.MakeSafeMap[*tcp.ClientSimple, string](), idToClient: webtools.MakeSafeMap[string, *HTTPProxyServerTCPConn](), reportTrafic: reportTraffic}
-	sv.httpServer = httptools.NewWebSocketServer(httpProxyAddress, sv.handleWebSocketReadFunc, nil, "", reportTraffic)
+	sv.httpServer = httptools.NewWebSocketServer(httpProxyAddress, sv.handleWebSocketReadFunc, nil, "",false,false, reportTraffic)
 	sv.httpServer.GetLogger().Prefix = "HTTPProxyServerTCP - " + sv.httpServer.GetLogger().Prefix
 	return sv
 }

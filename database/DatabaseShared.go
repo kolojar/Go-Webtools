@@ -26,12 +26,16 @@ type IDatabaseObject interface {
 /*
 ConvertStringToBytesDB converts string to bytes
 */
-func ConvertStringToBytesDB(writer io.Writer, data string) {
+func ConvertStringToBytesDB(writer io.Writer, data string) error {
 	//Write length
-	ConvertUint64ToBytesDB(writer, uint64(len(data)))
+	err := ConvertUint64ToBytesDB(writer, uint64(len(data)))
+	if err != nil {
+		return err
+	}
 
 	//Write data
-	writer.Write([]byte(data))
+	_, err = writer.Write([]byte(data))
+	return err
 }
 
 /*
@@ -56,11 +60,12 @@ func ParseStringDB(reader io.Reader) (string, error) {
 /*
 ConvertUint64ToBytesDB converts uint64 to bytes
 */
-func ConvertUint64ToBytesDB(writer io.Writer, data uint64) {
+func ConvertUint64ToBytesDB(writer io.Writer, data uint64) error {
 	//Write number
 	dataByte := make([]byte, 8)
 	binary.BigEndian.PutUint64(dataByte, data)
-	writer.Write(dataByte)
+	_, err := writer.Write(dataByte)
+	return err
 }
 
 /*
@@ -79,9 +84,10 @@ func ParseUint64DB(reader io.Reader) (uint64, error) {
 /*
 ConvertUint8ToBytesDB converts uint8 to bytes
 */
-func ConvertUint8ToBytesDB(writer io.Writer, data uint8) {
+func ConvertUint8ToBytesDB(writer io.Writer, data uint8) error {
 	//Write number
-	writer.Write([]byte{data})
+	_, err := writer.Write([]byte{data})
+	return err
 }
 
 /*
@@ -262,15 +268,25 @@ func ParseTimeDB(reader io.Reader) (time.Time, error) {
 /*
 ConvertSafeMapToBytesDB converts safeMap to bytes
 */
-func ConvertSafeMapToBytesDB[K comparable, V any](writer io.Writer, data webtools.SafeMap[K, V], keyConvertDBFunc func(writer io.Writer, data K), valueConvertDBFunc func(writer io.Writer, data V)) {
+func ConvertSafeMapToBytesDB[K comparable, V any](writer io.Writer, data webtools.SafeMap[K, V], keyConvertDBFunc func(writer io.Writer, data K) error, valueConvertDBFunc func(writer io.Writer, data V) error) error {
 	if keyConvertDBFunc == nil || valueConvertDBFunc == nil {
-		return
+		return os.ErrInvalid
 	}
-	ConvertUint64ToBytesDB(writer, uint64(data.Len()))
+	err := ConvertUint64ToBytesDB(writer, uint64(data.Len()))
+	if err != nil {
+		return err
+	}
 	for _, v := range data.GetData() {
-		keyConvertDBFunc(writer, v.Key)
-		valueConvertDBFunc(writer, v.Value)
+		err = keyConvertDBFunc(writer, v.Key)
+		if err != nil {
+			return err
+		}
+		err = valueConvertDBFunc(writer, v.Value)
+		if err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 /*
@@ -306,14 +322,21 @@ func ParseSafeMapDB[K comparable, V any](reader io.Reader, keyParseDBFunc func(r
 /*
 ConvertArrayToBytesDB converts array to bytes
 */
-func ConvertArrayToBytesDB[V any](writer io.Writer, data []V, convertDBFunc func(writer io.Writer, data V)) {
+func ConvertArrayToBytesDB[V any](writer io.Writer, data []V, convertDBFunc func(writer io.Writer, data V) error) error {
 	if convertDBFunc == nil {
-		return
+		return os.ErrInvalid
 	}
-	ConvertUint64ToBytesDB(writer, uint64(len(data)))
+	err := ConvertUint64ToBytesDB(writer, uint64(len(data)))
+	if err != nil {
+		return err
+	}
 	for _, v := range data {
-		convertDBFunc(writer, v)
+		err = convertDBFunc(writer, v)
+		if err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 /*

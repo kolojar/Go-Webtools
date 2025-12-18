@@ -78,7 +78,7 @@ NewWebSocketInstanceServer creates new WebSocket server with instance support bu
 URL "/instanceServerWebsocketNewInstance" is reserved for server communication -> Sets parameter "nextURLAfterInvalid" on finished setting up
 You can use URL "/instanceServerWebsocketNewInstance?action=delete" for instance deletion
 */
-func NewWebSocketInstanceServer(address string, readFunc WebSocketInstanceServerReadFunc, accessFunc WebSocketInstanceServerAccessFunc, rootPath string, reportTraffic bool) *WebSocketInstanceServer {
+func NewWebSocketInstanceServer(address string, readFunc WebSocketInstanceServerReadFunc, accessFunc WebSocketInstanceServerAccessFunc, rootPath string, startWebBrowser bool, reportHTTPTraffic bool, reportWebSocketTraffic bool) *WebSocketInstanceServer {
 	//Create instance server
 	sv := &WebSocketInstanceServer{
 		instances:                webtools.MakeSafeMap[string, *WebSocketInstanceServerInstance](),
@@ -90,7 +90,7 @@ func NewWebSocketInstanceServer(address string, readFunc WebSocketInstanceServer
 	}
 
 	//Create HTTP WS server
-	sv.wsServer = NewWebSocketServer(address, sv.readFuncLocal, sv.accessFuncLocal, rootPath, reportTraffic)
+	sv.wsServer = NewWebSocketServer(address, sv.readFuncLocal, sv.accessFuncLocal, rootPath, startWebBrowser, reportHTTPTraffic, reportWebSocketTraffic)
 	sv.wsServer.httpServer.Logger.Prefix = "HTTP-WSInstanceServer"
 	//sv.wsServer.AddWebSocketURL("/instanceServerWebsocket", sv.readFuncInstanceManagerLocal)
 

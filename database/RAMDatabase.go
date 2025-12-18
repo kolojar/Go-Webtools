@@ -10,12 +10,14 @@ import (
 /*
 RAMDatabase is database that is completly stored in RAM and loaded from disk on start
 */
-type RAMDatabase[T IDatabaseObject] struct {
-	emptyObject T
+type RAMDatabase[T any] struct {
+	//emptyObject T
 	//oneValueLength uint64
-	data   webtools.SafeMap[string, T]
-	path   string
-	Logger *webtools.ConsoleLogger
+	data                 webtools.SafeMap[string, T]
+	path                 string
+	Logger               *webtools.ConsoleLogger
+	convertToBytesDBFunc func(writer io.Writer, data T) error
+	parseDBFunc          func(reader io.Reader) (T, error)
 }
 
 /*
@@ -32,7 +34,7 @@ func MakeEmptyCopy[T any](source T) T {
 /*
 NewRAMDatabase creates new RAM Database
 */
-func NewRAMDatabase[T IDatabaseObject](path string, emptyObject T) (*RAMDatabase[T], error) {
+func NewRAMDatabase[T any](path string, convertToBytesDBFunc func(writer io.Writer, data T) error, parseDBFunc func(reader io.Reader) (T, error)) (*RAMDatabase[T], error) {
 	//Calculate one valueLength
 	//emptyObjectBytes := bytes.NewBuffer(nil)
 	//err := emptyObject.ConvertToBytesDB(emptyObjectBytes)
@@ -40,13 +42,16 @@ func NewRAMDatabase[T IDatabaseObject](path string, emptyObject T) (*RAMDatabase
 	//	return nil, err
 	//}
 
+	if convertToBytesDBFunc == nil || parseDBFunc == nil {
+		return nil, os.ErrInvalid
+	}
+
 	//Create object
-	var inst = RAMDatabase[T]{}
+	var inst = RAMDatabase[T]{convertToBytesDBFunc: convertToBytesDBFunc, parseDBFunc: parseDBFunc}
 	//inst.oneValueLength = uint64(emptyObjectBytes.Len())
 	inst.data = webtools.MakeSafeMap[string, T]()
 	inst.path = path
 	inst.Logger = webtools.NewConsoleLoggerForTraffic("RAMDB", false)
-	inst.emptyObject = emptyObject
 	return &inst, nil
 }
 
@@ -107,7 +112,7 @@ func (db *RAMDatabase[T]) Save() error {
 	//Write map values
 	for _, v := range db.data.GetData() {
 		ConvertStringToBytesDB(file, v.Key)
-		v.Value.ConvertToBytesDB(file)
+		db.convertToBytesDBFunc(file, v.Value)
 		file.Sync()
 	}
 	db.Logger.Log(2, "Database saved.")
@@ -148,8 +153,7 @@ func (db *RAMDatabase[T]) Load() error {
 		}
 
 		//Read value
-		value := MakeEmptyCopy(db.emptyObject)
-		err = value.ParseBytesDB(file)
+		value, err := db.parseDBFunc(file)
 		if err != nil {
 			if err == io.EOF {
 				break

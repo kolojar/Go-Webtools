@@ -84,7 +84,7 @@ func (sv *Server) ConfigureTCP(address string, isFramed bool) error {
 
 // ConfigureWS configures usage of WebSockets on this server
 func (sv *Server) ConfigureWS(address string) {
-	sv.httpServer = httptools.NewWebSocketServer(address, sv.readFuncWS, nil, "", sv.reportTraffic)
+	sv.httpServer = httptools.NewWebSocketServer(address, sv.readFuncWS, nil, "", false, false, sv.reportTraffic)
 	sv.httpServer.GetLogger().Prefix = "Universal - " + sv.httpServer.GetLogger().Prefix
 }
 

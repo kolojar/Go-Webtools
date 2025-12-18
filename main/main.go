@@ -69,7 +69,7 @@ func main() {
 		}
 	case "hs":
 		{
-			sv := httptools.NewServer("0.0.0.0:7777", nil, "../encryption/", false)
+			sv := httptools.NewServer("0.0.0.0:7777", nil, "../encryption/", false, true)
 			sv.HostPaths["/test"] = "../test"
 			sv.UseDirectoryListing = true
 			sv.Start()
@@ -167,7 +167,7 @@ func main() {
 		}
 	case "wss":
 		{
-			sv := httptools.NewWebSocketServer("127.0.0.1:1234", readFuncHTTPWsSv, nil, "", true)
+			sv := httptools.NewWebSocketServer("127.0.0.1:1234", readFuncHTTPWsSv, nil, "", false, true, true)
 			sv.GetHTTPServer().HostPaths["/test"] = "./test"
 			sv.Start()
 		}
@@ -275,7 +275,7 @@ func main() {
 		}
 	case "wsis":
 		{
-			sv := httptools.NewWebSocketInstanceServer("127.0.0.1:1234", readFuncHTTPWsInstanceSv, nil, "", true)
+			sv := httptools.NewWebSocketInstanceServer("127.0.0.1:1234", readFuncHTTPWsInstanceSv, nil, "", false, true, true)
 			sv.GetWSServer().GetHTTPServer().HostPaths["/test"] = "./test"
 			sv.Start()
 		}
