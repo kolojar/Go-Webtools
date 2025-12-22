@@ -1,0 +1,121 @@
+package database
+
+import (
+	"encoding/binary"
+	"errors"
+	"io"
+	"math"
+)
+
+/*
+ErrValueTooLong informs that value is too long for this string. Use errors.Is() for checking
+*/
+var ErrValueTooLong error = errors.New("value too long")
+
+/*
+LimitedString is string with limited byte size
+*/
+type LimitedString struct {
+	value               string
+	lengthStoreByteSize uint8
+}
+
+/*
+MakeLimitedString creates new limited string.
+Parameter lengthStoreByteSize sets, how big (how much bytes) will the lenght parameter saved in database. It is calulcated like this: 2^(8*lengthStoreByteSize)-1 = maxStringLength
+Recommended max size is 8 -> 64 bytes (int64 of real length)
+*/
+func MakeLimitedString(lengthStoreByteSize uint8) LimitedString {
+	return LimitedString{lengthStoreByteSize: lengthStoreByteSize}
+}
+
+/*
+Get gets the value
+*/
+func (limitedString *LimitedString) Get() string {
+	return limitedString.value
+}
+
+func (limitedString *LimitedString) calculateMaxLength() int {
+	return int(math.Pow(2, float64(limitedString.lengthStoreByteSize)*8))
+}
+
+/*
+Set sets the value
+*/
+func (limitedString *LimitedString) Set(value string) error {
+	if len(value) >= limitedString.calculateMaxLength() {
+		return ErrValueTooLong
+	}
+	limitedString.value = value
+	return nil
+}
+
+/*
+ConvertLimitedStringToBytesDB converts LimitedString to bytes, writes byte size in prefix
+*/
+func ConvertLimitedStringToBytesDB(writer io.Writer, limitedString LimitedString) error {
+	//Write prefix length
+	err := ConvertUint8ToBytesDB(writer, limitedString.lengthStoreByteSize)
+	if err != nil {
+		return err
+	}
+
+	//Write data
+	return ConvertLimitedStringStaticSizeToBytes(writer, limitedString)
+}
+
+/*
+ConvertLimitedStringStaticSizeToBytes converts LimitedString to bytes, does not write byte size in prefix, do not use with DB
+*/
+func ConvertLimitedStringStaticSizeToBytes(writer io.Writer, limitedString LimitedString) error {
+	//Write length
+	dataByte := make([]byte, 8)
+	binary.BigEndian.PutUint64(dataByte, uint64(len(limitedString.value)))
+	_, err := writer.Write(dataByte[len(dataByte)-1-int(limitedString.lengthStoreByteSize):])
+	if err != nil {
+		return err
+	}
+
+	//Write data
+	_, err = writer.Write([]byte(limitedString.value))
+	return err
+}
+
+/*
+ParseLimitedStringDB parses bytes from reader to LimitedString, reads byte size in prefix
+*/
+func ParseLimitedStringDB(reader io.Reader) (LimitedString, error) {
+	//Read length
+	lenghtPrefix, err := ParseUint8DB(reader)
+	if err != nil {
+		return LimitedString{}, err
+	}
+
+	//Read data
+	return ParseLimitedStringStaticSize(reader, lenghtPrefix)
+}
+
+/*
+ParseLimitedStringStaticSize parses bytes from reader to LimitedString, does not read byte size in prefix, do not use with DB
+*/
+func ParseLimitedStringStaticSize(reader io.Reader, lengthStoreByteSize uint8) (LimitedString, error) {
+	//Read length
+	lengthBytes := make([]byte, lengthStoreByteSize)
+	_, err := reader.Read(lengthBytes)
+	if err != nil {
+		return LimitedString{}, err
+	}
+	lengthBytesNormalized := make([]byte, 8)
+	for i := 0; i < len(lengthBytes); i++ {
+		lengthBytesNormalized[7-i] = lengthBytes[i]
+	}
+
+	//Read data
+	data := make([]byte, binary.BigEndian.Uint64(lengthBytesNormalized))
+	_, err = reader.Read(data)
+	if err != nil {
+		return LimitedString{}, err
+	}
+	return LimitedString{value: string(data), lengthStoreByteSize: lengthStoreByteSize}, nil
+}
