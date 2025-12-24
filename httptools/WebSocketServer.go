@@ -408,6 +408,7 @@ func (sv *WebSocketServer) readFuncLocal(cl *tcp.ClientUniversal, data []byte, s
 	if status == webtools.ConnectStatus || status == webtools.DisconnectStatus {
 		if readFunc != nil {
 			readFunc(httpConn, data, status, httpConn.IsBinary)
+			return
 		}
 	}
 
