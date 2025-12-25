@@ -462,6 +462,7 @@ func (sv *Server) HandleError(w http.ResponseWriter, errText string, code int) {
 	//Send data
 	data = strings.ReplaceAll(data, "{ERROR}", errText)
 	w.Header().Add("Content-Type", "text/html")
+	w.WriteHeader(code)
 	fmt.Fprint(w, data)
 }
 
