@@ -276,9 +276,9 @@ func JoinPaths(path1 string, path2 string) string {
 /*
 TryHandleHTTPFile tries to handle file or folder request
 */
-func TryHandleHTTPFile(w http.ResponseWriter, filePath string, contentType string, urlPath string, sv *Server) error {
+func TryHandleHTTPFile(w http.ResponseWriter, filePath string, urlPath string, sv *Server) error {
 	//Read data
-	data, isDir, err := ReadFileString(filePath)
+	data, isDir, err := ReadFile(filePath)
 	if err != nil {
 		return err
 	}
@@ -295,28 +295,34 @@ func TryHandleHTTPFile(w http.ResponseWriter, filePath string, contentType strin
 	}
 
 	//Send data
-	w.Header().Add("Content-Type", contentType)
-	fmt.Fprint(w, data)
+	cType := SortHTTPContentType(filePath, data)
+	fmt.Println(filePath, cType)
+	w.Header().Add("Content-Type", cType)
+	fmt.Fprint(w, string(data))
 	return nil
 }
 
 /*
 SortHTTPContentType sorts type of file
 */
-func SortHTTPContentType(path string) string {
-	contentType := "text/html"
-	if strings.HasSuffix(path, ".css") {
-		contentType = "text/css"
+func SortHTTPContentType(path string, data []byte) string {
+	if strings.HasSuffix(path, ".html") {
+		return "text/html"
+	} else if strings.HasSuffix(path, ".css") {
+		return "text/css"
 	} else if strings.HasSuffix(path, ".js") {
-		contentType = "text/javascript"
+		return "text/javascript"
 	} else if strings.HasSuffix(path, ".map") {
-		contentType = "text/json" // JS Map
+		return "text/json" // JS Map
 	} else if strings.HasSuffix(path, ".ts") {
-		contentType = "text/x.typescript"
+		return "text/x.typescript"
 	} else if strings.HasSuffix(path, ".svg") {
-		contentType = "image/svg+xml"
+		return "image/svg+xml"
 	}
-	return contentType
+	if data == nil {
+		return "text/plain"
+	}
+	return http.DetectContentType(data)
 }
 
 /*
@@ -328,14 +334,14 @@ func (sv *Server) TryHandleHTTPFileRelative(w http.ResponseWriter, _ *http.Reque
 	if err != nil {
 		return err
 	}
-	return TryHandleHTTPFile(w, JoinPaths(sv.rootPath, getPath), SortHTTPContentType(getPath), getPath, sv)
+	return TryHandleHTTPFile(w, JoinPaths(sv.rootPath, getPath), getPath, sv)
 }
 
 /*
 HandleHTTPGet handles directory access get request
 */
 func HandleHTTPGet(w http.ResponseWriter, r *http.Request, realPath string, sv *Server) error {
-	return TryHandleHTTPFile(w, realPath, SortHTTPContentType(r.URL.Path), r.URL.Path, sv)
+	return TryHandleHTTPFile(w, realPath, r.URL.Path, sv)
 }
 
 /*
