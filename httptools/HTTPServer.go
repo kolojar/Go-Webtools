@@ -318,6 +318,10 @@ func SortHTTPContentType(path string, data []byte) string {
 		return "text/x.typescript"
 	} else if strings.HasSuffix(path, ".svg") {
 		return "image/svg+xml"
+	} else if strings.HasSuffix(path, ".mp4") {
+		return "video/mp4"
+	} else if strings.HasSuffix(path, ".mp3") {
+		return "audio/mpeg"
 	}
 	if data == nil {
 		return "text/plain"
