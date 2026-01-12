@@ -67,13 +67,18 @@ func ConvertAnyToBytesDB(writer io.Writer, data any) error {
 	}
 	if valueOf.Kind() == reflect.Struct {
 		//Struct, pass each values
+		fieldNames := []string{}
 		buf := bytes.Buffer{}
+		typeOf := valueOf.Type()
 		for i := 0; i < valueOf.NumField(); i++ {
 			val := valueOf.Field(i)
-			val.
-			if(val.CanInt()) {
-				err := conver
-				if err != nil
+			field := typeOf.Field(i)
+			fieldNames = append(fieldNames, field.)
+			if val.CanInterface() {
+				err := ConvertAnyToBytesDB(&buf, val.Interface())
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}
