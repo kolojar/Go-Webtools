@@ -5,84 +5,15 @@ Please keep in mind that these databases are really simple
 package database
 
 import (
-	"bytes"
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"io"
 	"os"
-	"reflect"
 	"time"
 	"webtools"
 	"webtools/encryption"
 )
-
-/*
-ConvertAnyToBytesDB converts any to bytes
-*/
-func ConvertAnyToBytesDB(writer io.Writer, data any) error {
-	valueOf := reflect.ValueOf(data)
-	if valueOf.Kind() == reflect.String {
-		return ConvertStringToBytesDB(writer, data.(string))
-	}
-	if valueOf.Kind() == reflect.Uint64 || valueOf.Kind() == reflect.Int64 {
-		return ConvertUint64ToBytesDB(writer, data.(uint64))
-	}
-	if valueOf.Kind() == reflect.Uint8 || valueOf.Kind() == reflect.Int8 {
-		return ConvertUint8ToBytesDB(writer, data.(uint8))
-	}
-	if valueOf.Kind() == reflect.Bool {
-		return ConvertBoolToBytesDB(writer, data.(bool))
-	}
-	if valueOf.Kind() == reflect.Slice {
-		return ConvertSliceToBytesDB(writer, data.([]any), ConvertAnyToBytesDB)
-	}
-	if valueOf.Kind() == reflect.Map {
-		return ConvertMapToBytesDB(writer, data.(map[any]any), ConvertAnyToBytesDB, ConvertAnyToBytesDB)
-	}
-	if valueOf.Kind() == reflect.Func {
-		fmt.Println("Converting FUNC")
-		return os.ErrInvalid
-	}
-	if valueOf.Kind() == reflect.Chan {
-		fmt.Println("Converting CHAN")
-		return os.ErrInvalid
-	}
-	if valueOf.Kind() == reflect.Invalid {
-		fmt.Println("Converting INVALID")
-		return os.ErrInvalid
-	}
-	if valueOf.Kind() == reflect.Interface {
-		fmt.Println("Converting INTERFACE")
-		return os.ErrInvalid
-	}
-	if valueOf.Kind() == reflect.Pointer {
-		fmt.Println("Converting POINTER")
-		return os.ErrInvalid
-	}
-	if valueOf.Kind() == reflect.Array {
-		fmt.Println("Converting ARRAY")
-		return os.ErrInvalid
-	}
-	if valueOf.Kind() == reflect.Struct {
-		//Struct, pass each values
-		fieldNames := []string{}
-		buf := bytes.Buffer{}
-		typeOf := valueOf.Type()
-		for i := 0; i < valueOf.NumField(); i++ {
-			val := valueOf.Field(i)
-			field := typeOf.Field(i)
-			fieldNames = append(fieldNames, field.)
-			if val.CanInterface() {
-				err := ConvertAnyToBytesDB(&buf, val.Interface())
-				if err != nil {
-					return err
-				}
-			}
-		}
-	}
-}
 
 /*
 IDatabaseObject adds support for databases to use this objects
