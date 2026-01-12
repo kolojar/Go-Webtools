@@ -5,15 +5,79 @@ Please keep in mind that these databases are really simple
 package database
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"os"
+	"reflect"
 	"time"
 	"webtools"
 	"webtools/encryption"
 )
+
+/*
+ConvertAnyToBytesDB converts any to bytes
+*/
+func ConvertAnyToBytesDB(writer io.Writer, data any) error {
+	valueOf := reflect.ValueOf(data)
+	if valueOf.Kind() == reflect.String {
+		return ConvertStringToBytesDB(writer, data.(string))
+	}
+	if valueOf.Kind() == reflect.Uint64 || valueOf.Kind() == reflect.Int64 {
+		return ConvertUint64ToBytesDB(writer, data.(uint64))
+	}
+	if valueOf.Kind() == reflect.Uint8 || valueOf.Kind() == reflect.Int8 {
+		return ConvertUint8ToBytesDB(writer, data.(uint8))
+	}
+	if valueOf.Kind() == reflect.Bool {
+		return ConvertBoolToBytesDB(writer, data.(bool))
+	}
+	if valueOf.Kind() == reflect.Slice {
+		return ConvertSliceToBytesDB(writer, data.([]any), ConvertAnyToBytesDB)
+	}
+	if valueOf.Kind() == reflect.Map {
+		return ConvertMapToBytesDB(writer, data.(map[any]any), ConvertAnyToBytesDB, ConvertAnyToBytesDB)
+	}
+	if valueOf.Kind() == reflect.Func {
+		fmt.Println("Converting FUNC")
+		return os.ErrInvalid
+	}
+	if valueOf.Kind() == reflect.Chan {
+		fmt.Println("Converting CHAN")
+		return os.ErrInvalid
+	}
+	if valueOf.Kind() == reflect.Invalid {
+		fmt.Println("Converting INVALID")
+		return os.ErrInvalid
+	}
+	if valueOf.Kind() == reflect.Interface {
+		fmt.Println("Converting INTERFACE")
+		return os.ErrInvalid
+	}
+	if valueOf.Kind() == reflect.Pointer {
+		fmt.Println("Converting POINTER")
+		return os.ErrInvalid
+	}
+	if valueOf.Kind() == reflect.Array {
+		fmt.Println("Converting ARRAY")
+		return os.ErrInvalid
+	}
+	if valueOf.Kind() == reflect.Struct {
+		//Struct, pass each values
+		buf := bytes.Buffer{}
+		for i := 0; i < valueOf.NumField(); i++ {
+			val := valueOf.Field(i)
+			val.
+			if(val.CanInt()) {
+				err := conver
+				if err != nil
+			}
+		}
+	}
+}
 
 /*
 IDatabaseObject adds support for databases to use this objects
@@ -222,14 +286,15 @@ func ConvertPasswordObjectToBytesDB(writer io.Writer, data encryption.PasswordOb
 /*
 ConvertBoolToBytesDB converts bool to bytes
 */
-func ConvertBoolToBytesDB(writer io.Writer, data bool) {
+func ConvertBoolToBytesDB(writer io.Writer, data bool) error {
 	//Write bool
 	dataByte := make([]byte, 1)
 	dataByte[0] = 0
 	if data {
 		dataByte[0] = 1
 	}
-	writer.Write(dataByte)
+	_, err := writer.Write(dataByte)
+	return err
 }
 
 /*
@@ -263,6 +328,60 @@ func ParseTimeDB(reader io.Reader) (time.Time, error) {
 		return time.Unix(0, 0), err
 	}
 	return time.Unix(0, int64(timeNum)), nil
+}
+
+/*
+ConvertMapToBytesDB converts map to bytes
+*/
+func ConvertMapToBytesDB[K comparable, V any](writer io.Writer, data map[K]V, keyConvertDBFunc func(writer io.Writer, data K) error, valueConvertDBFunc func(writer io.Writer, data V) error) error {
+	if keyConvertDBFunc == nil || valueConvertDBFunc == nil {
+		return os.ErrInvalid
+	}
+	err := ConvertUint64ToBytesDB(writer, uint64(len(data)))
+	if err != nil {
+		return err
+	}
+	for k, v := range data {
+		err = keyConvertDBFunc(writer, k)
+		if err != nil {
+			return err
+		}
+		err = valueConvertDBFunc(writer, v)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+/*
+ParseMapDB parses bytes from reader to map
+*/
+func ParseMapDB[K comparable, V any](reader io.Reader, keyParseDBFunc func(reader io.Reader) (K, error), valueParseDBFunc func(reader io.Reader) (V, error)) (map[K]V, error) {
+	if keyParseDBFunc == nil || valueParseDBFunc == nil {
+		return nil, os.ErrInvalid
+	}
+
+	//Read count
+	count, err := ParseUint64DB(reader)
+	if err != nil {
+		return nil, err
+	}
+
+	//Read rows
+	data := map[K]V{}
+	for i := 0; i < int(count); i++ {
+		key, err := keyParseDBFunc(reader)
+		if err != nil {
+			return data, err
+		}
+		value, err := valueParseDBFunc(reader)
+		if err != nil {
+			return data, err
+		}
+		data[key] = value
+	}
+	return data, nil
 }
 
 /*
@@ -320,9 +439,9 @@ func ParseSafeMapDB[K comparable, V any](reader io.Reader, keyParseDBFunc func(r
 }
 
 /*
-ConvertArrayToBytesDB converts array to bytes
+ConvertSliceToBytesDB converts array to bytes
 */
-func ConvertArrayToBytesDB[V any](writer io.Writer, data []V, convertDBFunc func(writer io.Writer, data V) error) error {
+func ConvertSliceToBytesDB[V any](writer io.Writer, data []V, convertDBFunc func(writer io.Writer, data V) error) error {
 	if convertDBFunc == nil {
 		return os.ErrInvalid
 	}
