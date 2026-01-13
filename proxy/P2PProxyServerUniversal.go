@@ -221,6 +221,10 @@ func (sv *P2PProxyServerUniversal) handleUDPReadFunc(udp *udp.Client, _ *net.UDP
 }
 
 func (sv *P2PProxyServerUniversal) handleTCPReadFunc(udp *tcp.ClientSimple, data []byte, status uint8) {
+	if status == webtools.ConnectStatus {
+		return
+	}
+
 	//Get P2P client
 	if udp.UserAttributes["id"] == "" || sv.idToClient.Get(udp.UserAttributes["id"]) == nil {
 		//Connection does not exists
