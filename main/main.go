@@ -118,12 +118,12 @@ func main() {
 	//	}
 	case "hpst":
 		{
-			sv := proxy.NewHTTPProxyServerTCP("127.0.0.1:8880", "127.0.0.1:7777", true)
+			sv := proxy.NewHTTPProxyServerTCP("127.0.0.1:8880", "192.168.0.229:7777", true)
 			sv.Start()
 		}
 	case "hpct":
 		{
-			cl, err := proxy.NewHTTPProxyClientTCP("127.0.0.1:8880/websocket", "127.0.0.1:17777", true)
+			cl, err := proxy.NewHTTPProxyClientTCP("127.0.0.1:8880/websocket", "127.0.0.1:7777", true)
 			if err != nil {
 				fmt.Println(err.Error())
 				return
@@ -152,12 +152,12 @@ func main() {
 	//	}
 	case "tpsu":
 		{
-			sv, _ := proxy.NewTCPProxyServerUDP("127.0.0.1:5679", "127.0.0.1:7777", false)
+			sv, _ := proxy.NewTCPProxyServerUDP("127.0.0.1:5679", "192.168.0.229:7777", false)
 			sv.Start()
 		}
 	case "tpcu":
 		{
-			cl, err := proxy.NewTCPProxyClientUDP("127.0.0.1:5681", "127.0.0.1:17777", false)
+			cl, err := proxy.NewTCPProxyClientUDP("127.0.0.1:5679", "127.0.0.1:7777", false)
 			if err != nil {
 				fmt.Println(err)
 				return
@@ -169,12 +169,12 @@ func main() {
 		}
 	case "tcms":
 		{
-			sv, _ := tcp.NewConnectionMergerServer("127.0.0.1:8882", []string{"127.0.0.1:5679", "127.0.0.1:7777", "127.0.0.1:8888"}, true)
+			sv, _ := tcp.NewConnectionMergerServer("127.0.0.1:8882", []string{"127.0.0.1:5679", "192.168.0.229:7777", "192.168.0.229:8888"}, true)
 			sv.Start()
 		}
 	case "tcmc":
 		{
-			cl, _ := tcp.NewConnectionMergerClient("127.0.0.1:8882", "127.0.0.1", map[string]string{"127.0.0.1:5679": "5681", "127.0.0.1:7777": "17777", "127.0.0.1:8888": "8888"}, true)
+			cl, _ := tcp.NewConnectionMergerClient("127.0.0.1:8882", "127.0.0.1", map[string]string{"127.0.0.1:5679": "5681", "192.168.0.229:7777": "7777", "192.168.0.229:8888": "8888"}, true)
 			cl.Connect()
 			for cl.IsAlive() {
 				time.Sleep(1 * time.Second)
@@ -182,12 +182,12 @@ func main() {
 		}
 	case "hpst2":
 		{
-			sv := proxy.NewHTTPProxyServerTCP("127.0.0.1:9013", "127.0.0.1:9012", true)
+			sv := proxy.NewHTTPProxyServerTCP("127.0.0.1:9013", "192.168.0.229:8888", true)
 			sv.Start()
 		}
 	case "hpct2":
 		{
-			cl, _ := proxy.NewHTTPProxyClientTCP("127.0.0.1:9013", "127.0.0.1:9014", true)
+			cl, _ := proxy.NewHTTPProxyClientTCP("127.0.0.1:9013/websocket", "127.0.0.1:8888", true)
 			cl.Connect()
 			for cl.IsAlive() {
 				time.Sleep(1 * time.Second)
@@ -279,13 +279,41 @@ func main() {
 		}
 	case "p2ppsu":
 		{
-			proxy, _ := proxy.NewP2PProxyServerUDP("127.0.0.1:1234", 5678, "127.0.0.1:7777", true)
+			proxy, _ := proxy.NewP2PProxyServerUDP("127.0.0.1:1234", 5678, "192.168.0.229:7777", true)
 			proxy.Start()
 		}
 	case "p2ppcu":
 		{
 			data, _ := webtools.ReadLineFromConsole("Enter target id: ")
-			proxy, _ := proxy.NewP2PProxyClientUDP("127.0.0.1:1234", 5679, []byte(strings.ReplaceAll(string(data), "\n", "")), "127.0.0.1:17777", true)
+			proxy, _ := proxy.NewP2PProxyClientUDP("127.0.0.1:1234", 5679, []byte(strings.ReplaceAll(string(data), "\n", "")), "127.0.0.1:7777", true)
+			proxy.Connect()
+			for {
+				time.Sleep(100 * time.Millisecond)
+			}
+		}
+	case "p2ppst":
+		{
+			proxy, _ := proxy.NewP2PProxyServerTCP("127.0.0.1:1234", 5680, "192.168.0.229:7777", true)
+			proxy.Start()
+		}
+	case "p2ppct":
+		{
+			data, _ := webtools.ReadLineFromConsole("Enter target id: ")
+			proxy, _ := proxy.NewP2PProxyClientTCP("127.0.0.1:1234", 5681, []byte(strings.ReplaceAll(string(data), "\n", "")), "127.0.0.1:7777", true)
+			proxy.Connect()
+			for {
+				time.Sleep(100 * time.Millisecond)
+			}
+		}
+	case "p2ppst2":
+		{
+			proxy, _ := proxy.NewP2PProxyServerTCP("127.0.0.1:1234", 5682, "192.168.0.229:8888", true)
+			proxy.Start()
+		}
+	case "p2ppct2":
+		{
+			data, _ := webtools.ReadLineFromConsole("Enter target id: ")
+			proxy, _ := proxy.NewP2PProxyClientTCP("127.0.0.1:1234", 5683, []byte(strings.ReplaceAll(string(data), "\n", "")), "127.0.0.1:8888", true)
 			proxy.Connect()
 			for {
 				time.Sleep(100 * time.Millisecond)
@@ -310,10 +338,10 @@ func main() {
 	case "p2pps":
 		{
 			proxy, _ := proxy.NewP2PProxyServerUniversal("127.0.0.1:1234", 5678, true)
-			proxy.ProxiedServices["u7777"] = webtools.ThreeValuePair[bool, bool, string]{A: true, B: false, C: "127.0.0.1:17777"}
-			proxy.ProxiedServices["t7777"] = webtools.ThreeValuePair[bool, bool, string]{A: false, B: true, C: "127.0.0.1:17777"}
-			proxy.ProxiedServices["t8888"] = webtools.ThreeValuePair[bool, bool, string]{A: false, B: true, C: "127.0.0.1:18888"}
-			//proxy.SetupFramingP2PClient(framer)
+			proxy.ProxiedServices["u7777"] = webtools.ThreeValuePair[bool, bool, string]{A: true, B: false, C: "192.168.0.229:7777"}
+			//proxy.ProxiedServices["t7777"] = webtools.ThreeValuePair[bool, bool, string]{A: false, B: true, C: "192.168.0.229:7777"}
+			//proxy.ProxiedServices["t8888"] = webtools.ThreeValuePair[bool, bool, string]{A: false, B: true, C: "192.168.0.229:8888"}
+			proxy.SetupFramingP2PClient(framer)
 			proxy.Start()
 		}
 	case "p2ppc":
@@ -322,10 +350,10 @@ func main() {
 			proxy, _ := proxy.NewP2PProxyClientUniversal("127.0.0.1:1234", 5679, []byte(strings.ReplaceAll(string(data), "\n", "")),
 				map[string]webtools.KeyValuePair[bool, string]{
 					"u7777": {Key: false, Value: "127.0.0.1:7777"},
-					"t7777": {Key: true, Value: "127.0.0.1:7777"},
-					"t8888": {Key: true, Value: "127.0.0.1:8888"},
+					"t7777": {Key: true, Value: "127.0.0.1:17777"},
+					"t8888": {Key: true, Value: "127.0.0.1:18888"},
 				}, true)
-			//proxy.SetupFramingP2PClient(framer)
+			proxy.SetupFramingP2PClient(framer)
 			proxy.Connect()
 			for {
 				time.Sleep(100 * time.Millisecond)

@@ -142,7 +142,7 @@ func (sv *P2PProxyServerUniversal) handleP2PReadFunc(_ *p2p.Client, sourceID []b
 				//Create new connection
 				if entry.A {
 					//UDP Connection
-					cl, err := udp.NewClient(entry.C, sv.handleUDPReadFunc, sv.reportTrafic && entry.B)
+					cl, err := udp.NewClient(entry.C, sv.handleUDPReadFunc, entry.B)
 					cl.Logger.Prefix = "P2PProxyServerUniversal - " + split[1] + " - " + cl.Logger.Prefix
 					if err != nil {
 						cl.Logger.Log(3, "Could not create connection with ID: "+string(frame.ID)+" to server.")
@@ -153,7 +153,7 @@ func (sv *P2PProxyServerUniversal) handleP2PReadFunc(_ *p2p.Client, sourceID []b
 					sv.idToClient.Set(string(frame.ID), &P2PProxyServerUniversalConn{udpClient: cl, tcpClient: nil, ID: frame.ID, sourceID: sourceID, origin: sv})
 				} else {
 					//TCP Connection
-					cl, err := tcp.NewClientSimple(entry.C, -1, false, sv.handleTCPReadFunc, sv.reportTrafic && entry.B)
+					cl, err := tcp.NewClientSimple(entry.C, -1, false, sv.handleTCPReadFunc, entry.B)
 					cl.GetLogger().Prefix = "P2PProxyServerUniversal - " + split[1] + " - " + cl.GetLogger().Prefix
 					if err != nil {
 						cl.GetLogger().Log(3, "Could not create connection with ID: "+string(frame.ID)+" to server.")
@@ -270,4 +270,11 @@ SetupUPnP setups UPnP for P2P Client
 */
 func (sv *P2PProxyServerUniversal) SetupUPnP(upnp *p2p.UPnPServiceManager) error {
 	return sv.p2pClient.SetupUPnP(upnp)
+}
+
+/*
+SetupFramingP2PClient setups UDP framer for P2P client
+*/
+func (sv *P2PProxyServerUniversal) SetupFramingP2PClient(framer *udp.Framer) {
+	sv.p2pClient.SetupFraming(framer)
 }
