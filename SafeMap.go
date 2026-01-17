@@ -27,7 +27,7 @@ type FourValuePair[A any, B any, C any, D any] struct {
 }
 
 // KeyValuePair Value pair
-type KeyValuePair[K comparable, V any] struct {
+type KeyValuePair[K any, V any] struct {
 	Key   K
 	Value V
 }

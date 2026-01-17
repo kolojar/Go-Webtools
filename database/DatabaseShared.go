@@ -5,23 +5,108 @@ Please keep in mind that these databases are really simple
 package database
 
 import (
-	"bytes"
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"reflect"
+	"strings"
 	"time"
 	"webtools"
 	"webtools/encryption"
 )
 
 /*
+DBField is field holder
+*/
+type DBField struct {
+	Name   string
+	Index  int
+	Type   reflect.Type
+	Fields []*DBField
+}
+
+var DBFieldSchemas map[reflect.Type]webtools.KeyValuePair[DBField, string]
+
+func buildDBSchemaString(field *DBField) string {
+	result := "{"
+	for _, v := range field.Fields {
+		if v.Type.Kind() == reflect.Struct {
+			result += buildDBSchemaString(v)
+		} else {
+			result += v.Type.String()
+		}
+		result += "-"
+	}
+	result = strings.TrimSuffix(result, "-")
+	result += "}"
+	return result
+}
+
+/*
+BuildDBSchema creates schema of object and saves it in cache
+*/
+func BuildDBSchema(t reflect.Type) *webtools.KeyValuePair[DBField, string] {
+	fieldGet, has := DBFieldSchemas[t]
+	if has {
+		return &fieldGet
+	}
+	schema := DBField{Fields: make([]*DBField, 0), Type: t, Name: t.Name()}
+
+	//Go trought all fields
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		nameDB := field.Tag.Get("db")
+		if nameDB == "-" {
+			//Ignored
+			continue
+		}
+
+		//Create field
+		var fieldChild *DBField
+		if field.Type.Kind() == reflect.Struct && field.Type.String() != "time.Time" {
+			fieldChild = &BuildDBSchema(field.Type).Key
+			fieldChild.Name = nameDB
+			fieldChild.Index = i
+		} else {
+			fieldChild = &DBField{
+				Name:   nameDB,
+				Type:   field.Type,
+				Index:  i,
+				Fields: nil,
+			}
+		}
+		schema.Fields = append(schema.Fields, fieldChild)
+	}
+	DBFieldSchemas[t] = schema
+	return &schema
+}
+
+func ConvertAnyToBytesDB(writer io.Writer, data any) error {
+	schema := BuildDBSchema(reflect.TypeOf(data))
+
+	//Write schema in string
+	schemaString := "{"
+	//_, err := writer.Write([]byte("{"))
+	//if err != nil {
+	//	return err
+	//}
+
+	//Write fields
+	for _, field := range schema.Fields {
+		schemaString += field.Type.String() + "-"
+		if field.Fields != nil {
+			schemaString = strings.TrimSuffix(schemaString, "-")
+		}
+	}
+	return nil
+}
+
+/*
 ConvertAnyToBytesDB converts any to bytes
 */
-func ConvertAnyToBytesDB(writer io.Writer, data any) error {
+/*func ConvertAnyToBytesDB(writer io.Writer, data any) error {
 	valueOf := reflect.ValueOf(data)
 	if valueOf.Kind() == reflect.String {
 		return ConvertStringToBytesDB(writer, data.(string))
@@ -73,7 +158,7 @@ func ConvertAnyToBytesDB(writer io.Writer, data any) error {
 		for i := 0; i < valueOf.NumField(); i++ {
 			val := valueOf.Field(i)
 			field := typeOf.Field(i)
-			fieldNames = append(fieldNames, field.)
+			fieldNames = append(fieldNames, field)
 			if val.CanInterface() {
 				err := ConvertAnyToBytesDB(&buf, val.Interface())
 				if err != nil {
@@ -82,7 +167,7 @@ func ConvertAnyToBytesDB(writer io.Writer, data any) error {
 			}
 		}
 	}
-}
+}*/
 
 /*
 IDatabaseObject adds support for databases to use this objects
