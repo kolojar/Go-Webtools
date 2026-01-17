@@ -7,10 +7,12 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
 	"webtools"
+	"webtools/database"
 	"webtools/httptools"
 	"webtools/p2p"
 	"webtools/proxy"
@@ -298,6 +300,22 @@ func main() {
 			for {
 				time.Sleep(100 * time.Millisecond)
 			}
+		}
+	case "testdb":
+		{
+			v := struct {
+				A []string `db:"a"`
+				B []struct {
+					C string `db:"c"`
+					D uint8  `db:"d"`
+				} `db:"b"`
+				E int `db:"e"`
+			}{A: []string{"text"}, B: []struct {
+				C string "db:\"c\""
+				D uint8  "db:\"d\""
+			}{{C: "data", D: 8}}, E: 1}
+			_, schema := database.BuildDBSchema(reflect.TypeOf(v))
+			fmt.Println(schema)
 		}
 	}
 }

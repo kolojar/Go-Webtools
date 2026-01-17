@@ -27,11 +27,12 @@ type DBField struct {
 	Fields []*DBField
 }
 
-var DBFieldSchemas map[reflect.Type]webtools.KeyValuePair[DBField, string]
+var DBFieldSchemas map[reflect.Type]webtools.KeyValuePair[DBField, string] = make(map[reflect.Type]webtools.KeyValuePair[DBField, string])
 
 func buildDBSchemaString(field *DBField) string {
 	result := "{"
 	for _, v := range field.Fields {
+		result += v.Name + ":"
 		if v.Type.Kind() == reflect.Struct {
 			result += buildDBSchemaString(v)
 		} else {
@@ -47,10 +48,10 @@ func buildDBSchemaString(field *DBField) string {
 /*
 BuildDBSchema creates schema of object and saves it in cache
 */
-func BuildDBSchema(t reflect.Type) *webtools.KeyValuePair[DBField, string] {
+func BuildDBSchema(t reflect.Type) (*DBField, string) {
 	fieldGet, has := DBFieldSchemas[t]
 	if has {
-		return &fieldGet
+		return &fieldGet.Key, fieldGet.Value
 	}
 	schema := DBField{Fields: make([]*DBField, 0), Type: t, Name: t.Name()}
 
@@ -66,7 +67,7 @@ func BuildDBSchema(t reflect.Type) *webtools.KeyValuePair[DBField, string] {
 		//Create field
 		var fieldChild *DBField
 		if field.Type.Kind() == reflect.Struct && field.Type.String() != "time.Time" {
-			fieldChild = &BuildDBSchema(field.Type).Key
+			fieldChild, _ = BuildDBSchema(field.Type)
 			fieldChild.Name = nameDB
 			fieldChild.Index = i
 		} else {
@@ -79,12 +80,13 @@ func BuildDBSchema(t reflect.Type) *webtools.KeyValuePair[DBField, string] {
 		}
 		schema.Fields = append(schema.Fields, fieldChild)
 	}
-	DBFieldSchemas[t] = schema
-	return &schema
+	schemaString := buildDBSchemaString(&schema)
+	DBFieldSchemas[t] = webtools.KeyValuePair[DBField, string]{Key: schema, Value: schemaString}
+	return &schema, schemaString
 }
 
 func ConvertAnyToBytesDB(writer io.Writer, data any) error {
-	schema := BuildDBSchema(reflect.TypeOf(data))
+	schema, _ := BuildDBSchema(reflect.TypeOf(data))
 
 	//Write schema in string
 	schemaString := "{"
