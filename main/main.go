@@ -303,7 +303,7 @@ func main() {
 		}
 	case "testdb":
 		{
-			v := struct {
+			/*v := struct {
 				A []string `db:"a"`
 				B []struct {
 					C string `db:"c"`
@@ -313,7 +313,24 @@ func main() {
 			}{A: []string{"text"}, B: []struct {
 				C string "db:\"c\""
 				D uint8  "db:\"d\""
-			}{{C: "data", D: 8}}, E: 1}
+			}{{C: "data", D: 8}}, E: 1}*/
+			var v []struct {
+				A []string `db:"a"`
+				B []struct {
+					C string `db:"c"`
+					D uint8  `db:"d"`
+				} `db:"b"`
+				E int                `db:"e"`
+				P p2p.UPnPXMLService "db:\"P\""
+			} = make([]struct {
+				A []string "db:\"a\""
+				B []struct {
+					C string "db:\"c\""
+					D uint8  "db:\"d\""
+				} "db:\"b\""
+				E int                "db:\"e\""
+				P p2p.UPnPXMLService "db:\"P\""
+			}, 0)
 			_, schema := database.BuildDBSchema(reflect.TypeOf(v))
 			fmt.Println(schema)
 		}

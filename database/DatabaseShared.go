@@ -21,21 +21,29 @@ import (
 DBField is field holder
 */
 type DBField struct {
-	Name   string
-	Index  int
-	Type   reflect.Type
-	Fields []*DBField
+	Name    string
+	Index   int
+	Type    reflect.Type
+	IsSlice bool
+	Fields  []*DBField
 }
 
 var DBFieldSchemas map[reflect.Type]webtools.KeyValuePair[DBField, string] = make(map[reflect.Type]webtools.KeyValuePair[DBField, string])
 
 func buildDBSchemaString(field *DBField) string {
-	result := "{"
+	result := ""
+	if field.IsSlice {
+		result += "[]"
+	}
+	result += "{"
 	for _, v := range field.Fields {
 		result += v.Name + ":"
 		if v.Type.Kind() == reflect.Struct {
 			result += buildDBSchemaString(v)
 		} else {
+			if v.IsSlice {
+				result += "[]"
+			}
 			result += v.Type.String()
 		}
 		result += "-"
@@ -55,31 +63,66 @@ func BuildDBSchema(t reflect.Type) (*DBField, string) {
 	}
 	schema := DBField{Fields: make([]*DBField, 0), Type: t, Name: t.Name()}
 
-	//Go trought all fields
-	for i := 0; i < t.NumField(); i++ {
-		field := t.Field(i)
-		nameDB := field.Tag.Get("db")
-		if nameDB == "-" {
-			//Ignored
-			continue
-		}
+	if t.Kind() == reflect.Struct {
+		//Go trought all fields
+		for i := 0; i < t.NumField(); i++ {
+			field := t.Field(i)
+			nameDB := field.Tag.Get("db")
+			if nameDB == "-" {
+				//Ignored
+				continue
+			} else if (nameDB == "") {
+				nameDB = field.Name
+			}
 
-		//Create field
-		var fieldChild *DBField
-		if field.Type.Kind() == reflect.Struct && field.Type.String() != "time.Time" {
-			fieldChild, _ = BuildDBSchema(field.Type)
-			fieldChild.Name = nameDB
-			fieldChild.Index = i
+			//Create field
+			var fieldChild *DBField
+			var isSlice bool = false
+			fieldType := field.Type
+			if fieldType.Kind() == reflect.Slice {
+				isSlice = true
+				fieldType = fieldType.Elem()
+			}
+			if fieldType.Kind() == reflect.Struct && field.Type.String() != "time.Time" {
+				fieldChild, _ = BuildDBSchema(fieldType)
+				fieldChild.Name = nameDB
+				fieldChild.Index = i
+				fieldChild.IsSlice = isSlice
+			} else {
+				fieldChild = &DBField{
+					Name:    nameDB,
+					Type:    fieldType,
+					Index:   i,
+					Fields:  nil,
+					IsSlice: isSlice,
+				}
+			}
+			schema.Fields = append(schema.Fields, fieldChild)
+		}
+	} else {
+		//Not pure struct
+		var isSlice = false
+		if t.Kind() == reflect.Slice {
+			isSlice = true
+			t = t.Elem()
+		}
+		if t.Kind() == reflect.Struct {
+			//Struct
+			schemaPointer, _ := BuildDBSchema(t)
+			schema = *schemaPointer
+			schema.IsSlice = isSlice
 		} else {
-			fieldChild = &DBField{
-				Name:   nameDB,
-				Type:   field.Type,
-				Index:  i,
-				Fields: nil,
+			//Normal value
+			schema = DBField{
+				Name:    "field",
+				Index:   0,
+				Type:    t,
+				IsSlice: isSlice,
+				Fields:  nil,
 			}
 		}
-		schema.Fields = append(schema.Fields, fieldChild)
 	}
+	//Build string
 	schemaString := buildDBSchemaString(&schema)
 	DBFieldSchemas[t] = webtools.KeyValuePair[DBField, string]{Key: schema, Value: schemaString}
 	return &schema, schemaString
