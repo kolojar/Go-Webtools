@@ -8,6 +8,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"reflect"
@@ -31,16 +32,19 @@ type DBField struct {
 var DBFieldSchemas map[reflect.Type]webtools.KeyValuePair[DBField, string] = make(map[reflect.Type]webtools.KeyValuePair[DBField, string])
 
 func buildDBSchemaString(field *DBField) string {
+	//Resolve array
 	result := ""
 	if field.IsSlice {
 		result += "[]"
 	}
+	//Write all fields
 	result += "{"
 	for _, v := range field.Fields {
 		result += v.Name + ":"
 		if v.Type.Kind() == reflect.Struct {
 			result += buildDBSchemaString(v)
 		} else {
+			//Resolver array for end type
 			if v.IsSlice {
 				result += "[]"
 			}
@@ -61,6 +65,7 @@ func BuildDBSchema(t reflect.Type) (*DBField, string) {
 	if has {
 		return &fieldGet.Key, fieldGet.Value
 	}
+	fmt.Println("making")
 	schema := DBField{Fields: make([]*DBField, 0), Type: t, Name: t.Name()}
 
 	if t.Kind() == reflect.Struct {
@@ -71,7 +76,7 @@ func BuildDBSchema(t reflect.Type) (*DBField, string) {
 			if nameDB == "-" {
 				//Ignored
 				continue
-			} else if (nameDB == "") {
+			} else if nameDB == "" {
 				nameDB = field.Name
 			}
 
@@ -84,11 +89,13 @@ func BuildDBSchema(t reflect.Type) (*DBField, string) {
 				fieldType = fieldType.Elem()
 			}
 			if fieldType.Kind() == reflect.Struct && field.Type.String() != "time.Time" {
+				//Create subschema
 				fieldChild, _ = BuildDBSchema(fieldType)
 				fieldChild.Name = nameDB
 				fieldChild.Index = i
 				fieldChild.IsSlice = isSlice
 			} else {
+				//Add end field
 				fieldChild = &DBField{
 					Name:    nameDB,
 					Type:    fieldType,
@@ -128,23 +135,25 @@ func BuildDBSchema(t reflect.Type) (*DBField, string) {
 	return &schema, schemaString
 }
 
-func ConvertAnyToBytesDB(writer io.Writer, data any) error {
-	schema, _ := BuildDBSchema(reflect.TypeOf(data))
-
-	//Write schema in string
-	schemaString := "{"
-	//_, err := writer.Write([]byte("{"))
-	//if err != nil {
-	//	return err
-	//}
-
-	//Write fields
-	for _, field := range schema.Fields {
-		schemaString += field.Type.String() + "-"
-		if field.Fields != nil {
-			schemaString = strings.TrimSuffix(schemaString, "-")
+func convertAnyToBytesDBValues(writer io.Writer, v reflect.Value, schema *DBField) error {
+	if schema.IsSlice {
+		//Value is slice
+		for i := 0; i < v.Len(); i++ {
+			convertAnyToBytesDBValues() v.Index(i)
 		}
 	}
+}
+
+func ConvertAnyToBytesDB(writer io.Writer, data any) error {
+	schema, schemaString := BuildDBSchema(reflect.TypeOf(data))
+	//Write schema string
+	_, err := writer.Write([]byte(schemaString))
+	if err != nil {
+		return err
+	}
+
+	//Write fields
+
 	return nil
 }
 

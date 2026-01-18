@@ -333,6 +333,9 @@ func main() {
 			}, 0)
 			_, schema := database.BuildDBSchema(reflect.TypeOf(v))
 			fmt.Println(schema)
+			fmt.Println("@")
+			_, schema = database.BuildDBSchema(reflect.TypeOf(v))
+			fmt.Println(schema)
 		}
 	}
 }
