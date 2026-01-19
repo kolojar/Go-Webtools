@@ -135,12 +135,25 @@ func BuildDBSchema(t reflect.Type) (*DBField, string) {
 	return &schema, schemaString
 }
 
+func convertAnyToBytesDBValue(writer io.Writer, v reflect.Value)
+
 func convertAnyToBytesDBValues(writer io.Writer, v reflect.Value, schema *DBField) error {
 	if schema.IsSlice {
 		//Value is slice
-		for i := 0; i < v.Len(); i++ {
-			convertAnyToBytesDBValues() v.Index(i)
+		return ConvertSliceToBytesDB(writer, v.Interface().([]any), ConvertAnyToBytesDB)
+	}
+	for _, field := range schema.Fields {
+		//Write each field
+		fieldVal := v.Field(field.Index)
+		if field.Fields != nil {
+			//Write struct
+			err := convertAnyToBytesDBValues(writer, fieldVal, field)
+			if err != nil {
+				return err
+			}
 		}
+		//Write clasic field
+		convertAnyToBytesDBValue(writer, fieldVal)
 	}
 }
 
