@@ -320,7 +320,7 @@ func main() {
 					C string `db:"c"`
 					D uint8  `db:"d"`
 				} `db:"b"`
-				E int                `db:"e"`
+				E map[int]string     `db:"e"`
 				P p2p.UPnPXMLService "db:\"P\""
 			} = make([]struct {
 				A []string "db:\"a\""
@@ -328,14 +328,47 @@ func main() {
 					C string "db:\"c\""
 					D uint8  "db:\"d\""
 				} "db:\"b\""
-				E int                "db:\"e\""
+				E map[int]string     "db:\"e\""
 				P p2p.UPnPXMLService "db:\"P\""
 			}, 0)
+			v = append(v, struct {
+				A []string "db:\"a\""
+				B []struct {
+					C string "db:\"c\""
+					D uint8  "db:\"d\""
+				} "db:\"b\""
+				E map[int]string     "db:\"e\""
+				P p2p.UPnPXMLService "db:\"P\""
+			}{
+				A: []string{"a", "b", "c"},
+				B: append(make([]struct {
+					C string "db:\"c\""
+					D uint8  "db:\"d\""
+				}, 0), struct {
+					C string "db:\"c\""
+					D uint8  "db:\"d\""
+				}{C: "textC", D: 1}),
+				E: map[int]string{5: "abc", 6: "XYZ"},
+				P: p2p.UPnPXMLService{},
+			})
+
 			_, schema := database.BuildDBSchema(reflect.TypeOf(v))
 			fmt.Println(schema)
 			fmt.Println("@")
 			_, schema = database.BuildDBSchema(reflect.TypeOf(v))
 			fmt.Println(schema)
+
+			//Test write
+			//Delete file if exists
+			os.Remove("test.db")
+
+			//Create DB file
+			file, err := os.Create("test.db")
+			if err != nil {
+				panic(err)
+			}
+			defer file.Close()
+			database.ConvertAnyToBytesDB(file, v)
 		}
 	}
 }

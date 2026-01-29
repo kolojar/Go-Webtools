@@ -8,11 +8,8 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"io"
 	"os"
-	"reflect"
-	"strings"
 	"time"
 	"webtools"
 	"webtools/encryption"
@@ -21,17 +18,17 @@ import (
 /*
 DBField is field holder
 */
-type DBField struct {
+/*type DBField struct {
 	Name    string
 	Index   int
 	Type    reflect.Type
 	IsSlice bool
 	Fields  []*DBField
-}
+}*/
 
-var DBFieldSchemas map[reflect.Type]webtools.KeyValuePair[DBField, string] = make(map[reflect.Type]webtools.KeyValuePair[DBField, string])
+//var DBFieldSchemas map[reflect.Type]webtools.KeyValuePair[DBField, string] = make(map[reflect.Type]webtools.KeyValuePair[DBField, string])
 
-func buildDBSchemaString(field *DBField) string {
+/*func buildDBSchemaStringOLD(field *DBField) string {
 	//Resolve array
 	result := ""
 	if field.IsSlice {
@@ -44,23 +41,26 @@ func buildDBSchemaString(field *DBField) string {
 		if v.Type.Kind() == reflect.Struct {
 			result += buildDBSchemaString(v)
 		} else {
-			//Resolver array for end type
 			if v.IsSlice {
 				result += "[]"
 			}
 			result += v.Type.String()
+			if v.Type.Kind() == reflect.Map {
+				//Is Map
+				result += "<" + v.Fields[0].Type.String() + "," + v.Fields[1].Type.String() + ">"
+			}
 		}
 		result += "-"
 	}
 	result = strings.TrimSuffix(result, "-")
 	result += "}"
 	return result
-}
+}*/
 
 /*
 BuildDBSchema creates schema of object and saves it in cache
 */
-func BuildDBSchema(t reflect.Type) (*DBField, string) {
+/*func BuildDBSchemaOLD(t reflect.Type) (*DBField, string) {
 	fieldGet, has := DBFieldSchemas[t]
 	if has {
 		return &fieldGet.Key, fieldGet.Value
@@ -94,6 +94,29 @@ func BuildDBSchema(t reflect.Type) (*DBField, string) {
 				fieldChild.Name = nameDB
 				fieldChild.Index = i
 				fieldChild.IsSlice = isSlice
+			} else if fieldType.Kind() == reflect.Map {
+				//Map
+				fieldChild = &DBField{
+					Name:    nameDB,
+					Index:   i,
+					Type:    fieldType,
+					IsSlice: isSlice,
+					Fields:  make([]*DBField, 0),
+				}
+				fieldChild.Fields = append(fieldChild.Fields, &DBField{
+					Name:    "key",
+					Index:   -1,
+					Type:    fieldType.Key(),
+					IsSlice: false,
+					Fields:  nil,
+				})
+				fieldChild.Fields = append(fieldChild.Fields, &DBField{
+					Name:    "value",
+					Index:   -1,
+					Type:    fieldType.Elem(),
+					IsSlice: false,
+					Fields:  nil,
+				})
 			} else {
 				//Add end field
 				fieldChild = &DBField{
@@ -118,6 +141,29 @@ func BuildDBSchema(t reflect.Type) (*DBField, string) {
 			schemaPointer, _ := BuildDBSchema(t)
 			schema = *schemaPointer
 			schema.IsSlice = isSlice
+		} else if t.Kind() == reflect.Map {
+			//Map
+			schema = DBField{
+				Name:    "field",
+				Index:   0,
+				Type:    t,
+				IsSlice: isSlice,
+				Fields:  make([]*DBField, 2),
+			}
+			schema.Fields = append(schema.Fields, &DBField{
+				Name:    "key",
+				Index:   -1,
+				Type:    t.Key(),
+				IsSlice: false,
+				Fields:  nil,
+			})
+			schema.Fields = append(schema.Fields, &DBField{
+				Name:    "value",
+				Index:   -1,
+				Type:    t.Elem(),
+				IsSlice: false,
+				Fields:  nil,
+			})
 		} else {
 			//Normal value
 			schema = DBField{
@@ -133,14 +179,68 @@ func BuildDBSchema(t reflect.Type) (*DBField, string) {
 	schemaString := buildDBSchemaString(&schema)
 	DBFieldSchemas[t] = webtools.KeyValuePair[DBField, string]{Key: schema, Value: schemaString}
 	return &schema, schemaString
-}
+}*/
 
-func convertAnyToBytesDBValue(writer io.Writer, v reflect.Value)
+//func convertAnyToBytesDBValue(writer io.Writer, v reflect.Value) error {
+//	switch v.Kind() {
+//	case reflect.Int, reflect.Uint, reflect.Int64, reflect.Uint64:
+//		{
+//			return ConvertUint64ToBytesDB(writer, v.Uint())
+//		}
+//	case reflect.Int8, reflect.Uint8:
+//		{
+//			return ConvertUint8ToBytesDB(writer, uint8(v.Uint()))
+//		}
+//	case reflect.String:
+//		{
+//			return ConvertStringToBytesDB(writer, v.String())
+//		}
+//	case reflect.Bool:
+//		{
+//			return ConvertBoolToBytesDB(writer, v.Bool())
+//		}
+//	case reflect.Map:
+//		{
+//			m := reflect.MakeMap(v.Type())
+//			for _, k := range v.MapKeys() {
+//				m.SetMapIndex(k, v.MapIndex(k))
+//			}
+//			return ConvertMapToBytesDB(writer, m.Interface().(map[any]any), convertAnyValueToBytesDBValue, convertAnyValueToBytesDBValue)
+//		}
+//	case reflect.Array:
+//		{
+//			return ConvertSliceToBytesDB(writer, v.Interface().([]any), convertAnyValueToBytesDBValue)
+//		}
+//	default:
+//		{
+//			panic("unknow type or unsupported: " + v.Kind().String())
+//		}
+//	}
+//}
 
-func convertAnyToBytesDBValues(writer io.Writer, v reflect.Value, schema *DBField) error {
+/*func convertAnyToBytesDBValues(writer io.Writer, v reflect.Value, schema *DBField) error {
 	if schema.IsSlice {
 		//Value is slice
-		return ConvertSliceToBytesDB(writer, v.Interface().([]any), ConvertAnyToBytesDB)
+		err := ConvertUint64ToBytesDB(writer, uint64(v.Len()))
+		if err != nil {
+			return err
+		}
+		for i := 0; i < v.Len(); i++ {
+			//Write each field
+			fieldVal := v.Index(i)
+			if schema.Fields != nil {
+				//Write struct
+				err := convertAnyToBytesDBValues(writer, fieldVal, schema.Fields[i])
+				if err != nil {
+					return err
+				}
+			}
+			//Write clasic field
+			err := convertAnyToBytesDBValue(writer, fieldVal)
+			if err != nil {
+				return err
+			}
+		}
 	}
 	for _, field := range schema.Fields {
 		//Write each field
@@ -153,11 +253,15 @@ func convertAnyToBytesDBValues(writer io.Writer, v reflect.Value, schema *DBFiel
 			}
 		}
 		//Write clasic field
-		convertAnyToBytesDBValue(writer, fieldVal)
+		err := convertAnyToBytesDBValue(writer, fieldVal)
+		if err != nil {
+			return err
+		}
 	}
-}
+	return nil
+}*/
 
-func ConvertAnyToBytesDB(writer io.Writer, data any) error {
+/*func ConvertAnyToBytesDB(writer io.Writer, data any) error {
 	schema, schemaString := BuildDBSchema(reflect.TypeOf(data))
 	//Write schema string
 	_, err := writer.Write([]byte(schemaString))
@@ -166,9 +270,8 @@ func ConvertAnyToBytesDB(writer io.Writer, data any) error {
 	}
 
 	//Write fields
-
-	return nil
-}
+	return convertAnyToBytesDBValues(writer, reflect.ValueOf(data), schema)
+}*/
 
 /*
 ConvertAnyToBytesDB converts any to bytes
@@ -300,6 +403,54 @@ func ParseUint64DB(reader io.Reader) (uint64, error) {
 		return 0, err
 	}
 	return binary.BigEndian.Uint64(dataByte), nil
+}
+
+/*
+ConvertUint16ToBytesDB converts uint16 to bytes
+*/
+func ConvertUint16ToBytesDB(writer io.Writer, data uint16) error {
+	//Write number
+	dataByte := make([]byte, 2)
+	binary.BigEndian.PutUint16(dataByte, data)
+	_, err := writer.Write(dataByte)
+	return err
+}
+
+/*
+ParseUint16DB parses bytes from reader to uint16
+*/
+func ParseUint16DB(reader io.Reader) (uint16, error) {
+	//Read number
+	dataByte := make([]byte, 2)
+	_, err := reader.Read(dataByte)
+	if err != nil {
+		return 0, err
+	}
+	return binary.BigEndian.Uint16(dataByte), nil
+}
+
+/*
+ConvertUint32ToBytesDB converts uint32 to bytes
+*/
+func ConvertUint32ToBytesDB(writer io.Writer, data uint32) error {
+	//Write number
+	dataByte := make([]byte, 4)
+	binary.BigEndian.PutUint32(dataByte, data)
+	_, err := writer.Write(dataByte)
+	return err
+}
+
+/*
+ParseUint32DB parses bytes from reader to uint32
+*/
+func ParseUint32DB(reader io.Reader) (uint32, error) {
+	//Read number
+	dataByte := make([]byte, 4)
+	_, err := reader.Read(dataByte)
+	if err != nil {
+		return 0, err
+	}
+	return binary.BigEndian.Uint32(dataByte), nil
 }
 
 /*
