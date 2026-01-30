@@ -320,7 +320,7 @@ func main() {
 					C string `db:"c"`
 					D uint8  `db:"d"`
 				} `db:"b"`
-				E map[int]string     `db:"e"`
+				E *map[int]string     `db:"e"`
 				P p2p.UPnPXMLService "db:\"P\""
 			} = make([]struct {
 				A []string "db:\"a\""
@@ -328,7 +328,7 @@ func main() {
 					C string "db:\"c\""
 					D uint8  "db:\"d\""
 				} "db:\"b\""
-				E map[int]string     "db:\"e\""
+				E *map[int]string     "db:\"e\""
 				P p2p.UPnPXMLService "db:\"P\""
 			}, 0)
 			v = append(v, struct {
@@ -337,7 +337,7 @@ func main() {
 					C string "db:\"c\""
 					D uint8  "db:\"d\""
 				} "db:\"b\""
-				E map[int]string     "db:\"e\""
+				E *map[int]string     "db:\"e\""
 				P p2p.UPnPXMLService "db:\"P\""
 			}{
 				A: []string{"a", "b", "c"},
@@ -348,7 +348,7 @@ func main() {
 					C string "db:\"c\""
 					D uint8  "db:\"d\""
 				}{C: "textC", D: 1}),
-				E: map[int]string{5: "abc", 6: "XYZ"},
+				E: &map[int]string{5: "abc", 6: "XYZ"},
 				P: p2p.UPnPXMLService{},
 			})
 

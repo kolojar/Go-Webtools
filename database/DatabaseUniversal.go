@@ -1,8 +1,10 @@
 package database
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"os"
 	"reflect"
 	"strings"
 	"webtools"
@@ -25,14 +27,17 @@ var dbFieldSchemas map[reflect.Type]webtools.KeyValuePair[DBField, string] = map
 
 func buildDBSchemaField(t reflect.Type, name string, index int) DBField {
 	tElem := t
+	if t.Kind() == reflect.Pointer || t.Kind() == reflect.Ptr {
+		tElem = t.Elem()
+	}
 	isSlice := false
 	isMap := false
-	if t.Kind() == reflect.Slice {
+	if tElem.Kind() == reflect.Slice {
 		//Is slice
-		tElem = t.Elem()
+		tElem = tElem.Elem()
 		isSlice = true
 	}
-	if t.Kind() == reflect.Map {
+	if tElem.Kind() == reflect.Map {
 		//Is map
 		isMap = true
 	}
@@ -151,8 +156,9 @@ func convertAnyValueToBytesDBValue(writer io.Writer, k reflect.Kind, v reflect.V
 		return ConvertUint16ToBytesDB(writer, uint16(v.Uint()))
 	case reflect.Uint32:
 		return ConvertUint32ToBytesDB(writer, uint32(v.Uint()))
+	default:
+		return os.ErrInvalid
 	}
-	return nil
 }
 
 //	func convertFieldStructToBytesDB(writer io.Writer, schema *DBStruct, v reflect.Value) error {
@@ -166,6 +172,13 @@ func convertAnyValueToBytesDBValue(writer io.Writer, k reflect.Kind, v reflect.V
 //	}
 func convertFieldValueToBytesDB(writer io.Writer, schema DBField, v reflect.Value) error {
 	fmt.Println("writing: " + buildDBSchemaString(schema))
+	if v.Kind() == reflect.Pointer {
+		if v.IsNil() {
+			panic("pointer is nil")
+		} else {
+			v = v.Elem()
+		}
+	}
 	if schema.IsSlice {
 		//Slice
 		schemaLocal := schema
@@ -226,11 +239,78 @@ func convertFieldValueToBytesDB(writer io.Writer, schema DBField, v reflect.Valu
 ConvertAnyToBytesDB converts any value to bytes
 */
 func ConvertAnyToBytesDB(writer io.Writer, data any) error {
+	//Try to convert some basic type
+	v := reflect.ValueOf(data)
+	err := convertAnyValueToBytesDBValue(writer, v.Kind(), v)
+	if err != nil && !errors.Is(os.ErrInvalid, err) {
+		return err
+	}
+
+	//Convert complex types
 	t := reflect.TypeOf(data)
 	schema, schemaString := BuildDBSchema(t)
-	err := ConvertStringToBytesDB(writer, schemaString)
+	err = ConvertStringToBytesDB(writer, schemaString)
 	if err != nil {
 		return err
 	}
-	return convertFieldValueToBytesDB(writer, schema, reflect.ValueOf(data))
+	err = convertFieldValueToBytesDB(writer, schema, reflect.ValueOf(data))
+	if err != nil {
+		return err
+	}
+	_, err = writer.Write([]byte("*EOF*"))
+	return err
+}
+
+func parseAnyValueToBytesDBValue(reader io.Reader, k reflect.Kind) (reflect.Value, error) {
+	var err error
+	var result any
+	switch k {
+	case reflect.Bool:
+		result, err = ParseBoolDB(reader)
+		break
+	case reflect.Uint, reflect.Uint64:
+		result, err = ParseUint64DB(reader)
+		break
+	case reflect.Int, reflect.Int64:
+		result, err = ParseUint64DB(reader)
+		result = result.(int64)
+		break
+	case reflect.Uint8:
+		result, err = ParseUint8DB(reader)
+		break
+	case reflect.Int8:
+		result, err = ParseBoolDB(reader)
+		result = result.(int8)
+		break
+	case reflect.String:
+		result, err = ParseStringDB(reader)
+		break
+	case reflect.Int16:
+		result, err = ParseUint16DB(reader)
+		result = result.(int16)
+		break
+	case reflect.Int32:
+		result, err = ParseUint32DB(reader)
+		result = result.(int32)
+		break
+	case reflect.Uint16:
+		result, err = ParseUint16DB(reader)
+		break
+	case reflect.Uint32:
+		result, err = ParseUint32DB(reader)
+		break
+	default:
+		return reflect.ValueOf(nil), os.ErrInvalid
+	}
+	if err != nil {
+		return reflect.ValueOf(nil), err
+	}
+	return reflect.ValueOf(result), nil
+}
+
+/*
+ParseAnyDB parses bytes to generic T object (can parse any type)
+*/
+func ParseAnyDB[T any](writer io.Writer) (T, error) {
+
 }
