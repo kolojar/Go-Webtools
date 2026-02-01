@@ -11,16 +11,64 @@ import (
 )
 
 /*
+ICustomDBType is interface for creating custom data types for DB
+It must be registered and it does not provide compatibility for fixing (when standard of the custom type changes, data will be lost)
+Registration using RegisterCustomDBType function or when encoding - it is added automatically
+CanParseDBToAny returns true if value can be parsed to any (not user initialized) object (created empty object with no value). -> False is when it needs prepared object (not all values are written in DB file) -> Examples: LimitedString X SmartDBString
+*/
+type ICustomDBType interface {
+	ConvertToBytesDB(writer io.Writer) error
+	ParseBytesDB(reader io.Reader) error
+	CanParseDBToAny() bool
+}
+
+var registeredCustomTypes = make([]reflect.Type, 0)
+
+/*
+RegisterCustomDBType registers type for database.
+These types do not provide compatibility for fixing (when standard of the custom type changes, data will be lost)
+It is recommended to use the stucts as much as possible
+*/
+func RegisterCustomDBType[T ICustomDBType]() {
+	RegisterCustomDBTypeReflect(reflect.TypeFor[T]())
+}
+
+/*
+RegisterCustomDBTypeReflect registers type for database.
+These types do not provide compatibility for fixing (when standard of the custom type changes, data will be lost)
+It is recommended to use the stucts as much as possible
+*/
+func RegisterCustomDBTypeReflect(t reflect.Type) {
+	if t.Kind() == reflect.Pointer || t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+	for i := 0; i < len(registeredCustomTypes); i++ {
+		if t == registeredCustomTypes[i] {
+			return
+		}
+	}
+	registeredCustomTypes = append(registeredCustomTypes, t)
+	t = reflect.PointerTo(t)
+	for i := 0; i < len(registeredCustomTypes); i++ {
+		if t == registeredCustomTypes[i] {
+			return
+		}
+	}
+	registeredCustomTypes = append(registeredCustomTypes, t)
+}
+
+/*
 DBField is field holder for dynamic database object
 */
 type DBField struct {
-	Name      string
-	Index     int
-	IsSlice   bool
-	IsMap     bool
-	Type      reflect.Type
-	ValueType reflect.Type
-	Fields    []DBField
+	Name           string
+	Index          int
+	IsSlice        bool
+	IsMap          bool
+	IsCustomDBType bool
+	Type           reflect.Type
+	ValueType      reflect.Type
+	Fields         []DBField
 }
 
 var dbFieldSchemas map[reflect.Type]webtools.KeyValuePair[DBField, string] = map[reflect.Type]webtools.KeyValuePair[DBField, string]{}
@@ -32,6 +80,7 @@ func buildDBSchemaField(t reflect.Type, name string, index int) DBField {
 	}
 	isSlice := false
 	isMap := false
+	isCustomDBType := false
 	if tElem.Kind() == reflect.Slice {
 		//Is slice
 		tElem = tElem.Elem()
@@ -41,17 +90,22 @@ func buildDBSchemaField(t reflect.Type, name string, index int) DBField {
 		//Is map
 		isMap = true
 	}
+	if tElem.Implements(reflect.TypeFor[ICustomDBType]()) {
+		RegisterCustomDBTypeReflect(tElem)
+		isCustomDBType = true
+	}
 	return DBField{
-		Name:      name,
-		Index:     index,
-		Type:      t,
-		ValueType: tElem,
-		IsSlice:   isSlice,
-		IsMap:     isMap,
+		Name:           name,
+		Index:          index,
+		Type:           t,
+		ValueType:      tElem,
+		IsSlice:        isSlice,
+		IsMap:          isMap,
+		IsCustomDBType: isCustomDBType,
 	}
 }
 
-func buildDBSchemaString(field DBField) string {
+func BuildDBSchemaString(field DBField) string {
 	//Resolve array
 	result := ""
 	if field.IsSlice {
@@ -62,8 +116,8 @@ func buildDBSchemaString(field DBField) string {
 	if field.Fields != nil {
 		for _, v := range field.Fields {
 			result += v.Name + ":"
-			if v.ValueType.Kind() == reflect.Struct {
-				result += buildDBSchemaString(v)
+			if !v.IsCustomDBType && v.ValueType.Kind() == reflect.Struct {
+				result += BuildDBSchemaString(v)
 			} else {
 				if v.IsSlice {
 					result += "[]"
@@ -71,7 +125,7 @@ func buildDBSchemaString(field DBField) string {
 				if v.IsMap {
 					//Is Map
 					//panic("Fix map")
-					result += "map<" + buildDBSchemaString(v.Fields[0]) + "-" + buildDBSchemaString(v.Fields[1]) + ">"
+					result += "map<" + BuildDBSchemaString(v.Fields[0]) + "-" + BuildDBSchemaString(v.Fields[1]) + ">"
 				} else {
 					result += v.ValueType.String()
 				}
@@ -97,24 +151,30 @@ func BuildDBSchema(t reflect.Type) (DBField, string) {
 	}
 
 	//Generate structure
-	fmt.Println("making")
 	schema := buildDBSchemaField(t, "", -1)
-	if schema.ValueType.Kind() == reflect.Struct {
-		//Build struct
-		schema.Fields = make([]DBField, 0)
-		for i := 0; i < schema.ValueType.NumField(); i++ {
-			field := schema.ValueType.Field(i)
-			nameDB := field.Tag.Get("db")
-			if nameDB == "-" {
-				//Ignored
-				continue
-			} else if nameDB == "" {
-				nameDB = field.Name
+	fmt.Println("making " + schema.ValueType.Name())
+	if !schema.IsCustomDBType && schema.ValueType.Kind() == reflect.Struct {
+		//Check for ICustomDBType
+		if schema.ValueType.Implements(reflect.TypeFor[ICustomDBType]()) || reflect.PointerTo(schema.ValueType).Implements(reflect.TypeFor[ICustomDBType]()) {
+			RegisterCustomDBTypeReflect(schema.ValueType)
+			schema.IsCustomDBType = true
+		} else {
+			//Build struct
+			schema.Fields = make([]DBField, 0)
+			for i := 0; i < schema.ValueType.NumField(); i++ {
+				field := schema.ValueType.Field(i)
+				nameDB := field.Tag.Get("db")
+				if nameDB == "-" {
+					//Ignored
+					continue
+				} else if nameDB == "" {
+					nameDB = field.Name
+				}
+				fieldDB, _ := BuildDBSchema(field.Type)
+				fieldDB.Name = nameDB
+				fieldDB.Index = i
+				schema.Fields = append(schema.Fields, fieldDB)
 			}
-			fieldDB, _ := BuildDBSchema(field.Type)
-			fieldDB.Name = nameDB
-			fieldDB.Index = i
-			schema.Fields = append(schema.Fields, fieldDB)
 		}
 	}
 	if schema.IsMap {
@@ -129,7 +189,7 @@ func BuildDBSchema(t reflect.Type) (DBField, string) {
 		fieldDB.Index = -11
 		schema.Fields = append(schema.Fields, fieldDB)
 	}
-	schemaString := buildDBSchemaString(schema)
+	schemaString := BuildDBSchemaString(schema)
 	dbFieldSchemas[t] = webtools.KeyValuePair[DBField, string]{Key: schema, Value: schemaString}
 	return schema, schemaString
 }
@@ -171,7 +231,7 @@ func convertAnyValueToBytesDBValue(writer io.Writer, k reflect.Kind, v reflect.V
 //		return nil
 //	}
 func convertFieldValueToBytesDB(writer io.Writer, schema DBField, v reflect.Value) error {
-	fmt.Println("writing: " + buildDBSchemaString(schema))
+	fmt.Println("writing: " + BuildDBSchemaString(schema))
 	if v.Kind() == reflect.Pointer {
 		if v.IsNil() {
 			panic("pointer is nil")
@@ -219,6 +279,18 @@ func convertFieldValueToBytesDB(writer io.Writer, schema DBField, v reflect.Valu
 			}
 		}
 		return nil
+	}
+	if schema.IsCustomDBType {
+		//User defined type
+		convert, ok := v.Interface().(ICustomDBType)
+		if ok {
+			return convert.ConvertToBytesDB(writer)
+		}
+		convert, ok = v.Addr().Interface().(ICustomDBType)
+		if ok {
+			return convert.ConvertToBytesDB(writer)
+		}
+		return os.ErrInvalid
 	}
 	if schema.Fields == nil {
 		//Normal end value
@@ -268,30 +340,38 @@ func parseAnyValueToBytesDBValue(reader io.Reader, k reflect.Kind) (reflect.Valu
 	case reflect.Bool:
 		result, err = ParseBoolDB(reader)
 		break
-	case reflect.Uint, reflect.Uint64:
+	case reflect.Uint:
+		result, err = ParseUint64DB(reader)
+		result = uint(result.(uint64))
+		break
+	case reflect.Int:
+		result, err = ParseUint64DB(reader)
+		result = int(int64(result.(uint64)))
+		break
+	case reflect.Uint64:
 		result, err = ParseUint64DB(reader)
 		break
-	case reflect.Int, reflect.Int64:
+	case reflect.Int64:
 		result, err = ParseUint64DB(reader)
-		result = result.(int64)
+		result = int64(result.(uint64))
 		break
 	case reflect.Uint8:
 		result, err = ParseUint8DB(reader)
 		break
 	case reflect.Int8:
 		result, err = ParseBoolDB(reader)
-		result = result.(int8)
+		result = int8(result.(uint8))
 		break
 	case reflect.String:
 		result, err = ParseStringDB(reader)
 		break
 	case reflect.Int16:
 		result, err = ParseUint16DB(reader)
-		result = result.(int16)
+		result = int16(result.(uint16))
 		break
 	case reflect.Int32:
 		result, err = ParseUint32DB(reader)
-		result = result.(int32)
+		result = int32(result.(uint32))
 		break
 	case reflect.Uint16:
 		result, err = ParseUint16DB(reader)
@@ -311,6 +391,44 @@ func parseAnyValueToBytesDBValue(reader io.Reader, k reflect.Kind) (reflect.Valu
 /*
 ParseAnyDB parses bytes to generic T object (can parse any type)
 */
-func ParseAnyDB[T any](writer io.Writer) (T, error) {
+func ParseAnyDB[T any](reader io.Reader) (T, error) {
+	//Try to convert some basic type
+	val, err := parseAnyValueToBytesDBValue(reader, reflect.TypeFor[T]().Kind())
+	if err == nil {
+		//OK
+		result := val.Interface()
+		return result.(T), nil
+	}
+	if err != nil && !errors.Is(os.ErrInvalid, err) {
+		//Invalid type (read error)
+		var zero T
+		return zero, err
+	}
 
+	//Convert complex types
+	result := new(T)
+	err = ParseAnyToObjectDB(reader, result)
+	return *result, err
+}
+
+/*
+ParseAnyToObjectDB parses bytes to generic target object (can parse only complex types)
+*/
+func ParseAnyToObjectDB(reader io.Reader, target any) error {
+	//Check if target is pointer
+	if target == nil {
+		return os.ErrInvalid
+	}
+	v := reflect.ValueOf(target)
+	if v.Kind() != reflect.Pointer && v.Kind() != reflect.Ptr {
+		return os.ErrInvalid
+	}
+
+	//Read structure string
+	structString, err := ParseStringDB(reader)
+	if err != nil {
+		return err
+	}
+	fmt.Println(structString)
+	return nil
 }

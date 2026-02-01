@@ -314,46 +314,17 @@ func main() {
 				C string "db:\"c\""
 				D uint8  "db:\"d\""
 			}{{C: "data", D: 8}}, E: 1}*/
-			var v []struct {
-				A []string `db:"a"`
-				B []struct {
-					C string `db:"c"`
-					D uint8  `db:"d"`
-				} `db:"b"`
-				E *map[int]string     `db:"e"`
-				P p2p.UPnPXMLService "db:\"P\""
-			} = make([]struct {
-				A []string "db:\"a\""
-				B []struct {
-					C string "db:\"c\""
-					D uint8  "db:\"d\""
-				} "db:\"b\""
-				E *map[int]string     "db:\"e\""
-				P p2p.UPnPXMLService "db:\"P\""
-			}, 0)
-			v = append(v, struct {
-				A []string "db:\"a\""
-				B []struct {
-					C string "db:\"c\""
-					D uint8  "db:\"d\""
-				} "db:\"b\""
-				E *map[int]string     "db:\"e\""
-				P p2p.UPnPXMLService "db:\"P\""
-			}{
-				A: []string{"a", "b", "c"},
-				B: append(make([]struct {
-					C string "db:\"c\""
-					D uint8  "db:\"d\""
-				}, 0), struct {
-					C string "db:\"c\""
-					D uint8  "db:\"d\""
-				}{C: "textC", D: 1}),
+			var v = make([]testdbExample, 0)
+			v = append(v, testdbExample{
+				A: []database.SmartDBString{{Value: "a"}, {Value: "b"}, {Value: "c"}},
+				B: append(make([]testdbSubExample, 0), testdbSubExample{C: database.SmartDBString{Value: "textC"}, D: 1}),
 				E: &map[int]string{5: "abc", 6: "XYZ"},
 				P: p2p.UPnPXMLService{},
 			})
 
-			_, schema := database.BuildDBSchema(reflect.TypeOf(v))
+			field, schema := database.BuildDBSchema(reflect.TypeOf(v))
 			fmt.Println(schema)
+			fmt.Println(database.BuildDBSchemaString(field))
 			fmt.Println("@")
 			_, schema = database.BuildDBSchema(reflect.TypeOf(v))
 			fmt.Println(schema)
@@ -369,8 +340,32 @@ func main() {
 			}
 			defer file.Close()
 			database.ConvertAnyToBytesDB(file, v)
+			file.Close()
+
+			//Open file
+			fmt.Println("Reading")
+			file, err = os.Open("test.db")
+			if err != nil {
+				panic(err)
+			}
+			defer file.Close()
+			result := testdbExample{}
+			result, _ = database.ParseAnyDB[testdbExample](file)
+			fmt.Println(result)
 		}
 	}
+}
+
+type testdbSubExample struct {
+	C database.SmartDBString `db:"c"`
+	D uint8                  `db:"d"`
+}
+
+type testdbExample struct {
+	A []database.SmartDBString `db:"a"`
+	B []testdbSubExample       `db:"b"`
+	E *map[int]string          `db:"e"`
+	P p2p.UPnPXMLService       "db:\"P\""
 }
 
 func p2pReadFunc(client *p2p.Client, sourceID []byte, data []byte, _ bool, _ *webtools.ConsoleLogger) {

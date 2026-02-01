@@ -382,6 +382,65 @@ func ParseStringDB(reader io.Reader) (string, error) {
 }
 
 /*
+ConvertUintXToBytesDB converts uint64 to X/8 bytes. Parameter size is X = 8 bites = 1 byte = uint8, ...
+*/
+func ConvertUintXToBytesDB(writer io.Writer, data uint64, size uint8) error {
+	//Write number
+	dataByte := make([]byte, 8)
+	binary.LittleEndian.PutUint64(dataByte, data)
+	_, err := writer.Write(dataByte[0:(webtools.CeilDivision(size, 8))])
+	return err
+}
+
+/*
+ParseUintXDB parses X/8 bytes from reader to uint64. Parameter size is X = 8 bites = 1 byte = uint8, ...
+*/
+func ParseUintXDB(reader io.Reader, size uint8) (uint64, error) {
+	//Read number
+	dataByte := make([]byte, webtools.CeilDivision(size, 8))
+	_, err := reader.Read(dataByte)
+	if err != nil {
+		return 0, err
+	}
+
+	//Convert number
+	parseByte := make([]byte, 8)
+	copy(parseByte, dataByte)
+	return binary.LittleEndian.Uint64(parseByte), nil
+}
+
+/*
+ConvertDynamicUintToBytesDB converts uint64 to dynamic count of bytes
+*/
+func ConvertDynamicUintToBytesDB(writer io.Writer, data uint64) error {
+	//Get byte size
+	size := calculateByteSizeFromInt(uint(data))
+	if size == 255 {
+		return os.ErrInvalid
+	}
+
+	//Write number
+	return ConvertUintXToBytesDB()
+}
+
+/*
+ParseUintXDB parses X/8 bytes from reader to uint64. Parameter size is X = 8 bites = 1 byte = uint8, ...
+*/
+func ParseDynamicUintBytesDB(reader io.Reader) (uint64, error) {
+	//Read number
+	dataByte := make([]byte, webtools.CeilDivision(size, 8))
+	_, err := reader.Read(dataByte)
+	if err != nil {
+		return 0, err
+	}
+
+	//Convert number
+	parseByte := make([]byte, 8)
+	copy(parseByte, dataByte)
+	return binary.LittleEndian.Uint64(parseByte), nil
+}
+
+/*
 ConvertUint64ToBytesDB converts uint64 to bytes
 */
 func ConvertUint64ToBytesDB(writer io.Writer, data uint64) error {
@@ -597,9 +656,9 @@ ConvertBoolToBytesDB converts bool to bytes
 func ConvertBoolToBytesDB(writer io.Writer, data bool) error {
 	//Write bool
 	dataByte := make([]byte, 1)
-	dataByte[0] = 0
+	dataByte[0] = 1
 	if data {
-		dataByte[0] = 1
+		dataByte[0] = 2
 	}
 	_, err := writer.Write(dataByte)
 	return err
@@ -615,7 +674,7 @@ func ParseBoolDB(reader io.Reader) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return dataByte[0] == 1, nil
+	return dataByte[0] == 2, nil
 }
 
 /*
