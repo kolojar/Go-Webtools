@@ -199,9 +199,9 @@ func convertAnyValueToBytesDBValue(writer io.Writer, k reflect.Kind, v reflect.V
 	case reflect.Bool:
 		return ConvertBoolToBytesDB(writer, v.Bool())
 	case reflect.Uint, reflect.Uint64:
-		return ConvertUint64ToBytesDB(writer, v.Uint())
+		return ConvertDynamicUintToBytesDB(writer, v.Uint())
 	case reflect.Int, reflect.Int64:
-		return ConvertUint64ToBytesDB(writer, uint64(v.Int()))
+		return ConvertDynamicUintToBytesDB(writer, uint64(v.Int()))
 	case reflect.Uint8:
 		return ConvertUint8ToBytesDB(writer, uint8(v.Uint()))
 	case reflect.Int8:
@@ -211,11 +211,11 @@ func convertAnyValueToBytesDBValue(writer io.Writer, k reflect.Kind, v reflect.V
 	case reflect.Int16:
 		return ConvertUint16ToBytesDB(writer, uint16(v.Int()))
 	case reflect.Int32:
-		return ConvertUint32ToBytesDB(writer, uint32(v.Int()))
+		return ConvertDynamicUintToBytesDB(writer, uint64(v.Int()))
 	case reflect.Uint16:
 		return ConvertUint16ToBytesDB(writer, uint16(v.Uint()))
 	case reflect.Uint32:
-		return ConvertUint32ToBytesDB(writer, uint32(v.Uint()))
+		return ConvertDynamicUintToBytesDB(writer, v.Uint())
 	default:
 		return os.ErrInvalid
 	}
@@ -245,7 +245,7 @@ func convertFieldValueToBytesDB(writer io.Writer, schema DBField, v reflect.Valu
 		schemaLocal.IsSlice = false
 
 		//Write length
-		err := ConvertUint64ToBytesDB(writer, uint64(v.Len()))
+		err := ConvertDynamicUintToBytesDB(writer, uint64(v.Len()))
 		if err != nil {
 			return err
 		}
@@ -262,7 +262,7 @@ func convertFieldValueToBytesDB(writer io.Writer, schema DBField, v reflect.Valu
 	if schema.IsMap {
 		//Map
 		//Write length
-		err := ConvertUint64ToBytesDB(writer, uint64(v.Len()))
+		err := ConvertDynamicUintToBytesDB(writer, uint64(v.Len()))
 		if err != nil {
 			return err
 		}

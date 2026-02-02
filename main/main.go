@@ -316,8 +316,8 @@ func main() {
 			}{{C: "data", D: 8}}, E: 1}*/
 			var v = make([]testdbExample, 0)
 			v = append(v, testdbExample{
-				A: []database.SmartDBString{{Value: "a"}, {Value: "b"}, {Value: "c"}},
-				B: append(make([]testdbSubExample, 0), testdbSubExample{C: database.SmartDBString{Value: "textC"}, D: 1}),
+				A: []string{"a", "b", "c"},
+				B: append(make([]testdbSubExample, 0), testdbSubExample{C: "textC", D: 1}),
 				E: &map[int]string{5: "abc", 6: "XYZ"},
 				P: p2p.UPnPXMLService{},
 			})
@@ -357,15 +357,15 @@ func main() {
 }
 
 type testdbSubExample struct {
-	C database.SmartDBString `db:"c"`
-	D uint8                  `db:"d"`
+	C string `db:"c"`
+	D uint8  `db:"d"`
 }
 
 type testdbExample struct {
-	A []database.SmartDBString `db:"a"`
-	B []testdbSubExample       `db:"b"`
-	E *map[int]string          `db:"e"`
-	P p2p.UPnPXMLService       "db:\"P\""
+	A []string           `db:"a"`
+	B []testdbSubExample `db:"b"`
+	E *map[int]string    `db:"e"`
+	P p2p.UPnPXMLService "db:\"P\""
 }
 
 func p2pReadFunc(client *p2p.Client, sourceID []byte, data []byte, _ bool, _ *webtools.ConsoleLogger) {

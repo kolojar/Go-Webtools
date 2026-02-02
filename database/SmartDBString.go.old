@@ -73,11 +73,3 @@ func (smart *SmartDBString) CanParseDBToAny() bool {
 	return true
 }
 
-func calculateByteSizeFromInt(value uint) uint8 {
-	for i := uint8(1); i < 9; i++ {
-		if value <= (1 << (8 * i)) {
-			return i
-		}
-	}
-	return 255
-}

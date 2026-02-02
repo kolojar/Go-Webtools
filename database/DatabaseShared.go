@@ -352,7 +352,7 @@ ConvertStringToBytesDB converts string to bytes
 */
 func ConvertStringToBytesDB(writer io.Writer, data string) error {
 	//Write length
-	err := ConvertUint64ToBytesDB(writer, uint64(len(data)))
+	err := ConvertDynamicUintToBytesDB(writer, uint64(len(data)))
 	if err != nil {
 		return err
 	}
@@ -367,7 +367,7 @@ ParseStringDB parses bytes from reader to string
 */
 func ParseStringDB(reader io.Reader) (string, error) {
 	//Read length
-	lenght, err := ParseUint64DB(reader)
+	lenght, err := ParseDynamicUintBytesDB(reader)
 	if err != nil {
 		return "", err
 	}
@@ -414,30 +414,42 @@ ConvertDynamicUintToBytesDB converts uint64 to dynamic count of bytes
 */
 func ConvertDynamicUintToBytesDB(writer io.Writer, data uint64) error {
 	//Get byte size
-	size := calculateByteSizeFromInt(uint(data))
+	size := webtools.FormatByBool(data == 0, 0, calculateByteSizeFromInt(uint(data)))
 	if size == 255 {
 		return os.ErrInvalid
 	}
 
+	//Write byte size of length
+	err := ConvertUint8ToBytesDB(writer, size)
+	if err != nil || size == 0 {
+		return err
+	}
+
 	//Write number
-	return ConvertUintXToBytesDB()
+	return ConvertUintXToBytesDB(writer, data, size)
 }
 
 /*
-ParseUintXDB parses X/8 bytes from reader to uint64. Parameter size is X = 8 bites = 1 byte = uint8, ...
+ParseDynamicUintBytesDB parses to uint64 using dynamic count of bytes
 */
 func ParseDynamicUintBytesDB(reader io.Reader) (uint64, error) {
-	//Read number
-	dataByte := make([]byte, webtools.CeilDivision(size, 8))
-	_, err := reader.Read(dataByte)
-	if err != nil {
+	//Read byte size of length
+	size, err := ParseUint8DB(reader)
+	if err != nil || size == 0 {
 		return 0, err
 	}
 
-	//Convert number
-	parseByte := make([]byte, 8)
-	copy(parseByte, dataByte)
-	return binary.LittleEndian.Uint64(parseByte), nil
+	//Write number
+	return ParseUintXDB(reader, size)
+}
+
+func calculateByteSizeFromInt(value uint) uint8 {
+	for i := uint8(1); i < 9; i++ {
+		if value <= (1 << (8 * i)) {
+			return i
+		}
+	}
+	return 255
 }
 
 /*
@@ -704,7 +716,7 @@ func ConvertMapToBytesDB[K comparable, V any](writer io.Writer, data map[K]V, ke
 	if keyConvertDBFunc == nil || valueConvertDBFunc == nil {
 		return os.ErrInvalid
 	}
-	err := ConvertUint64ToBytesDB(writer, uint64(len(data)))
+	err := ConvertDynamicUintToBytesDB(writer, uint64(len(data)))
 	if err != nil {
 		return err
 	}
@@ -730,7 +742,7 @@ func ParseMapDB[K comparable, V any](reader io.Reader, keyParseDBFunc func(reade
 	}
 
 	//Read count
-	count, err := ParseUint64DB(reader)
+	count, err := ParseDynamicUintBytesDB(reader)
 	if err != nil {
 		return nil, err
 	}
@@ -758,7 +770,7 @@ func ConvertSafeMapToBytesDB[K comparable, V any](writer io.Writer, data webtool
 	if keyConvertDBFunc == nil || valueConvertDBFunc == nil {
 		return os.ErrInvalid
 	}
-	err := ConvertUint64ToBytesDB(writer, uint64(data.Len()))
+	err := ConvertDynamicUintToBytesDB(writer, uint64(data.Len()))
 	if err != nil {
 		return err
 	}
@@ -785,7 +797,7 @@ func ParseSafeMapDB[K comparable, V any](reader io.Reader, keyParseDBFunc func(r
 	}
 
 	//Read count
-	count, err := ParseUint64DB(reader)
+	count, err := ParseDynamicUintBytesDB(reader)
 	if err != nil {
 		return data, err
 	}
@@ -812,7 +824,7 @@ func ConvertSliceToBytesDB[V any](writer io.Writer, data []V, convertDBFunc func
 	if convertDBFunc == nil {
 		return os.ErrInvalid
 	}
-	err := ConvertUint64ToBytesDB(writer, uint64(len(data)))
+	err := ConvertDynamicUintToBytesDB(writer, uint64(len(data)))
 	if err != nil {
 		return err
 	}
@@ -835,7 +847,7 @@ func ParseArrayDB[V any](reader io.Reader, parseDBFunc func(reader io.Reader) (V
 	}
 
 	//Read count
-	count, err := ParseUint64DB(reader)
+	count, err := ParseDynamicUintBytesDB(reader)
 	if err != nil {
 		return data, err
 	}
