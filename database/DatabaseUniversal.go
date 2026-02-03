@@ -411,6 +411,90 @@ func ParseAnyDB[T any](reader io.Reader) (T, error) {
 	return *result, err
 }
 
+func buildDBSchemaFromString(schema string) DBField {
+	braceDepth := 0
+	braceStart := 0
+	writingName := true
+	typeName := ""
+	currentField := DBField{Name: "", Index: -1}
+	for i := 0; i < len(schema); i++ {
+		if schema[i] == '[' && schema[i+1] == ']' {
+			//Is slice
+			currentField.IsSlice = true
+			continue
+		}
+		if schema[i] == '{' {
+			braceStart = i
+			braceDepth++
+			j := i
+			for j < len(schema) {
+				//Get whole brace content
+				if schema[j] == '}' {
+					braceDepth--
+				}
+				if braceDepth == 0 {
+					//Finished, pass schema to recursion
+					currentField.Fields = append(currentField.Fields, buildDBSchemaFromString(schema[braceStart+1:j]))
+				}
+				j++
+			}
+			i = j
+			continue
+		}
+		if schema[i] == ']' {
+			continue
+		}
+		if schema[i] == ':' {
+			writingName = false
+			continue
+		}
+		if schema[i] == '-' {
+			writingName = true
+			if typeName == "string" {
+				currentField.ValueType = reflect.TypeFor[string]()
+			}
+			if typeName == "uint8" {
+				currentField.ValueType = reflect.TypeFor[uint8]()
+			}
+			if typeName == "uint16" {
+				currentField.ValueType = reflect.TypeFor[uint16]()
+			}
+			if typeName == "uint32" {
+				currentField.ValueType = reflect.TypeFor[uint32]()
+			}
+			if typeName == "uint64" {
+				currentField.ValueType = reflect.TypeFor[uint64]()
+			}
+			if typeName == "int8" {
+				currentField.ValueType = reflect.TypeFor[int8]()
+			}
+			if typeName == "int16" {
+				currentField.ValueType = reflect.TypeFor[int16]()
+			}
+			if typeName == "int32" {
+				currentField.ValueType = reflect.TypeFor[int32]()
+			}
+			if typeName == "int64" {
+				currentField.ValueType = reflect.TypeFor[int64]()
+			}
+			if typeName == "bool" {
+				currentField.ValueType = reflect.TypeFor[bool]()
+			}
+			if currentField.IsSlice {
+				currentField.Type = reflect.SliceOf(currentField.ValueType)
+			} else {
+				currentField.Type = currentField.ValueType
+			}
+		}
+		if writingName {
+			currentField.Name += string(schema[i])
+		} else {
+			typeName += string(schema[i])
+		}
+	}
+	return currentField
+}
+
 /*
 ParseAnyToObjectDB parses bytes to generic target object (can parse only complex types)
 */
@@ -430,5 +514,7 @@ func ParseAnyToObjectDB(reader io.Reader, target any) error {
 		return err
 	}
 	fmt.Println(structString)
+	schema := buildDBSchemaFromString(structString)
+	fmt.Println(schema)
 	return nil
 }
