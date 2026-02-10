@@ -388,6 +388,11 @@ func parseAnyValueToBytesDBValue(reader io.Reader, k reflect.Kind) (reflect.Valu
 	return reflect.ValueOf(result), nil
 }
 
+func readDataDB(reader io.Reader, target any, isTargetAny bool, schemaString string, schemaStringPos int) error {
+	field, _ := BuildDBSchema(reflect.TypeOf(target).Elem())
+	 
+}
+
 /*
 ParseAnyDB parses bytes to generic T object (can parse any type)
 */
@@ -411,7 +416,7 @@ func ParseAnyDB[T any](reader io.Reader) (T, error) {
 	return *result, err
 }
 
-func buildDBSchemaFromString(schema string) DBField {
+/*func buildDBSchemaFromString(schema string) DBField {
 	braceDepth := 0
 	braceStart := 0
 	writingName := true
@@ -421,6 +426,7 @@ func buildDBSchemaFromString(schema string) DBField {
 		if schema[i] == '[' && schema[i+1] == ']' {
 			//Is slice
 			currentField.IsSlice = true
+			i++
 			continue
 		}
 		if schema[i] == '{' {
@@ -485,6 +491,7 @@ func buildDBSchemaFromString(schema string) DBField {
 			} else {
 				currentField.Type = currentField.ValueType
 			}
+			continue
 		}
 		if writingName {
 			currentField.Name += string(schema[i])
@@ -493,7 +500,7 @@ func buildDBSchemaFromString(schema string) DBField {
 		}
 	}
 	return currentField
-}
+}*/
 
 /*
 ParseAnyToObjectDB parses bytes to generic target object (can parse only complex types)
@@ -516,5 +523,13 @@ func ParseAnyToObjectDB(reader io.Reader, target any) error {
 	fmt.Println(structString)
 	schema := buildDBSchemaFromString(structString)
 	fmt.Println(schema)
+	return nil
+}
+
+/*
+ParseAnyToObjectDB parses bytes to generic target object (can parse only complex types)
+*/
+func ParseAnyToValueMapDB(reader io.Reader, target any) map[string]any {
+	//TODO
 	return nil
 }
