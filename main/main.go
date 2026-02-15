@@ -4,6 +4,7 @@ Package main provides example usages
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"os"
@@ -314,13 +315,17 @@ func main() {
 				C string "db:\"c\""
 				D uint8  "db:\"d\""
 			}{{C: "data", D: 8}}, E: 1}*/
+			//var lim = database.MakeLimitedString(1)
+			//lim.Set("LIMITED")
 			var v = make([]testdbExample, 0)
-			v = append(v, testdbExample{
-				A: []string{"a", "b", "c"},
-				B: append(make([]testdbSubExample, 0), testdbSubExample{C: "textC", D: 1}),
-				E: &map[int]string{5: "abc", 6: "XYZ"},
-				P: p2p.UPnPXMLService{},
-			})
+			for i := 0; i < 100; i++ {
+				v = append(v, testdbExample{
+					A: []string{"a", "b", "c", strconv.Itoa(i)},
+					B: append(make([]testdbSubExample, 0), testdbSubExample{C: "textC", D: 1}),
+					E: &map[int]string{5: "abc", 6: "XYZ"},
+					P: p2p.UPnPXMLService{},
+				})
+			}
 
 			field, schema := database.BuildDBSchema(reflect.TypeOf(v))
 			fmt.Println(schema)
@@ -332,6 +337,7 @@ func main() {
 			//Test write
 			//Delete file if exists
 			os.Remove("test.db")
+			os.Remove("test.json")
 
 			//Create DB file
 			file, err := os.Create("test.db")
@@ -342,6 +348,16 @@ func main() {
 			database.ConvertAnyToBytesDB(file, v)
 			file.Close()
 
+			//Create JSON example
+			file, err = os.Create("test.json")
+			if err != nil {
+				panic(err)
+			}
+			defer file.Close()
+			data, _ := json.MarshalIndent(v, "", "	")
+			file.Write(data)
+			file.Close()
+
 			//Open file
 			fmt.Println("Reading")
 			file, err = os.Open("test.db")
@@ -349,8 +365,9 @@ func main() {
 				panic(err)
 			}
 			defer file.Close()
-			result := testdbExample{}
-			result, _ = database.ParseAnyDB[testdbExample](file)
+			//result := testdbExample{}
+			var result any
+			result, err = database.ParseAnyToValueMapDB(file)
 			fmt.Println(result)
 		}
 	}
@@ -366,6 +383,7 @@ type testdbExample struct {
 	B []testdbSubExample `db:"b"`
 	E *map[int]string    `db:"e"`
 	P p2p.UPnPXMLService "db:\"P\""
+	//Q database.LimitedString
 }
 
 func p2pReadFunc(client *p2p.Client, sourceID []byte, data []byte, _ bool, _ *webtools.ConsoleLogger) {
