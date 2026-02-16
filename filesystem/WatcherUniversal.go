@@ -8,16 +8,16 @@ import (
 
 const MOVE_REQUEST_TIMEOUT = 1 //In seconds
 
-type FileSystemEvent uint8
+type FileSystemEventType uint8
 
-const FSEventNone FileSystemEvent = 0
-const FSEventModified FileSystemEvent = 1
-const FSEventCreated FileSystemEvent = 2
-const FSEventDeleted FileSystemEvent = 3
-const FSEventMoved FileSystemEvent = 4
+const FSEventNone FileSystemEventType = 0
+const FSEventModified FileSystemEventType = 1
+const FSEventCreated FileSystemEventType = 2
+const FSEventDeleted FileSystemEventType = 3
+const FSEventMoved FileSystemEventType = 4
 
 // Operations: 0 = None/Error, 1 = Modified, 2 = Created, 3 = Deleted, 4 = Moved
-type FileSystemWatcherEventFunc func(path string, operation FileSystemEvent, isDir bool, newPath string)
+type FileSystemWatcherEventFunc func(path string, operation FileSystemEventType, isDir bool, newPath string)
 
 type FileSystemWatcher struct {
 	path      string
@@ -33,11 +33,13 @@ type FileSystemWatcher struct {
 	dirMoveEvent      bool
 	dirPath           string
 	dirPathEventTime  time.Time
+	ignoredEvents     webtools.SafeMap[string, FileSystemEventType]
 }
 
 func NewFileSystemWatcher(path string, eventFunc FileSystemWatcherEventFunc, recursive bool, logEvents bool) *FileSystemWatcher {
 	fsWatch := &FileSystemWatcher{path: path, eventFunc: eventFunc, isRunning: false, Logger: webtools.NewConsoleLoggerForTraffic("FSWatcher", logEvents), recursive: recursive}
 	fsWatch.watcher = newFileSystemWatcherInstance(path, fsWatch, recursive)
+	fsWatch.ignoredEvents = webtools.MakeSafeMap[string, FileSystemEventType]()
 	return fsWatch
 }
 
@@ -58,18 +60,34 @@ func (watcher *FileSystemWatcher) StopWatching() {
 	watcher.isRunning = false
 }
 
-func (watcher *FileSystemWatcher) reportEvent(event uint8, filePath string, isDir bool) {
-	watcher.Logger.Log(0, "Got event: "+strconv.FormatUint(uint64(event), 10)+" for "+webtools.FormatByBool(isDir, "folder", "file")+": "+filePath)
+func (watcher *FileSystemWatcher) IgnoreNextEvent(path string, operation FileSystemEventType) {
+	watcher.ignoredEvents.Set(path, operation)
+}
+
+func (watcher *FileSystemWatcher) reportFunc(path string, operation FileSystemEventType, isDir bool, newPath string) {
 	if watcher.eventFunc == nil {
 		return
 	}
+	get, has := watcher.ignoredEvents.GetHas(path)
+	if has {
+		if get == operation {
+			watcher.Logger.Log(1, "Ignoring operation "+strconv.FormatUint(uint64(operation), 10)+" for file: "+path)
+			watcher.ignoredEvents.Delete(path)
+			return
+		}
+	}
+	watcher.eventFunc(path, operation, isDir, newPath)
+}
+
+func (watcher *FileSystemWatcher) reportEvent(event uint8, filePath string, isDir bool) {
+	watcher.Logger.Log(0, "Got event: "+strconv.FormatUint(uint64(event), 10)+" for "+webtools.FormatByBool(isDir, "folder", "file")+": "+filePath)
 	if event == 100 {
 		//Begin move
 		if isDir {
 			for watcher.dirMoveEvent {
 				//One exists, sort out
 				if time.Since(watcher.dirPathEventTime).Seconds() >= MOVE_REQUEST_TIMEOUT {
-					watcher.eventFunc(watcher.dirPath, FSEventDeleted, true, watcher.dirPath)
+					watcher.reportFunc(watcher.dirPath, FSEventDeleted, true, watcher.dirPath)
 					break
 				} else {
 					time.Sleep(1 * time.Second)
@@ -82,7 +100,7 @@ func (watcher *FileSystemWatcher) reportEvent(event uint8, filePath string, isDi
 			for watcher.fileMoveEvent {
 				//One exists, sort out
 				if time.Since(watcher.filePathEventTime).Seconds() >= MOVE_REQUEST_TIMEOUT {
-					watcher.eventFunc(watcher.filePath, FSEventDeleted, false, watcher.filePath)
+					watcher.reportFunc(watcher.filePath, FSEventDeleted, false, watcher.filePath)
 					break
 				} else {
 					time.Sleep(1 * time.Second)
@@ -98,16 +116,16 @@ func (watcher *FileSystemWatcher) reportEvent(event uint8, filePath string, isDi
 		//End move
 		if isDir {
 			if watcher.dirMoveEvent {
-				watcher.eventFunc(watcher.dirPath, FSEventMoved, true, filePath)
+				watcher.reportFunc(watcher.dirPath, FSEventMoved, true, filePath)
 			} else {
-				watcher.eventFunc(watcher.dirPath, FSEventModified, true, filePath)
+				watcher.reportFunc(watcher.dirPath, FSEventModified, true, filePath)
 			}
 			watcher.dirMoveEvent = false
 		} else {
 			if watcher.fileMoveEvent {
-				watcher.eventFunc(watcher.filePath, FSEventMoved, false, filePath)
+				watcher.reportFunc(watcher.filePath, FSEventMoved, false, filePath)
 			} else {
-				watcher.eventFunc(watcher.filePath, FSEventModified, false, filePath)
+				watcher.reportFunc(watcher.filePath, FSEventModified, false, filePath)
 			}
 			watcher.fileMoveEvent = false
 
@@ -126,16 +144,16 @@ func (watcher *FileSystemWatcher) reportEvent(event uint8, filePath string, isDi
 	} else if event == 4 {
 		eventSend = FSEventMoved
 	}
-	watcher.eventFunc(filePath, eventSend, isDir, filePath)
+	watcher.reportFunc(filePath, eventSend, isDir, filePath)
 }
 
 func (watcher *FileSystemWatcher) moveTimer() {
 	if watcher.dirMoveEvent && time.Since(watcher.dirPathEventTime).Seconds() >= MOVE_REQUEST_TIMEOUT {
-		watcher.eventFunc(watcher.dirPath, 3, true, watcher.dirPath)
+		watcher.reportFunc(watcher.dirPath, 3, true, watcher.dirPath)
 		watcher.dirMoveEvent = false
 	}
 	if watcher.fileMoveEvent && time.Since(watcher.filePathEventTime).Seconds() >= MOVE_REQUEST_TIMEOUT {
-		watcher.eventFunc(watcher.filePath, 3, false, watcher.filePath)
+		watcher.reportFunc(watcher.filePath, 3, false, watcher.filePath)
 		watcher.fileMoveEvent = false
 	}
 	if watcher.isRunning {

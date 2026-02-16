@@ -312,7 +312,7 @@ func main() {
 	}
 }
 
-func filesystemEvent(path string, operation filesystem.FileSystemEvent, isDir bool, newPath string) {
+func filesystemEvent(path string, operation filesystem.FileSystemEventType, isDir bool, newPath string) {
 	fmt.Println(path, operation)
 	//fmt.Println(path, operation, isDir, newPath)
 }
