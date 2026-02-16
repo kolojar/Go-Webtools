@@ -40,6 +40,7 @@ These types do not provide compatibility for fixing (when standard of the custom
 It is recommended to use the stucts as much as possible
 */
 func RegisterCustomDBTypeReflect(t reflect.Type) {
+	fmt.Println("Registered: " + t.String())
 	if t.Kind() == reflect.Pointer || t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}
@@ -71,6 +72,7 @@ type DBField struct {
 	ValueType      reflect.Type
 	Fields         []DBField
 	IsMapParam     bool
+	IsStruct       bool
 }
 
 var dbFieldSchemas map[reflect.Type]webtools.KeyValuePair[DBField, string] = map[reflect.Type]webtools.KeyValuePair[DBField, string]{}
@@ -114,8 +116,10 @@ func BuildDBSchemaString(field DBField) string {
 		result += "[]"
 	}
 	// Write all fields
-	if !field.IsMapParam || field.Type.Kind() == reflect.Struct {
+	if field.IsStruct {
+		//if !field.IsMapParam {
 		result += "{"
+		//}
 	}
 	if field.Fields != nil {
 		for _, v := range field.Fields {
@@ -145,8 +149,10 @@ func BuildDBSchemaString(field DBField) string {
 		result += field.ValueType.String()
 	}
 	result = strings.TrimSuffix(result, "-")
-	if !field.IsMapParam || field.Type.Kind() == reflect.Struct {
+	if field.IsStruct {
+		//if !field.IsMapParam {
 		result += "}"
+		//}
 	}
 	return result
 }
@@ -171,6 +177,7 @@ func BuildDBSchema(t reflect.Type) (DBField, string) {
 			schema.IsCustomDBType = true
 		} else {
 			// Build struct
+			schema.IsStruct = true
 			schema.Fields = make([]DBField, 0)
 			for i := 0; i < schema.ValueType.NumField(); i++ {
 				field := schema.ValueType.Field(i)
@@ -295,13 +302,35 @@ func convertFieldValueToBytesDB(writer io.Writer, schema DBField, v reflect.Valu
 	}
 	if schema.IsCustomDBType {
 		// User defined type
+		if v.Kind() == reflect.Pointer {
+			v = v.Elem()
+		}
+		fmt.Println(v.Type().String())
+
 		convert, ok := v.Interface().(ICustomDBType)
 		if ok {
 			return convert.ConvertToBytesDB(writer)
 		}
-		convert, ok = v.Addr().Interface().(ICustomDBType)
+		if v.CanAddr() {
+			convert, ok = v.Addr().Interface().(ICustomDBType)
+			if ok {
+				return convert.ConvertToBytesDB(writer)
+			}
+		}
+
+		//Try to check for pointer value
+		v2 := reflect.New(v.Type())
+		v2.Elem().Set(v)
+		fmt.Println(v2.Type().String())
+		convert, ok = v2.Interface().(ICustomDBType)
 		if ok {
 			return convert.ConvertToBytesDB(writer)
+		}
+		if v2.CanAddr() {
+			convert, ok = v2.Addr().Interface().(ICustomDBType)
+			if ok {
+				return convert.ConvertToBytesDB(writer)
+			}
 		}
 		return os.ErrInvalid
 	}
@@ -345,7 +374,7 @@ func ConvertAnyToBytesDB(writer io.Writer, data any) error {
 	return err
 }
 
-func parseAnyValueToBytesDBValue(reader io.Reader, valType string) (any, error) {
+func parseAnyValueToBytesDBValue(reader io.Reader, valType string, objectValue *reflect.Value, createdNew bool) (any, error) {
 	var err error
 	var result any
 	switch valType {
@@ -395,12 +424,63 @@ func parseAnyValueToBytesDBValue(reader io.Reader, valType string) (any, error) 
 		//Check user defined types
 		for _, t := range registeredCustomTypes {
 			if t.String() == valType {
-				// User defined type
+				if objectValue != nil {
+					// User defined type - value
+					convert, ok := objectValue.Interface().(ICustomDBType)
+					if ok {
+						if !convert.CanParseDBToAny() && createdNew {
+							fmt.Println("Can not parse: " + t.String() + " to any.")
+							return nil, os.ErrNotExist
+						}
+						err = convert.ParseBytesDB(reader)
+						return convert, err
+					}
+					if objectValue.CanAddr() {
+						convert, ok = objectValue.Addr().Interface().(ICustomDBType)
+						if ok {
+							if !convert.CanParseDBToAny() && createdNew {
+								fmt.Println("Can not parse: " + t.String() + " to any.")
+								return nil, os.ErrNotExist
+							}
+							err = convert.ParseBytesDB(reader)
+							return convert, err
+						}
+					}
+
+					//Try to check for pointer value
+					v2 := reflect.New(objectValue.Type())
+					v2.Elem().Set(*objectValue)
+					fmt.Println(v2.Type().String())
+					convert, ok = v2.Interface().(ICustomDBType)
+					if ok {
+						if !convert.CanParseDBToAny() && createdNew {
+							fmt.Println("Can not parse: " + t.String() + " to any.")
+							return nil, os.ErrNotExist
+						}
+						err = convert.ParseBytesDB(reader)
+						return convert, err
+					}
+					if v2.CanAddr() {
+						convert, ok = v2.Addr().Interface().(ICustomDBType)
+						if ok {
+							if !convert.CanParseDBToAny() && createdNew {
+								fmt.Println("Can not parse: " + t.String() + " to any.")
+								return nil, os.ErrNotExist
+							}
+							err = convert.ParseBytesDB(reader)
+							return convert, err
+						}
+					}
+					return nil, os.ErrNotExist
+				}
+
+				// User defined type - any
 				v := reflect.New(t)
 				convert, ok := v.Interface().(ICustomDBType)
 				if ok {
 					if !convert.CanParseDBToAny() {
-						panic("Can not parse: " + t.String() + " to any.")
+						fmt.Println("Can not parse: " + t.String() + " to any.")
+						return nil, os.ErrNotExist
 					}
 					err := convert.ParseBytesDB(reader)
 					return convert, err
@@ -408,7 +488,8 @@ func parseAnyValueToBytesDBValue(reader io.Reader, valType string) (any, error) 
 				convert, ok = v.Addr().Interface().(ICustomDBType)
 				if ok {
 					if !convert.CanParseDBToAny() {
-						panic("Can not parse: " + t.String() + " to any.")
+						fmt.Println("Can not parse: " + t.String() + " to any.")
+						return nil, os.ErrNotExist
 					}
 					err := convert.ParseBytesDB(reader)
 					return convert, err
@@ -420,7 +501,7 @@ func parseAnyValueToBytesDBValue(reader io.Reader, valType string) (any, error) 
 	return result, err
 }
 
-func parseAnyValueKindToBytesDBValue(reader io.Reader, k reflect.Kind) (reflect.Value, error) {
+func parseAnyValueKindToBytesDBValue(reader io.Reader, k reflect.Kind, objectValue *reflect.Value, createdNew bool) (reflect.Value, error) {
 	//var err error
 	//var result any
 	//switch k {
@@ -469,7 +550,7 @@ func parseAnyValueKindToBytesDBValue(reader io.Reader, k reflect.Kind) (reflect.
 	//default:
 	//	return reflect.ValueOf(nil), os.ErrInvalid
 	//}
-	result, err := parseAnyValueToBytesDBValue(reader, k.String())
+	result, err := parseAnyValueToBytesDBValue(reader, k.String(), objectValue, createdNew)
 	if err != nil {
 		return reflect.ValueOf(nil), err
 	}
@@ -531,7 +612,7 @@ func getSeekPos(reader io.ReadSeeker) {
 }
 
 func readDataDBAny(reader io.ReadSeeker, schemaString string, schemaStringPos int) (int, any, error) {
-	fmt.Println("Reading data:", schemaString, schemaStringPos)
+	fmt.Println("Reading data any:", schemaString, schemaStringPos)
 	getSeekPos(reader)
 	if schemaString[schemaStringPos] == '[' {
 		// Is array
@@ -540,7 +621,7 @@ func readDataDBAny(reader io.ReadSeeker, schemaString string, schemaStringPos in
 		if err != nil {
 			return schemaStringPos, true, err
 		}
-		fmt.Println("Reading array:", count)
+		fmt.Println("Reading array any:", count)
 		getSeekPos(reader)
 
 		// Read items
@@ -565,7 +646,7 @@ func readDataDBAny(reader io.ReadSeeker, schemaString string, schemaStringPos in
 		if err != nil {
 			return schemaStringPos, true, err
 		}
-		fmt.Println("Reading map with schema parts:", schemaParts, "with count:", count)
+		fmt.Println("Reading any map with schema parts:", schemaParts, "with count:", count)
 
 		// Read items
 		m := make(map[any]any, 0)
@@ -588,7 +669,7 @@ func readDataDBAny(reader io.ReadSeeker, schemaString string, schemaStringPos in
 	if schemaString[schemaStringPos] == '{' {
 		// Is struct
 		schemaParts, newPos := buildStructSchemaStringParts(schemaString, schemaStringPos)
-		fmt.Println("Reading struct with schema parts:", schemaParts)
+		fmt.Println("Reading any struct with schema parts:", schemaParts)
 
 		// Run each subschema
 		m := make(map[string]any, 0)
@@ -620,40 +701,150 @@ func readDataDBAny(reader io.ReadSeeker, schemaString string, schemaStringPos in
 		return schemaStringPos + newPos, result, err
 	} else {
 		// Normal type - do parse by string
-		fmt.Println("Reading value:", schemaString)
-		val, err := parseAnyValueToBytesDBValue(reader, split[0])
+		fmt.Println("Reading any value:", schemaString)
+		val, err := parseAnyValueToBytesDBValue(reader, split[0], nil, true)
 		getSeekPos(reader)
-		return schemaStringPos, val, err
+		return len(schemaString), val, err
 	}
 }
 
-func readDataDB(reader io.Reader, target reflect.Value, schemaString string, schemaStringPos int) (int, error) {
+func readDataDB(reader io.ReadSeeker, target *reflect.Value, schemaString string, schemaStringPos int, createdNew bool) (int, error) {
+	fmt.Println("Reading data:", schemaString, schemaStringPos)
+	getSeekPos(reader)
 	if schemaString[schemaStringPos] == '[' {
+		//Target is nil
+		if target == nil {
+			//Move to any
+			fmt.Println("Skipping array")
+			newPos, _, err := readDataDBAny(reader, schemaString, schemaStringPos)
+			return newPos, err
+		}
+
 		// Is array
 		schemaStringPos += 2
 		count, err := ParseDynamicUintBytesDB(reader)
 		if err != nil {
 			return schemaStringPos, err
 		}
+		fmt.Println("Reading array:", count)
+		getSeekPos(reader)
+
+		//Create slice
+		slice := *target
+		if slice.Kind() == reflect.Pointer {
+			slice = slice.Elem()
+		}
+		fmt.Println(slice.Type().String())
+		newSlice := slice
+		if newSlice.Len() == 0 {
+			newSlice = reflect.MakeSlice(slice.Type(), 0, int(count))
+		}
 
 		// Read items
-		newPos := schemaStringPos
 		for i := uint64(0); i < count; i++ {
-			pos, err := readDataDB(reader, target, schemaString, schemaStringPos)
-			if pos > newPos {
-				newPos = pos
+			var element reflect.Value
+			var isNew bool = false
+			if newSlice.Len() <= int(i) {
+				element = reflect.New(slice.Type().Elem()).Elem()
+				isNew = true
+			} else {
+				element = newSlice.Index(int(i))
 			}
+			fmt.Println(element.Kind(), element.String())
+			_, err := readDataDB(reader, &element, schemaString, schemaStringPos, isNew || createdNew)
 			if err != nil {
 				return schemaStringPos, err
 			}
+			if isNew {
+				newSlice = reflect.Append(newSlice, element)
+			}
 		}
+		slice.Set(newSlice)
+		return len(schemaString), nil
+	}
+	if schemaString[schemaStringPos] == '<' {
+		//Target is nil
+		if target == nil {
+			//Move to any
+			fmt.Println("Skipping map")
+			newPos, _, err := readDataDBAny(reader, schemaString, schemaStringPos)
+			return newPos, err
+		}
+
+		// Is map
+		schemaParts, newPos := buildStructSchemaStringParts(schemaString, schemaStringPos)
+		count, err := ParseDynamicUintBytesDB(reader)
+		if err != nil {
+			return schemaStringPos, err
+		}
+		fmt.Println("Reading map with schema parts:", schemaParts, "with count:", count)
+
+		//Create map
+		m := *target
+		var isNewMap = false
+		if m.Kind() == reflect.Pointer {
+			if m.IsNil() {
+				m.Set(reflect.New(m.Type().Elem()))
+				isNewMap = true
+			}
+			m = m.Elem()
+		}
+		newMap := m
+		if newMap.Len() == 0 {
+			newMap = reflect.MakeMap(m.Type())
+		}
+
+		// Read items
+		for i := uint64(0); i < count; i++ {
+			// Read key
+			key := reflect.New(m.Type().Key()).Elem()
+			_, err := readDataDB(reader, &key, schemaParts[0], 0, true)
+			if err != nil {
+				return newPos, err
+			}
+
+			// Read val
+			mapVal := newMap.MapIndex(key)
+			var val reflect.Value
+			var isNewVal = false
+			if mapVal.IsValid() {
+				val = reflect.New(mapVal.Type()).Elem()
+				val.Set(mapVal)
+			} else {
+				val = reflect.New(newMap.Type().Elem()).Elem()
+				isNewVal = true
+			}
+			_, err = readDataDB(reader, &val, schemaParts[1], 0, isNewMap || isNewVal || createdNew)
+			if err != nil {
+				return newPos, err
+			}
+			newMap.SetMapIndex(key, val)
+		}
+		m.Set(newMap)
 		return newPos, nil
 	}
-
 	if schemaString[schemaStringPos] == '{' {
+		//Target is nil
+		if target == nil {
+			//Move to any
+			fmt.Println("Skipping struct")
+			newPos, _, err := readDataDBAny(reader, schemaString, schemaStringPos)
+			return newPos, err
+		}
+
 		// Is struct - Parse to field
+		if target.Kind() == reflect.Pointer {
+			if target.IsNil() {
+				target.Set(reflect.New(target.Type().Elem()))
+			}
+			e := target.Elem()
+			target = &e
+		}
+
+		//Get field
 		field, _ := BuildDBSchema(target.Type())
 		schemaParts, newPos := buildStructSchemaStringParts(schemaString, schemaStringPos)
+		fmt.Println("Reading struct with schema parts:", schemaParts)
 
 		// Run each subschema
 		for _, schema := range schemaParts {
@@ -661,36 +852,68 @@ func readDataDB(reader io.Reader, target reflect.Value, schemaString string, sch
 			for _, field := range field.Fields {
 				if field.Name == split[0] {
 					// Found field
-					_, err := readDataDB(reader, target.Field(field.Index), split[1], 0)
+					field := target.Field(field.Index)
+					_, err := readDataDB(reader, &field, split[1], 0, createdNew)
 					if err != nil {
 						return newPos, err
 					}
 					break
 				}
 			}
+
+			//Field not found
+			_, err := readDataDB(reader, nil, split[1], 0, createdNew)
+			if err != nil {
+				return newPos, err
+			}
 		}
+		return newPos, nil
 	}
 
 	// Normal type - do parse by string
-	split := strings.SplitN(schemaString, ":", 2)
-	if split[1] == target.Type().Name() {
-		fmt.Println("Types do not match:", split[1], target.Type().Name())
-		return schemaStringPos, os.ErrInvalid
+	split := strings.SplitN(schemaString[schemaStringPos:], ":", 2)
+	typeString := ""
+	if len(split) == 1 {
+		//Only one part = type
+		typeString = split[0]
+	} else {
+		typeString = split[1]
 	}
-	val, err := parseAnyValueToBytesDBValue(reader, split[1])
+	if target != nil && typeString != target.Type().String() {
+		fmt.Println("Types do not match:", typeString, target.Type().String())
+		return len(schemaString), os.ErrInvalid
+	}
+
+	//Read value from binary
+	val, err := parseAnyValueToBytesDBValue(reader, typeString, target, createdNew)
 	if err != nil {
-		return schemaStringPos, err
+		return len(schemaString), err
 	}
-	target.Set(reflect.ValueOf(val))
-	return schemaStringPos, nil
+	if target == nil {
+		return len(schemaString), nil
+	}
+
+	//Convert to valid format
+	newVal := reflect.ValueOf(val)
+	fmt.Println(target.Kind(), newVal.Kind(), target.Type().String(), newVal.Type().String())
+	if target.Kind() != reflect.Pointer && newVal.Kind() == reflect.Pointer {
+		newVal = newVal.Elem()
+	}
+	if target.Kind() == reflect.Pointer && newVal.Kind() != reflect.Pointer {
+		newVal = newVal.Addr()
+	}
+	fmt.Println(target.Kind(), newVal.Kind(), target.Type().String(), newVal.Type().String())
+	fmt.Println(target.CanSet(), createdNew)
+	target.Set(newVal)
+	return len(schemaString), nil
 }
 
 /*
 ParseAnyDB parses bytes to generic T object (can parse any type)
 */
-func ParseAnyDB[T any](reader io.Reader) (T, error) {
+func ParseAnyDB[T any](reader io.ReadSeeker) (T, error) {
 	// Try to convert some basic type
-	val, err := parseAnyValueKindToBytesDBValue(reader, reflect.TypeFor[T]().Kind())
+	val, err := parseAnyValueKindToBytesDBValue(reader, reflect.TypeFor[T]().Kind(), nil, true)
 	if err == nil {
 		// OK
 		result := val.Interface()
@@ -711,7 +934,7 @@ func ParseAnyDB[T any](reader io.Reader) (T, error) {
 /*
 ParseAnyToObjectDB parses bytes to generic target object (can parse only complex types)
 */
-func ParseAnyToObjectDB(reader io.Reader, target any) error {
+func ParseAnyToObjectDB(reader io.ReadSeeker, target any) error {
 	// Check if target is pointer
 	if target == nil {
 		return os.ErrInvalid
@@ -730,7 +953,7 @@ func ParseAnyToObjectDB(reader io.Reader, target any) error {
 	if checkIsAny(reflect.TypeOf(target)) {
 		return os.ErrInvalid
 	} else {
-		_, err = readDataDB(reader, v, structString, 0)
+		_, err = readDataDB(reader, &v, structString, 0, false)
 		return err
 	}
 }

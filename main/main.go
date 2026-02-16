@@ -4,7 +4,6 @@ Package main provides example usages
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"net"
 	"os"
@@ -315,15 +314,20 @@ func main() {
 				C string "db:\"c\""
 				D uint8  "db:\"d\""
 			}{{C: "data", D: 8}}, E: 1}*/
-			//var lim = database.MakeLimitedString(1)
-			//lim.Set("LIMITED")
+			var lim = database.MakeLimitedString(1)
+			lim.Set("LIMITED")
+			var lim1 = database.MakeLimitedString(1)
+			lim1.Set("abc")
+			var lim2 = database.MakeLimitedString(1)
+			lim2.Set("XYZ")
 			var v = make([]testdbExample, 0)
-			for i := 0; i < 100; i++ {
+			for i := 0; i < 1; i++ {
 				v = append(v, testdbExample{
-					A: []string{"a", "b", "c", strconv.Itoa(i)},
+					//A: []string{"a", "b", "c", strconv.Itoa(i)},
 					B: append(make([]testdbSubExample, 0), testdbSubExample{C: "textC", D: 1}),
-					E: &map[int]string{5: "abc", 6: "XYZ"},
+					E: &map[int]database.LimitedString{5: lim1, 6: lim2},
 					P: p2p.UPnPXMLService{},
+					Q: lim,
 				})
 			}
 
@@ -336,38 +340,48 @@ func main() {
 
 			//Test write
 			//Delete file if exists
-			os.Remove("test.db")
+			//os.Remove("test.db")
 			os.Remove("test.json")
 
 			//Create DB file
-			file, err := os.Create("test.db")
-			if err != nil {
-				panic(err)
-			}
-			defer file.Close()
-			database.ConvertAnyToBytesDB(file, v)
-			file.Close()
+			//file, err := os.Create("test.db")
+			//if err != nil {
+			//	panic(err)
+			//}
+			//defer file.Close()
+			//database.ConvertAnyToBytesDB(file, v)
+			//file.Close()
 
 			//Create JSON example
-			file, err = os.Create("test.json")
-			if err != nil {
-				panic(err)
-			}
-			defer file.Close()
-			data, _ := json.MarshalIndent(v, "", "	")
-			file.Write(data)
-			file.Close()
+			//file, err = os.Create("test.json")
+			//if err != nil {
+			//	panic(err)
+			//}
+			//defer file.Close()
+			//data, _ := json.MarshalIndent(v, "", "	")
+			//file.Write(data)
+			//file.Close()
 
 			//Open file
+			database.RegisterCustomDBType[*database.LimitedString]()
 			fmt.Println("Reading")
-			file, err = os.Open("test.db")
+			file, err := os.Open("test.db")
 			if err != nil {
 				panic(err)
 			}
 			defer file.Close()
 			//result := testdbExample{}
-			var result any
-			result, err = database.ParseAnyToValueMapDB(file)
+			lim.Set("")
+			lim1.Set("")
+			lim2.Set("")
+			var result = append(make([]testdbExample, 0), testdbExample{
+				Q: lim,
+				E: &map[int]database.LimitedString{5: lim1, 6: lim2},
+			})
+			err = database.ParseAnyToObjectDB(file, &result)
+			fmt.Println(result[0].Q.Get())
+			a := (*result[0].E)[6]
+			fmt.Println(a.Get())
 			fmt.Println(result)
 		}
 	}
@@ -379,11 +393,11 @@ type testdbSubExample struct {
 }
 
 type testdbExample struct {
-	A []string           `db:"a"`
-	B []testdbSubExample `db:"b"`
-	E *map[int]string    `db:"e"`
-	P p2p.UPnPXMLService "db:\"P\""
-	//Q database.LimitedString
+	//A []string                        `db:"a"`
+	B []testdbSubExample              `db:"b"`
+	E *map[int]database.LimitedString `db:"e"`
+	P p2p.UPnPXMLService              "db:\"P\""
+	Q database.LimitedString
 }
 
 func p2pReadFunc(client *p2p.Client, sourceID []byte, data []byte, _ bool, _ *webtools.ConsoleLogger) {
