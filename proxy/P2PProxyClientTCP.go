@@ -107,7 +107,7 @@ func (cl *P2PProxyClientTCP) handleP2PReadFunc(_ *p2p.Client, sourceID []byte, f
 	}
 }
 
-func (cl *P2PProxyClientTCP) handleTCPReadFunc(tcpConn *tcp.ServerConn, data []byte, status uint8) {
+func (cl *P2PProxyClientTCP) handleTCPReadFunc(tcpConn *tcp.ServerConn, data []byte, status webtools.NetworkStatus) {
 	if cl.pendingConnsData.Get(tcpConn) != nil {
 		//Already pending connection
 		cl.pendingConnsData.Set(tcpConn, append(cl.pendingConnsData.Get(tcpConn), data))

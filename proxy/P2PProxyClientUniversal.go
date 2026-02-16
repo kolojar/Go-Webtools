@@ -234,7 +234,7 @@ func (cl *P2PProxyClientUniversal) handleUDPReadFunc(udpConn *udp.ServerConn, da
 	cl.p2pClient.Send(cl.p2pServerID, webtools.PackWebtoolsFrame(webtools.FrameTypeData, []byte(ID), data))
 }
 
-func (cl *P2PProxyClientUniversal) handleTCPReadFunc(tcpConn *tcp.ServerConn, data []byte, status uint8) {
+func (cl *P2PProxyClientUniversal) handleTCPReadFunc(tcpConn *tcp.ServerConn, data []byte, status webtools.NetworkStatus) {
 	fmt.Println("FromTCP:", string(data))
 	if cl.pendingConnsDataTCP.Get(tcpConn) != nil {
 		//Already pending connection

@@ -64,7 +64,7 @@ func NewHTTPProxyServerUDP(httpProxyAddress string, udpServerAddress string, rep
 	return sv
 }
 
-func (sv *HTTPProxyServerUDP) handleWebSocketReadFunc(conn *httptools.WebSocketServerConn, frame []byte, status uint8, isBinary bool) {
+func (sv *HTTPProxyServerUDP) handleWebSocketReadFunc(conn *httptools.WebSocketServerConn, frame []byte, status webtools.NetworkStatus, isBinary bool) {
 	_ = isBinary //Get rid of unneded property
 	if status == webtools.ConnectStatus {
 		conn.IsBinary = true

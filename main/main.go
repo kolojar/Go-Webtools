@@ -327,13 +327,13 @@ func p2pReadFunc2(_ *p2p.Client, _ []byte, data []byte, _ bool, _ *webtools.Cons
 
 var rc = 0
 
-func readFuncTCPSv(conn *tcp.ServerConn, data []byte, status uint8) {
+func readFuncTCPSv(conn *tcp.ServerConn, data []byte, status webtools.NetworkStatus) {
 	if status == webtools.ReadDataStatus {
 		conn.Send(data)
 	}
 }
 
-func readFuncTCPCl(_ *tcp.ClientSimple, data []byte, _ uint8) {
+func readFuncTCPCl(_ *tcp.ClientSimple, data []byte, _ webtools.NetworkStatus) {
 	//conn.Send(data)
 	//if !ended {
 	//	//conn.Stop()
@@ -372,19 +372,19 @@ func readFuncUDPCl(_ *udp.Client, _ *net.UDPAddr, data []byte, _ bool) {
 //	}
 //}
 
-func readFuncHTTPWsSv(conn *httptools.WebSocketServerConn, data []byte, status uint8, _ bool) {
+func readFuncHTTPWsSv(conn *httptools.WebSocketServerConn, data []byte, status webtools.NetworkStatus, _ bool) {
 	if status > 1 {
 		conn.Send(data)
 	}
 }
 
-func readFuncHTTPWsCl(conn *httptools.WebSocketClient, _ []byte, status uint8, _ bool) {
+func readFuncHTTPWsCl(conn *httptools.WebSocketClient, _ []byte, status webtools.NetworkStatus, _ bool) {
 	if status == webtools.ReadDataStatus {
 		conn.Stop()
 	}
 }
 
-func readFuncHTTPWsInstanceSv(inst *httptools.WebSocketInstanceServerInstance, conn *httptools.WebSocketServerConn, data []byte, status uint8, _ bool) {
+func readFuncHTTPWsInstanceSv(inst *httptools.WebSocketInstanceServerInstance, conn *httptools.WebSocketServerConn, data []byte, status webtools.NetworkStatus, _ bool) {
 	if status > 1 {
 		conn.Send(append([]byte(inst.GetID()+" "), data...))
 	}

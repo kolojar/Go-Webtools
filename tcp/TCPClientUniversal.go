@@ -21,7 +21,7 @@ type ClientUniversalReadHandlerFunc func(cl *ClientUniversal, limit int, logger 
 /*
 ClientUniversalOnReadFunc is used for calling event on read
 */
-type ClientUniversalOnReadFunc func(cl *ClientUniversal, data []byte, status uint8, otherData map[string]any)
+type ClientUniversalOnReadFunc func(cl *ClientUniversal, data []byte, status webtools.NetworkStatus, otherData map[string]any)
 
 /*
 ClientUniversalOnWriteHandlerFunc is write handler

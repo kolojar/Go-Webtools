@@ -45,7 +45,7 @@ func NewConnectionMergerClient(tcpMergedAddress string, localServersIPPrefix str
 	return cl, nil
 }
 
-func (cl *ConnectionMergerClient) handleRemoteTCPReadFunc(_ *ClientSimple, frame []byte, status uint8) {
+func (cl *ConnectionMergerClient) handleRemoteTCPReadFunc(_ *ClientSimple, frame []byte, status webtools.NetworkStatus) {
 	if status == webtools.DisconnectStatus {
 		//Close all connections
 		for i := 0; i < len(cl.tcpServers); i++ {
@@ -131,7 +131,7 @@ func (cl *ConnectionMergerClient) handleRemoteTCPReadFunc(_ *ClientSimple, frame
 	}
 }
 
-func (cl *ConnectionMergerClient) handleLocalTCPReadFunc(tcpConn *ServerConn, data []byte, status uint8) {
+func (cl *ConnectionMergerClient) handleLocalTCPReadFunc(tcpConn *ServerConn, data []byte, status webtools.NetworkStatus) {
 	if status == webtools.ConnectStatus {
 		return
 	}

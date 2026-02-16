@@ -232,7 +232,7 @@ func (sv *P2PProxyServerUniversal) handleUDPReadFunc(udp *udp.Client, _ *net.UDP
 	cl.SendToP2P(webtools.FrameTypeData, data)
 }
 
-func (sv *P2PProxyServerUniversal) handleTCPReadFunc(tcp *tcp.ClientSimple, data []byte, status uint8) {
+func (sv *P2PProxyServerUniversal) handleTCPReadFunc(tcp *tcp.ClientSimple, data []byte, status webtools.NetworkStatus) {
 	fmt.Println("FromTCP:", string(data))
 	//Get P2P client
 	if sv.clientTCPToID.Get(tcp) == "" || sv.idToClient.Get(sv.clientTCPToID.Get(tcp)) == nil {

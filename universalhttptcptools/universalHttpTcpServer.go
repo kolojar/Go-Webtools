@@ -5,6 +5,7 @@ package universalhttptcp
 
 import (
 	"net"
+	"webtools"
 	"webtools/httptools"
 	"webtools/tcp"
 )
@@ -57,7 +58,7 @@ func (conn *ServerConn) GetConn() *net.TCPConn {
 /*
 ServerReadFunc is function definition for reading data from Server
 */
-type ServerReadFunc func(conn *ServerConn, data []byte, status uint8, isBinary bool)
+type ServerReadFunc func(conn *ServerConn, data []byte, status webtools.NetworkStatus, isBinary bool)
 
 /*
 Server [rovides universal API for selecting TCP or/and HTTP WebSocket app hosting
@@ -88,13 +89,13 @@ func (sv *Server) ConfigureWS(address string) {
 	sv.httpServer.GetLogger().Prefix = "Universal - " + sv.httpServer.GetLogger().Prefix
 }
 
-func (sv *Server) readFuncTCP(conn *tcp.ServerConn, data []byte, status uint8) {
+func (sv *Server) readFuncTCP(conn *tcp.ServerConn, data []byte, status webtools.NetworkStatus) {
 	if sv.readFunc != nil {
 		sv.readFunc(&ServerConn{tcpConn: conn, wsConn: nil}, data, status, true)
 	}
 }
 
-func (sv *Server) readFuncWS(conn *httptools.WebSocketServerConn, data []byte, status uint8, isBinary bool) {
+func (sv *Server) readFuncWS(conn *httptools.WebSocketServerConn, data []byte, status webtools.NetworkStatus, isBinary bool) {
 	if sv.readFunc != nil {
 		sv.readFunc(&ServerConn{tcpConn: nil, wsConn: conn}, data, status, isBinary)
 	}

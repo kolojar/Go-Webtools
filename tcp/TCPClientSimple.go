@@ -16,7 +16,7 @@ import (
 /*
 ClientSimpleReadFunc is function definition for reading data from ClientSimple
 */
-type ClientSimpleReadFunc func(client *ClientSimple, data []byte, status uint8)
+type ClientSimpleReadFunc func(client *ClientSimple, data []byte, status webtools.NetworkStatus)
 
 /*
 ClientSimple is simple TCP Client that allows read basic not framed streams and basic framed streams with internal framing implementation.
@@ -201,7 +201,7 @@ func WriteToTCPFramedHandler(cl *ClientUniversal, data []byte, otherData map[str
 Helper function for read event fired by read handler (used just as redirector)
 Implements: type TCPClientUniversalOnReadFunc func(cl *TCPClientUniversal, data []byte, status uint8, otherData map[string]any)
 */
-func (cl *ClientSimple) readFuncLocal(_ *ClientUniversal, data []byte, status uint8, _ map[string]any) {
+func (cl *ClientSimple) readFuncLocal(_ *ClientUniversal, data []byte, status webtools.NetworkStatus, _ map[string]any) {
 	// Process read - redirect read data to main read function
 	if cl.readFunc != nil {
 		cl.readFunc(cl, data, status)

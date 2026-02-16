@@ -64,7 +64,7 @@ func WebSocketGetAddressAndTarget(completeURL string) (string, string) {
 /*
 WebSocketClientReadFunc is function definition for reading data from WebSocketClient
 */
-type WebSocketClientReadFunc func(client *WebSocketClient, data []byte, status uint8, isBinary bool)
+type WebSocketClientReadFunc func(client *WebSocketClient, data []byte, status webtools.NetworkStatus, isBinary bool)
 
 /*
 WebSocketClient is WebSocket client struct
@@ -175,7 +175,7 @@ func (cl *WebSocketClient) Send(data []byte, opcode uint8) {
 /*
 Local readFunc for local TCP client
 */
-func (cl *WebSocketClient) readFuncLocalRaw(_ *tcptools.ClientUniversal, data []byte, status uint8, _ map[string]any) {
+func (cl *WebSocketClient) readFuncLocalRaw(_ *tcptools.ClientUniversal, data []byte, status webtools.NetworkStatus, _ map[string]any) {
 	if status == webtools.ReadDataStatus && cl.awaitingReady {
 		//First request
 		if !strings.Contains(string(data), "HTTP/1.1 101 Switching Protocols") {
@@ -205,7 +205,7 @@ func (cl *WebSocketClient) readFuncLocalRaw(_ *tcptools.ClientUniversal, data []
 /*
 Local readFunc for local TCP client with WebSocket frame
 */
-func (cl *WebSocketClient) readFuncLocalWS(_ *tcptools.ClientUniversal, data []byte, status uint8, otherData map[string]any) {
+func (cl *WebSocketClient) readFuncLocalWS(_ *tcptools.ClientUniversal, data []byte, status webtools.NetworkStatus, otherData map[string]any) {
 	//Get opcode
 	isBinaryRaw := otherData["isBinary"]
 	if isBinaryRaw == nil || isBinaryRaw == "" {

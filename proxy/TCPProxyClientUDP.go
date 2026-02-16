@@ -44,7 +44,7 @@ func NewTCPProxyClientUDP(tcpProxyAddress string, udpServerAddress string, repor
 	return cl, nil
 }
 
-func (cl *TCPProxyClientUDP) handleTCPReadFunc(_ *tcp.ClientSimple, frame []byte, status uint8) {
+func (cl *TCPProxyClientUDP) handleTCPReadFunc(_ *tcp.ClientSimple, frame []byte, status webtools.NetworkStatus) {
 	if status == webtools.DisconnectStatus {
 		//Close all connections
 		cl.udpServer.Stop()

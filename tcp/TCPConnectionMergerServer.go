@@ -75,7 +75,7 @@ func NewConnectionMergerServer(tcpMergedAddress string, tcpServerAddresses []str
 	return sv, nil
 }
 
-func (sv *ConnectionMergerServer) handleMergedTCPReadFunc(conn *ServerConn, frame []byte, status uint8) {
+func (sv *ConnectionMergerServer) handleMergedTCPReadFunc(conn *ServerConn, frame []byte, status webtools.NetworkStatus) {
 	if status == webtools.DisconnectStatus {
 		//Close all connections with this HTTP WebTransport Conn
 		for _, d := range sv.idToClient.GetData() {
@@ -159,7 +159,7 @@ func (sv *ConnectionMergerServer) handleMergedTCPReadFunc(conn *ServerConn, fram
 	}
 }
 
-func (sv *ConnectionMergerServer) handleLocalTCPReadFunc(tcp *ClientSimple, data []byte, status uint8) {
+func (sv *ConnectionMergerServer) handleLocalTCPReadFunc(tcp *ClientSimple, data []byte, status webtools.NetworkStatus) {
 	if status == webtools.ConnectStatus {
 		return
 	}

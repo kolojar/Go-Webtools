@@ -194,7 +194,7 @@ func (p2p *Client) sendFailFunc(_ *net.UDPAddr, data []byte, _ bool) {
 
 }
 
-func (p2p *Client) readFuncCoordinatorTCP(_ *tcp.ClientSimple, data []byte, status uint8) {
+func (p2p *Client) readFuncCoordinatorTCP(_ *tcp.ClientSimple, data []byte, status webtools.NetworkStatus) {
 	p2p.readFuncCoordinator(nil, nil, data, status == webtools.DisconnectStatus)
 }
 
@@ -484,7 +484,7 @@ func (p2p *Client) readFuncIncommingServerUDP(conn *udp.ServerConn, data []byte,
 	}
 }
 
-func (p2p *Client) readFuncOutcommingClientsTCP(client *tcp.ClientSimple, data []byte, status uint8) {
+func (p2p *Client) readFuncOutcommingClientsTCP(client *tcp.ClientSimple, data []byte, status webtools.NetworkStatus) {
 	for _, frame := range webtools.UnpackWebtoolsFrame(data, p2p.ClientCoordinator.Logger) {
 		if p2p.readFunc != nil {
 			p2p.readFunc(p2p, frame.ID, frame.Data, status == webtools.DisconnectStatus, client.GetLogger())
@@ -492,7 +492,7 @@ func (p2p *Client) readFuncOutcommingClientsTCP(client *tcp.ClientSimple, data [
 	}
 }
 
-func (p2p *Client) readFuncIncommingServerTCP(conn *tcp.ServerConn, data []byte, status uint8) {
+func (p2p *Client) readFuncIncommingServerTCP(conn *tcp.ServerConn, data []byte, status webtools.NetworkStatus) {
 	for _, frame := range webtools.UnpackWebtoolsFrame(data, p2p.ClientCoordinator.Logger) {
 		switch frame.Operation {
 		case p2pCMDPunch:
