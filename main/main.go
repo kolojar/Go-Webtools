@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 	"webtools"
+	"webtools/filesystem"
 	"webtools/httptools"
 	"webtools/p2p"
 	"webtools/proxy"
@@ -299,7 +300,21 @@ func main() {
 				time.Sleep(100 * time.Millisecond)
 			}
 		}
+	case "fs":
+		{
+			fmt.Println(filesystem.JoinPathSecure("/mnt/DATA/Programming/Go/Go-Webtools/test/", ".."))
+			fmt.Println(filesystem.JoinPathSecure("/mnt/DATA/Programming/Go/Go-Webtools/test/", "c"))
+			fmt.Println(filesystem.JoinPathSecure("/mnt/DATA/Programming/Go/Go-Webtools/test/", "a/../.."))
+			watcher := filesystem.NewFileSystemWatcher("/mnt/DATA/Programming/Go/Go-Webtools/test", filesystemEvent, true, true)
+			defer watcher.StopWatching()
+			watcher.StartWatching()
+		}
 	}
+}
+
+func filesystemEvent(path string, operation filesystem.FileSystemEvent, isDir bool, newPath string) {
+	fmt.Println(path, operation)
+	//fmt.Println(path, operation, isDir, newPath)
 }
 
 func p2pReadFunc(client *p2p.Client, sourceID []byte, data []byte, _ bool, _ *webtools.ConsoleLogger) {
