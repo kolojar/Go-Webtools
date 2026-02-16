@@ -351,14 +351,15 @@ type IDatabaseObject interface {
 ConvertStringToBytesDB converts string to bytes
 */
 func ConvertStringToBytesDB(writer io.Writer, data string) error {
+	dataString := []byte(data)
 	//Write length
-	err := ConvertDynamicUintToBytesDB(writer, uint64(len(data)))
+	err := ConvertDynamicUintToBytesDB(writer, uint64(len(dataString)))
 	if err != nil {
 		return err
 	}
 
 	//Write data
-	_, err = writer.Write([]byte(data))
+	_, err = writer.Write(dataString)
 	return err
 }
 
