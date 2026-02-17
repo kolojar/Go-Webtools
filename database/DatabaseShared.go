@@ -352,6 +352,7 @@ ConvertStringToBytesDB converts string to bytes
 */
 func ConvertStringToBytesDB(writer io.Writer, data string) error {
 	dataString := []byte(data)
+
 	//Write length
 	err := ConvertDynamicUintToBytesDB(writer, uint64(len(dataString)))
 	if err != nil {
