@@ -49,6 +49,19 @@ func RemoveElement[T comparable](array []T, item T) []T {
 }
 
 /*
+IntMax is max function, but for integers, not floats
+*/
+func IntMax(nums ...int) int {
+	max := nums[0]
+	for i := 1; i < len(nums); i++ {
+		if nums[i] > max {
+			max = nums[i]
+		}
+	}
+	return max
+}
+
+/*
 Server connection interface, removed because not used
 */
 /*type IServerConn interface {

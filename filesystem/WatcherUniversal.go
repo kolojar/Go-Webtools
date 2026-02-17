@@ -8,16 +8,16 @@ import (
 
 const MOVE_REQUEST_TIMEOUT = 1 //In seconds
 
-type FileSystemEvent uint8
+type FileSystemEventType uint8
 
-const FSEventNone FileSystemEvent = 0
-const FSEventModified FileSystemEvent = 1
-const FSEventCreated FileSystemEvent = 2
-const FSEventDeleted FileSystemEvent = 3
-const FSEventMoved FileSystemEvent = 4
+const FSEventNone FileSystemEventType = 0
+const FSEventModified FileSystemEventType = 1
+const FSEventCreated FileSystemEventType = 2
+const FSEventDeleted FileSystemEventType = 3
+const FSEventMoved FileSystemEventType = 4
 
 // Operations: 0 = None/Error, 1 = Modified, 2 = Created, 3 = Deleted, 4 = Moved
-type FileSystemWatcherEventFunc func(path string, operation FileSystemEvent, isDir bool, newPath string)
+type FileSystemWatcherEventFunc func(path string, operation FileSystemEventType, isDir bool, newPath string)
 
 type FileSystemWatcher struct {
 	path      string

@@ -302,17 +302,23 @@ func main() {
 		}
 	case "fs":
 		{
-			fmt.Println(filesystem.JoinPathSecure("/mnt/DATA/Programming/Go/Go-Webtools/test/", ".."))
-			fmt.Println(filesystem.JoinPathSecure("/mnt/DATA/Programming/Go/Go-Webtools/test/", "c"))
-			fmt.Println(filesystem.JoinPathSecure("/mnt/DATA/Programming/Go/Go-Webtools/test/", "a/../.."))
-			watcher := filesystem.NewFileSystemWatcher("/mnt/DATA/Programming/Go/Go-Webtools/test", filesystemEvent, true, true)
-			defer watcher.StopWatching()
-			watcher.StartWatching()
+			changes := filesystem.ChangesInString("tesqt", "tsxqet")
+			fmt.Println("Changes: ")
+			for i := 0; i < len(changes); i++ {
+				fmt.Println(changes[i])
+			}
+
+			//fmt.Println(filesystem.JoinPathSecure("/mnt/DATA/Programming/Go/Go-Webtools/test/", ".."))
+			//fmt.Println(filesystem.JoinPathSecure("/mnt/DATA/Programming/Go/Go-Webtools/test/", "c"))
+			//fmt.Println(filesystem.JoinPathSecure("/mnt/DATA/Programming/Go/Go-Webtools/test/", "a/../.."))
+			//watcher := filesystem.NewFileSystemWatcher("/mnt/DATA/Programming/Go/Go-Webtools/test", filesystemEvent, true, true)
+			//defer watcher.StopWatching()
+			//watcher.StartWatching()
 		}
 	}
 }
 
-func filesystemEvent(path string, operation filesystem.FileSystemEvent, isDir bool, newPath string) {
+func filesystemEvent(path string, operation filesystem.FileSystemEventType, isDir bool, newPath string) {
 	fmt.Println(path, operation)
 	//fmt.Println(path, operation, isDir, newPath)
 }
