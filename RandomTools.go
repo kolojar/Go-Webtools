@@ -1,6 +1,7 @@
 package webtools
 
 import (
+	"fmt"
 	"math/rand/v2"
 	"strconv"
 	"time"
@@ -49,16 +50,56 @@ func RemoveElement[T comparable](array []T, item T) []T {
 }
 
 /*
-IntMax is max function, but for integers, not floats
+RemoveElementAtIndex removes element at specified index
 */
-func IntMax(nums ...int) int {
-	max := nums[0]
-	for i := 1; i < len(nums); i++ {
-		if nums[i] > max {
-			max = nums[i]
-		}
+func RemoveElementAtIndex[T any](slice []T, index int) []T {
+	if index < 0 || index >= len(slice) {
+		return slice
 	}
-	return max
+	if len(slice)-1 == index {
+		return slice[:index]
+	}
+	if index == 0 {
+		return slice[1:]
+	}
+	return append(slice[:index], slice[index+1:]...)
+}
+
+/*
+RemoveRuneAtIndex removes rune at specified index
+*/
+func RemoveRuneAtIndex(text string, index int) string {
+	return string(RemoveElementAtIndex([]rune(text), index))
+}
+
+/*
+InsertElementAtIndex inserts element at specified index
+*/
+func InsertElementAtIndex[T any](slice []T, index int, element T) []T {
+	if index < 0 {
+		return slice
+	}
+	if index > len(slice) {
+		fmt.Println("Insert overflow")
+		return append(slice, element)
+	}
+	if len(slice) == index {
+		return append(slice, element)
+	}
+	if index == 0 {
+		return append([]T{element}, slice...)
+	}
+	slice = append(slice, make([]T, 1)...)
+	copy(slice[index+1:], slice[index:])
+	slice[index] = element
+	return slice
+}
+
+/*
+InsertRuneAtIndex inserts rune at specified index
+*/
+func InsertRuneAtIndex(text string, index int, r rune) string {
+	return string(InsertElementAtIndex([]rune(text), index, r))
 }
 
 /*

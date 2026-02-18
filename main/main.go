@@ -302,11 +302,20 @@ func main() {
 		}
 	case "fs":
 		{
-			changes := filesystem.ChangesInString("tesqt", "tsxqet")
+			//old := "12:17777"
+			//new := "271:98887"
+			old := "127.0.0.2"
+			new := "127.0.0.1:17777"
+			//old := "tesqt"
+			//new := "tsxqet"
+			changes := filesystem.DiffInString(old, new)
 			fmt.Println("Changes: ")
 			for i := 0; i < len(changes); i++ {
 				fmt.Println(changes[i])
 			}
+			updOld := filesystem.UpdateOldUsingChanges(old, changes)
+			fmt.Println(updOld)
+			fmt.Println("Maches:", (updOld == new))
 
 			//fmt.Println(filesystem.JoinPathSecure("/mnt/DATA/Programming/Go/Go-Webtools/test/", ".."))
 			//fmt.Println(filesystem.JoinPathSecure("/mnt/DATA/Programming/Go/Go-Webtools/test/", "c"))
