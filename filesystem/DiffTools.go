@@ -309,7 +309,7 @@ func DiffInStringLCSAlt(old string, new string) []DifferenceEntry {
 		}
 
 		//Shift row
-		matrix[0] = matrix[1]
+		copy(matrix[0], matrix[1])
 	}
 	//fmt.Println("Matrix:")
 	//for y := 0; y < len(matrix); y++ {
