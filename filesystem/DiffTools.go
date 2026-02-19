@@ -275,21 +275,21 @@ func DiffInStringLCSAlt(old string, new string) []DifferenceEntry {
 	//OLD -> Placed in row = Identifies COLUMN -> X
 	//NEW -> Placed in column = Identifies ROW -> Y
 	matrixResults := make([]webtools.ThreeValuePair[rune, int, int], 0)
-	var x = 0
-	var y = 0
+	var x = len(oldRunes) - 1
+	var y = len(newRunes) - 1
 	var found = false
 	for true {
-		if x >= len(oldRunes) || y >= len(newRunes) {
+		if x < 0 || y < 0 {
 			break
 		}
 		found = false
 		//Do not match, try to find the matching
-		for i := x; i < len(newRunes); i++ {
+		for i := x; i >= 0; i-- {
 			if oldRunes[i] == newRunes[y] {
 				//Values same
 				matrixResults = append(matrixResults, webtools.ThreeValuePair[rune, int, int]{A: oldRunes[x], B: i, C: y})
-				x = i + 1
-				y++
+				x = i - 1
+				y--
 				found = true
 				break
 			}
@@ -297,7 +297,7 @@ func DiffInStringLCSAlt(old string, new string) []DifferenceEntry {
 
 		if !found {
 			//Value not found
-			y++
+			y--
 		}
 	}
 	fmt.Println("Backtracked matrix:", matrixResults)

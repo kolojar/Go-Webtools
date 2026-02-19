@@ -308,8 +308,10 @@ func main() {
 			//new := "127.0.0.1:17777 - TATO IP JE PLATNA"
 			//old := "test"
 			//new := "tsxqet"
-			old := "abcabba"
-			new := "cbabac"
+			//old := "abcabba"
+			//new := "cbabac"
+			old := "ABCBDAB"
+			new := "BDCABA"
 
 			//changes := filesystem.DiffInStringMyers(old, new)
 			//return
