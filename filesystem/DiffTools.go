@@ -81,25 +81,26 @@ func DiffInStringLCS(old string, new string) []DifferenceEntry {
 	//Get same letters
 	oldRunes := []rune(old)
 	newRunes := []rune(new)
-	sameOld := make([]differenceStaticLetter, 0)
-	lookupOldRunes := make(map[rune][]int, 0)
-	for index, char := range oldRunes {
-		if lookupOldRunes[char] == nil {
-			lookupOldRunes[char] = make([]int, 0)
-		}
-		lookupOldRunes[char] = append(lookupOldRunes[char], index)
-	}
+	//REMOVED SAME OLD AND NEW - LOTS OF TIMES BOTH HAVE SAME
+	//sameOld := make([]differenceStaticLetter, 0)
+	//lookupOldRunes := make(map[rune][]int, 0)
+	//for index, char := range oldRunes {
+	//	if lookupOldRunes[char] == nil {
+	//		lookupOldRunes[char] = make([]int, 0)
+	//	}
+	//	lookupOldRunes[char] = append(lookupOldRunes[char], index)
+	//}
 
-	//Get same letters
-	sameNew := make([]differenceStaticLetter, 0)
-	for index, char := range newRunes {
-		positionsInOld, ok := lookupOldRunes[char]
-		if ok && len(positionsInOld) > 0 {
-			sameOld = appendAtBottomDiffrerenceLetter(sameOld, differenceStaticLetter{Letter: char, Index: positionsInOld[0]})
-			sameNew = appendAtBottomDiffrerenceLetter(sameNew, differenceStaticLetter{Letter: char, Index: index})
-			lookupOldRunes[char] = positionsInOld[1:]
-		}
-	}
+	////Get same letters
+	//sameNew := make([]differenceStaticLetter, 0)
+	//for index, char := range newRunes {
+	//	positionsInOld, ok := lookupOldRunes[char]
+	//	if ok && len(positionsInOld) > 0 {
+	//		sameOld = appendAtBottomDiffrerenceLetter(sameOld, differenceStaticLetter{Letter: char, Index: positionsInOld[0]})
+	//		sameNew = appendAtBottomDiffrerenceLetter(sameNew, differenceStaticLetter{Letter: char, Index: index})
+	//		lookupOldRunes[char] = positionsInOld[1:]
+	//	}
+	//}
 	//sameOld := make([]webtools.KeyValuePair[rune, int], 0)
 	////foundByA := make(map[rune]int, 0)
 	//for keyA, valA := range oldRunes {
@@ -109,28 +110,16 @@ func DiffInStringLCS(old string, new string) []DifferenceEntry {
 	//for keyA, valA := range newRunes {
 	//	sameNew = append(sameNew, webtools.KeyValuePair[rune, int]{Key: valA, Value: keyA})
 	//}
-	fmt.Println("Same letters old:", sameOld, len(oldRunes)-len(sameOld))
-	fmt.Println("Same letters new:", sameNew)
-
-	if len(sameNew) == 0 || len(sameOld) == 0 {
-		//Source string do not match at all
-		result := make([]DifferenceEntry, 0)
-		for i := 0; i < len(oldRunes); i++ {
-			result = webtools.InsertElementAtIndex(result, 0, DifferenceEntry{Position: i, Character: rune(oldRunes[i]), IsInsertion: false})
-		}
-		for i := 0; i < len(newRunes); i++ {
-			result = append(result, DifferenceEntry{Position: i, Character: rune(newRunes[i]), IsInsertion: true})
-		}
-		return result
-	}
+	//fmt.Println("Same letters old:", sameOld, len(oldRunes)-len(sameOld))
+	//fmt.Println("Same letters new:", sameNew)
 
 	//Make LCS diff matrix
 	//OLD -> Placed in row = Identifies COLUMN -> X
 	//NEW -> Placed in column = Identifies ROW -> Y
 	//MATRIX[y = ROW][x = COLUMN]
-	matrix := make([][]int, len(sameNew))
+	matrix := make([][]int, len(newRunes))
 	for i := 0; i < len(matrix); i++ {
-		matrix[i] = make([]int, len(sameOld))
+		matrix[i] = make([]int, len(oldRunes))
 	}
 
 	//Fill matrix
@@ -140,7 +129,7 @@ func DiffInStringLCS(old string, new string) []DifferenceEntry {
 	//}
 	for y := 0; y < len(matrix); y++ {
 		for x := 0; x < len(matrix[y]); x++ {
-			if sameOld[x].Letter == sameNew[y].Letter {
+			if oldRunes[x] == newRunes[y] {
 				//Values same
 				//linkedColToRow[x] = y
 				if y < 1 || x < 1 {
@@ -163,13 +152,13 @@ func DiffInStringLCS(old string, new string) []DifferenceEntry {
 			matrix[y][x] = max(a, b)
 		}
 	}
-	fmt.Println("Matrix:")
-	for y := 0; y < len(matrix); y++ {
-		for x := 0; x < len(matrix[y]); x++ {
-			fmt.Print(matrix[y][x])
-		}
-		fmt.Println()
-	}
+	//fmt.Println("Matrix:")
+	//for y := 0; y < len(matrix); y++ {
+	//	for x := 0; x < len(matrix[y]); x++ {
+	//		fmt.Print(matrix[y][x])
+	//	}
+	//	fmt.Println()
+	//}
 	//fmt.Println("Linked:")
 	//fmt.Println(sameOld)
 	//for i := 0; i < len(linkedColToRow); i++ {
@@ -191,9 +180,9 @@ func DiffInStringLCS(old string, new string) []DifferenceEntry {
 			//No more values
 			break
 		}
-		if sameNew[y].Letter == sameOld[x].Letter {
+		if newRunes[y] == oldRunes[x] {
 			//Same letters
-			linked := webtools.ThreeValuePair[rune, int, int]{A: sameOld[x].Letter, B: sameOld[x].Index, C: sameNew[y].Index}
+			linked := webtools.ThreeValuePair[rune, int, int]{A: oldRunes[x], B: x, C: y}
 			matrixResults = append(matrixResults, linked)
 			x--
 			y--
@@ -218,7 +207,8 @@ func DiffInStringLCS(old string, new string) []DifferenceEntry {
 		}
 	}
 	slices.Reverse(matrixResults)
-	fmt.Println("Backtracked matrix:", matrixResults)
+	fmt.Println("Used memory:", (len(oldRunes) * len(newRunes) * 8), "bytes")
+	//fmt.Println("Backtracked matrix:", matrixResults)
 
 	//Detect insertions and deletions
 	resultDelete := make([]DifferenceEntry, 0)
@@ -263,57 +253,129 @@ func DiffInStringLCS(old string, new string) []DifferenceEntry {
 }
 
 /*
-DiffInStringLCSAlt checks for differences in two string without the matrix. Returns array of changes
-Simplified LCS diff check - https://en.wikipedia.org/wiki/Longest_common_subsequence
+DiffInStringLCSAlt checks for differences in two string. Returns array of changes
+Trying custom LCS diff check with more effective RAM usage - https://en.wikipedia.org/wiki/Longest_common_subsequence
 */
 func DiffInStringLCSAlt(old string, new string) []DifferenceEntry {
 	//Get same letters
 	oldRunes := []rune(old)
 	newRunes := []rune(new)
 
-	//Do simulation like LCS diff matrix
+	//Make LCS diff matrix but only 2 rpws
 	//OLD -> Placed in row = Identifies COLUMN -> X
 	//NEW -> Placed in column = Identifies ROW -> Y
-	matrixResults := make([]webtools.ThreeValuePair[rune, int, int], 0)
-	var x = len(oldRunes) - 1
-	var y = len(newRunes) - 1
-	var found = false
-	for true {
-		if x < 0 || y < 0 {
-			break
+	//MATRIX[y = ROW][x = COLUMN]
+	matrix := make([][]int, 2)
+	matrix[0] = make([]int, len(oldRunes))
+	matrix[1] = make([]int, len(oldRunes))
+	matrixValuesByRows := make([][]webtools.KeyValuePair[int, int], 0)
+
+	//Fill matrix
+	for y := 0; y < len(newRunes); y++ {
+		for x := 0; x < len(oldRunes); x++ {
+			if oldRunes[x] == newRunes[y] {
+				//Values same - create row if needed
+				if len(matrixValuesByRows) <= y {
+					matrixValuesByRows = append(matrixValuesByRows, make([]webtools.KeyValuePair[int, int], 0))
+				}
+
+				//Set value
+				if y < 1 || x < 1 {
+					matrix[1][x] = 1
+				} else {
+					matrix[1][x] = matrix[0][x-1] + 1
+				}
+
+				//Add entry in matrixValues
+				matrixValuesByRows[y] = append(matrixValuesByRows[y], webtools.KeyValuePair[int, int]{Key: x, Value: matrix[1][x]})
+				continue
+			}
+
+			//Values not same
+			a := 0
+			if x > 0 {
+				a = matrix[1][x-1]
+			}
+			b := 0
+			if y > 0 {
+				b = matrix[0][x]
+			}
+			matrix[1][x] = max(a, b)
 		}
-		found = false
-		//Do not match, try to find the matching
-		for i := x; i >= 0; i-- {
-			if oldRunes[i] == newRunes[y] {
-				//Values same
-				matrixResults = append(matrixResults, webtools.ThreeValuePair[rune, int, int]{A: oldRunes[x], B: i, C: y})
-				x = i - 1
-				y--
-				found = true
+
+		//Values same - create empty row
+		if len(matrixValuesByRows) <= y {
+			matrixValuesByRows = append(matrixValuesByRows, nil)
+		}
+
+		//Shift row
+		matrix[0] = matrix[1]
+	}
+	//fmt.Println("Matrix:")
+	//for y := 0; y < len(matrix); y++ {
+	//	for x := 0; x < len(matrix[y]); x++ {
+	//		fmt.Print(matrix[y][x])
+	//	}
+	//	fmt.Println()
+	//}
+	//fmt.Println("Filtered values:", matrixValuesByRows)
+	//fmt.Println("Linked:")
+	//fmt.Println(sameOld)
+	//for i := 0; i < len(linkedColToRow); i++ {
+	//	fmt.Print(linkedColToRow[i])
+	//}
+	//fmt.Println()
+	fmt.Println()
+
+	//Backtrack the matrix
+	//OLD -> Placed in row = Identifies COLUMN -> X
+	//NEW -> Placed in column = Identifies ROW -> Y
+	//MATRIX[y = ROW][x = COLUMN]
+	matrixResults := make([]webtools.ThreeValuePair[rune, int, int], 0)
+	//matrixResultLinking :=
+	x := len(oldRunes) - 1
+	y := len(newRunes) - 1
+	for letterCount := matrix[1][x]; letterCount >= 0; letterCount-- {
+		found := false
+		//Look for next letter
+		for j := x; j >= 0; j-- {
+			for i := y; i >= 0; i-- {
+				if matrixValuesByRows[i] == nil {
+					//Empty row
+					continue
+				}
+				//Find optimal value
+				valIndex, ok := slices.BinarySearchFunc(matrixValuesByRows[i], j, func(comparedItem webtools.KeyValuePair[int, int], targetValue int) int {
+					if comparedItem.Key == targetValue {
+						return 0
+					}
+					if comparedItem.Key < targetValue {
+						return -1
+					} else {
+						return 1
+					}
+				})
+				if ok && matrixValuesByRows[i][valIndex].Value == letterCount {
+					//Match = jump to direction of matrix
+					x = j - 1
+					y = i - 1
+					matrixResults = append(matrixResults, webtools.ThreeValuePair[rune, int, int]{A: oldRunes[j], B: j, C: i})
+					found = true
+					break
+				}
+			}
+			if found {
 				break
 			}
 		}
-
-		if !found {
-			//Value not found
-			y--
-		}
 	}
-	fmt.Println("Backtracked matrix:", matrixResults)
-
-	//No same letters
-	if len(matrixResults) == 0 {
-		//Source string do not match at all
-		result := make([]DifferenceEntry, 0)
-		for i := 0; i < len(oldRunes); i++ {
-			result = webtools.InsertElementAtIndex(result, 0, DifferenceEntry{Position: i, Character: rune(oldRunes[i]), IsInsertion: false})
-		}
-		for i := 0; i < len(newRunes); i++ {
-			result = append(result, DifferenceEntry{Position: i, Character: rune(newRunes[i]), IsInsertion: true})
-		}
-		return result
+	slices.Reverse(matrixResults)
+	usedRamCounter := 0
+	for _, v := range matrixValuesByRows {
+		usedRamCounter += len(v) * 2 * 8
 	}
+	fmt.Println("Used memory:", (len(oldRunes)*2*8)+usedRamCounter, "bytes")
+	//fmt.Println("Backtracked matrix:", matrixResults)
 
 	//Detect insertions and deletions
 	resultDelete := make([]DifferenceEntry, 0)
@@ -356,6 +418,172 @@ func DiffInStringLCSAlt(old string, new string) []DifferenceEntry {
 
 	return append(resultDelete, resultAdd...)
 }
+
+///*
+//DiffInStringMyers checks for differences in two string without the matrix. Returns array of changes
+//Meyers algorithm - https://blog.robertelder.org/diff-algorithm/
+//*/
+//func DiffInStringMyers(old string, new string) []DifferenceEntry {
+//	//Get same letters
+//	oldRunes := []rune(old)
+//	newRunes := []rune(new)
+//
+//	//Do Myers simulation
+//	//OLD -> Placed in row = Identifies COLUMN -> X
+//	//NEW -> Placed in column = Identifies ROW -> Y
+//	ended := false
+//	kLinesForX := make(map[int]map[int]int)
+//	kLinesForX[-1] = make(map[int]int)
+//	kLinesForX[-1][1] = 0
+//	matrixResults := make([]webtools.ThreeValuePair[rune, int, int], 0)
+//	for differences := 0; differences <= (len(oldRunes) + len(newRunes)); differences++ {
+//		kLinesForX[differences] = make(map[int]int, 0)
+//		//Tells how many edits can be done
+//		for kLineIndexCounter := -differences; kLineIndexCounter <= differences; kLineIndexCounter += 2 {
+//			//Tells on what diagonal we are - we need to get one back
+//			kLineIndex := kLineIndexCounter
+//			if kLineIndex <= 0 {
+//				kLineIndex++
+//			} else {
+//				kLineIndex--
+//			}
+//			//The x is the furthes x we got on this diagonal line
+//			get, ok := kLinesForX[differences-1]
+//			if !ok {
+//				fmt.Println("KLine for differences:", differences, "not reachable.")
+//				continue
+//			}
+//			x, ok := get[kLineIndex]
+//			if !ok {
+//				fmt.Println("KLine for differences:", differences, " and kLine:", kLineIndex, "not reachable.")
+//				continue
+//			}
+//
+//			//The y is calculated from the diagonal definition k = x - y
+//			y := x - kLineIndex
+//			fmt.Println("Simulating at point: [", x, ",", y, "] at kLine:", kLineIndex, "with differences:", differences)
+//			if x < 0 || y < -1 {
+//				fmt.Println("Point out of range: [", x, ",", y, "] at kLine:", kLineIndex, "with differences:", differences)
+//				continue
+//			}
+//
+//			//Check if can do diagonal, and if can, do it as much as you can
+//			if x < len(oldRunes) && y < len(newRunes) && y >= 0 && oldRunes[x] == newRunes[y] {
+//				for x < len(oldRunes) && y < len(newRunes) && oldRunes[x] == newRunes[y] {
+//					fmt.Println("Moved diagonally from: [", x, ",", y, "] to: [", x+1, ",", y+1, "] at kLine:", kLineIndex, "with differences:", differences)
+//					x++
+//					y++
+//				}
+//				kLinesForX[differences][kLineIndex] = x
+//
+//				//Check if ended
+//				if x >= len(oldRunes) && y >= len(newRunes) {
+//					ended = true
+//					break
+//				}
+//				continue
+//			}
+//
+//			//Check for moving left or down
+//			if (kLineIndex-1) == -differences && y < len(newRunes) {
+//				//Can go down
+//				localX := x
+//				localY := y + 1
+//				fmt.Println("Moved down from: [", x, ",", y, "] to: [", localX, ",", localY, "] at kLine:", kLineIndex, "with differences:", differences)
+//				for localX < len(oldRunes) && localY < len(newRunes) && oldRunes[localX] == newRunes[localY] {
+//					fmt.Println("Moved diagonally from: [", localX, ",", localY, "] to: [", localX+1, ",", localY+1, "] at kLine:", kLineIndex, "with differences:", differences)
+//					localX++
+//					localY++
+//				}
+//				kLinesForX[differences][kLineIndex-1] = localX
+//
+//				//Check if ended
+//				if localX >= len(oldRunes) && localY >= len(newRunes) {
+//					ended = true
+//					break
+//				}
+//			}
+//			if (kLineIndex+1) == differences && x < len(oldRunes) {
+//				//Can go left
+//				localX := x + 1
+//				localY := y
+//				fmt.Println("Moved left from: [", x, ",", y, "] to: [", localX, ",", localY, "] at kLine:", kLineIndex, "with differences:", differences)
+//				for localX < len(oldRunes) && localY < len(newRunes) && oldRunes[localX] == newRunes[localY] {
+//					fmt.Println("Moved diagonally from: [", localX, ",", localY, "] to: [", localX+1, ",", localY+1, "] at kLine:", kLineIndex, "with differences:", differences)
+//					localX++
+//					localY++
+//				}
+//				kLinesForX[differences][kLineIndex+1] = localX
+//
+//				//Check if ended
+//				if localX >= len(oldRunes) && localY >= len(newRunes) {
+//					ended = true
+//					break
+//				}
+//			}
+//		}
+//		if ended {
+//			break
+//		}
+//	}
+//
+//	fmt.Println(kLinesForX)
+//	fmt.Println("Backtracked matrix:", matrixResults)
+//
+//	//No same letters
+//	if len(matrixResults) == 0 {
+//		//Source string do not match at all
+//		result := make([]DifferenceEntry, 0)
+//		for i := 0; i < len(oldRunes); i++ {
+//			result = webtools.InsertElementAtIndex(result, 0, DifferenceEntry{Position: i, Character: rune(oldRunes[i]), IsInsertion: false})
+//		}
+//		for i := 0; i < len(newRunes); i++ {
+//			result = append(result, DifferenceEntry{Position: i, Character: rune(newRunes[i]), IsInsertion: true})
+//		}
+//		return result
+//	}
+//
+//	//Detect insertions and deletions
+//	resultDelete := make([]DifferenceEntry, 0)
+//	resultAdd := make([]DifferenceEntry, 0)
+//	okOld := 0
+//	okNew := 0
+//	checkedLast := false
+//	for _, matrixItem := range matrixResults {
+//		if okOld < matrixItem.B {
+//			//All items before this are invalid
+//			for _ = okOld; okOld < matrixItem.B; okOld++ {
+//				resultDelete = appendAtTop(resultDelete, DifferenceEntry{Position: okOld, Character: rune(oldRunes[okOld]), IsInsertion: false})
+//			}
+//			okOld++
+//		} else {
+//			okOld = matrixItem.B + 1
+//		}
+//		if okNew < matrixItem.C {
+//			//All items before this are new
+//			for _ = okNew; okNew < matrixItem.C; okNew++ {
+//				//resultAdd = append([]webtools.ThreeValuePair[int, rune, bool]{{A: okNew, B: rune(newRunes[okNew]), C: true}}, resultAdd...)
+//				resultAdd = append(resultAdd, DifferenceEntry{Position: okNew, Character: rune(newRunes[okNew]), IsInsertion: true})
+//			}
+//			okNew++
+//		} else {
+//			okNew = matrixItem.C + 1
+//		}
+//		if okNew == len(newRunes) {
+//			checkedLast = true
+//		}
+//	}
+//
+//	//Do last insertions and deletions
+//	for i := len(oldRunes) - 1; i >= okOld; i-- {
+//		resultDelete = appendAtTop(resultDelete, DifferenceEntry{Position: i, Character: rune(oldRunes[i]), IsInsertion: false})
+//	}
+//	for i := okNew + webtools.FormatByBool(checkedLast, 1, 0); i < len(newRunes); i++ {
+//		resultAdd = append(resultAdd, DifferenceEntry{Position: i, Character: rune(newRunes[i]), IsInsertion: true})
+//	}
+//
+//	return append(resultDelete, resultAdd...)
+//}
 
 //type diffMyersSimulationPoint struct {
 //	X        int
@@ -541,11 +769,11 @@ func PatchUsingChanges(old string, changes []DifferenceEntry) string {
 	//Process
 	for _, v := range deletions {
 		old = webtools.RemoveRuneAtIndex(old, v.Position)
-		fmt.Println(old)
+		//fmt.Println(old)
 	}
 	for _, v := range insertions {
 		old = webtools.InsertRuneAtIndex(old, v.Position, v.Character)
-		fmt.Println(old)
+		//fmt.Println(old)
 	}
 	return old
 }

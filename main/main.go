@@ -310,19 +310,25 @@ func main() {
 			//new := "tsxqet"
 			//old := "abcabba"
 			//new := "cbabac"
-			old := "ABCBDAB"
-			new := "BDCABA"
+			//old := "ABCBDAB"
+			//new := "BDCABA"
+			old := "A" + strings.Repeat("C", 5000) + "C"
+			new := "A" + strings.Repeat("D", 5000) + "C"
 
 			//changes := filesystem.DiffInStringMyers(old, new)
 			//return
 
-			changes := filesystem.DiffInStringLCSAlt(old, new)
-			fmt.Println("Changes: ")
-			for i := 0; i < len(changes); i++ {
-				fmt.Println(changes[i])
-			}
+			changes := filesystem.DiffInStringLCS(old, new)
+			//fmt.Println("Changes: ")
+			//for i := 0; i < len(changes); i++ {
+			//	fmt.Println(changes[i])
+			//}
 			updOld := filesystem.PatchUsingChanges(old, changes)
-			fmt.Println(updOld)
+			//fmt.Println(updOld)
+			fmt.Println("Maches:", (updOld == new))
+
+			changes = filesystem.DiffInStringLCSAlt(old, new)
+			updOld = filesystem.PatchUsingChanges(old, changes)
 			fmt.Println("Maches:", (updOld == new))
 
 			//fmt.Println(filesystem.JoinPathSecure("/mnt/DATA/Programming/Go/Go-Webtools/test/", ".."))
