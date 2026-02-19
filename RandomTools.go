@@ -103,6 +103,16 @@ func InsertRuneAtIndex(text string, index int, r rune) string {
 }
 
 /*
+IntAbs gets absolute value from any int value
+*/
+func IntAbs[T int | int8 | int16 | int32 | int64](x T) T {
+	if x < 0 {
+		return -x
+	}
+	return x
+}
+
+/*
 Server connection interface, removed because not used
 */
 /*type IServerConn interface {

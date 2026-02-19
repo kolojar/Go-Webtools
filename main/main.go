@@ -304,16 +304,22 @@ func main() {
 		{
 			//old := "12:17777"
 			//new := "271:98887"
-			old := "127.0.0.2"
-			new := "127.0.0.1:17777"
-			//old := "tesqt"
+			//old := "127.0.0.2 - TATO IP ADRESA NENI PLATNA"
+			//new := "127.0.0.1:17777 - TATO IP JE PLATNA"
+			//old := "test"
 			//new := "tsxqet"
-			changes := filesystem.DiffInString(old, new)
+			old := "abcabba"
+			new := "cbabac"
+
+			//changes := filesystem.DiffInStringMyers(old, new)
+			//return
+
+			changes := filesystem.DiffInStringLCSAlt(old, new)
 			fmt.Println("Changes: ")
 			for i := 0; i < len(changes); i++ {
 				fmt.Println(changes[i])
 			}
-			updOld := filesystem.UpdateOldUsingChanges(old, changes)
+			updOld := filesystem.PatchUsingChanges(old, changes)
 			fmt.Println(updOld)
 			fmt.Println("Maches:", (updOld == new))
 
