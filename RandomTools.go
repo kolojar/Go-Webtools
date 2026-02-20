@@ -66,13 +66,6 @@ func RemoveElementAtIndex[T any](slice []T, index int) []T {
 }
 
 /*
-RemoveRuneAtIndex removes rune at specified index
-*/
-func RemoveRuneAtIndex(text string, index int) string {
-	return string(RemoveElementAtIndex([]rune(text), index))
-}
-
-/*
 InsertElementAtIndex inserts element at specified index
 */
 func InsertElementAtIndex[T any](slice []T, index int, element T) []T {
@@ -93,13 +86,6 @@ func InsertElementAtIndex[T any](slice []T, index int, element T) []T {
 	copy(slice[index+1:], slice[index:])
 	slice[index] = element
 	return slice
-}
-
-/*
-InsertRuneAtIndex inserts rune at specified index
-*/
-func InsertRuneAtIndex(text string, index int, r rune) string {
-	return string(InsertElementAtIndex([]rune(text), index, r))
 }
 
 /*

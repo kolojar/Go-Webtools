@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -304,18 +305,20 @@ func main() {
 		{
 			//old := "12:17777"
 			//new := "271:98887"
-			//old := "127.0.0.2 - TATO IP ADRESA NENI PLATNA"
-			//new := "127.0.0.1:17777 - TATO IP JE PLATNA"
+			old := []rune("127.0.0.2")
+			new := []rune("127.0.0.1:17777")
 			//old := "test"
 			//new := "tsxqet"
 			//old := "abcabba"
 			//new := "cbabac"
-			old := "ABCBDAB"
-			new := "BDCABA"
+			//old := "ABCBDAB"
+			//new := "BDCABA"
 			//old := "A" + strings.Repeat("C", 500) + "C"
 			//new := "B" + strings.Repeat("C", 500) + "C"
-			//old := ""
-			//new := ""
+			//old := []rune("Češi jsou nejlepší")
+			//new := []rune("Češi jsou nejlepší")
+			//old := []string{"fmt.Println('Hello')", "if true {} else {", "return}"}
+			//new := []string{"fmt.Println('Hi')", "if true {} else {", "return}"}
 
 			//changes := filesystem.DiffInStringMyers(old, new)
 			//return
@@ -328,12 +331,12 @@ func main() {
 			fmt.Println("Changes:", len(changes))
 			updOld := filesystem.PatchUsingChanges(old, changes)
 			//fmt.Println(updOld)
-			fmt.Println("Maches:", (updOld == new))
+			fmt.Println("Maches:", (slices.Equal(updOld, new)))
 
 			changes = filesystem.DiffInStringLCSAlt(old, new)
 			fmt.Println("Changes:", len(changes))
 			updOld = filesystem.PatchUsingChanges(old, changes)
-			fmt.Println("Maches:", (updOld == new))
+			fmt.Println("Maches:", (slices.Equal(updOld, new)))
 
 			//fmt.Println(filesystem.JoinPathSecure("/mnt/DATA/Programming/Go/Go-Webtools/test/", ".."))
 			//fmt.Println(filesystem.JoinPathSecure("/mnt/DATA/Programming/Go/Go-Webtools/test/", "c"))
