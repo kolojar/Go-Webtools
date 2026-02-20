@@ -254,6 +254,7 @@ func DiffInStringLCS(old string, new string) []DifferenceEntry {
 
 /*
 DiffInStringLCSAlt checks for differences in two string. Returns array of changes
+It handles lots of changes the best
 Trying custom LCS diff check with more effective RAM usage - https://en.wikipedia.org/wiki/Longest_common_subsequence
 */
 func DiffInStringLCSAlt(old string, new string) []DifferenceEntry {
@@ -269,8 +270,10 @@ func DiffInStringLCSAlt(old string, new string) []DifferenceEntry {
 	matrix[0] = make([]int, len(oldRunes))
 	matrix[1] = make([]int, len(oldRunes))
 	matrixValuesByRows := make([][]webtools.KeyValuePair[int, int], 0)
+	var jumpValue int = 0
 
 	//Fill matrix
+	fmt.Println("Matrix:")
 	for y := 0; y < len(newRunes); y++ {
 		for x := 0; x < len(oldRunes); x++ {
 			if oldRunes[x] == newRunes[y] {
@@ -285,9 +288,14 @@ func DiffInStringLCSAlt(old string, new string) []DifferenceEntry {
 				} else {
 					matrix[1][x] = matrix[0][x-1] + 1
 				}
+				if matrix[1][x] > jumpValue {
+					jumpValue = matrix[1][x]
+				}
 
 				//Add entry in matrixValues
-				matrixValuesByRows[y] = append(matrixValuesByRows[y], webtools.KeyValuePair[int, int]{Key: x, Value: matrix[1][x]})
+				if matrix[1][x] >= jumpValue {
+					matrixValuesByRows[y] = append(matrixValuesByRows[y], webtools.KeyValuePair[int, int]{Key: x, Value: matrix[1][x]})
+				}
 				continue
 			}
 
@@ -309,6 +317,10 @@ func DiffInStringLCSAlt(old string, new string) []DifferenceEntry {
 		}
 
 		//Shift row
+		for x := 0; x < len(matrix[1]); x++ {
+			fmt.Print(matrix[1][x])
+		}
+		fmt.Println()
 		copy(matrix[0], matrix[1])
 	}
 	//fmt.Println("Matrix:")
