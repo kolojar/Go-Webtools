@@ -310,19 +310,21 @@ func main() {
 			//new := "tsxqet"
 			//old := "abcabba"
 			//new := "cbabac"
-			//old := "ABCBDAB"
-			//new := "BDCABA"
-			old := "A" + strings.Repeat("CD", 10000) + "C"
-			new := "A" + strings.Repeat("DC", 10000) + "C"
+			old := "ABCBDAB"
+			new := "BDCABA"
+			//old := "A" + strings.Repeat("C", 500) + "C"
+			//new := "B" + strings.Repeat("C", 500) + "C"
+			//old := ""
+			//new := ""
 
 			//changes := filesystem.DiffInStringMyers(old, new)
 			//return
 
 			changes := filesystem.DiffInStringLCS(old, new)
-			//fmt.Println("Changes: ")
-			//for i := 0; i < len(changes); i++ {
-			//	fmt.Println(changes[i])
-			//}
+			fmt.Println("Changes: ")
+			for i := 0; i < len(changes); i++ {
+				fmt.Println(changes[i])
+			}
 			fmt.Println("Changes:", len(changes))
 			updOld := filesystem.PatchUsingChanges(old, changes)
 			//fmt.Println(updOld)

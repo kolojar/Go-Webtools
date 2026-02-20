@@ -81,6 +81,9 @@ func DiffInStringLCS(old string, new string) []DifferenceEntry {
 	//Get same letters
 	oldRunes := []rune(old)
 	newRunes := []rune(new)
+	if len(oldRunes) == 0 && len(newRunes) == 0 {
+		return nil
+	}
 	//REMOVED SAME OLD AND NEW - LOTS OF TIMES BOTH HAVE SAME
 	//sameOld := make([]differenceStaticLetter, 0)
 	//lookupOldRunes := make(map[rune][]int, 0)
@@ -211,8 +214,9 @@ func DiffInStringLCS(old string, new string) []DifferenceEntry {
 	//fmt.Println("Backtracked matrix:", matrixResults)
 
 	//Detect insertions and deletions
-	resultDelete := make([]DifferenceEntry, 0)
-	resultAdd := make([]DifferenceEntry, 0)
+	//resultDelete := make([]DifferenceEntry, 0)
+	//resultAdd := make([]DifferenceEntry, 0)
+	result := make([]DifferenceEntry, 0)
 	okOld := 0
 	okNew := 0
 	checkedLast := false
@@ -220,7 +224,7 @@ func DiffInStringLCS(old string, new string) []DifferenceEntry {
 		if okOld < matrixItem.B {
 			//All items before this are invalid
 			for _ = okOld; okOld < matrixItem.B; okOld++ {
-				resultDelete = appendAtTop(resultDelete, DifferenceEntry{Position: okOld, Character: rune(oldRunes[okOld]), IsInsertion: false})
+				result = append(result, DifferenceEntry{Position: okOld, Character: rune(oldRunes[okOld]), IsInsertion: false})
 			}
 			okOld++
 		} else {
@@ -230,7 +234,7 @@ func DiffInStringLCS(old string, new string) []DifferenceEntry {
 			//All items before this are new
 			for _ = okNew; okNew < matrixItem.C; okNew++ {
 				//resultAdd = append([]webtools.ThreeValuePair[int, rune, bool]{{A: okNew, B: rune(newRunes[okNew]), C: true}}, resultAdd...)
-				resultAdd = append(resultAdd, DifferenceEntry{Position: okNew, Character: rune(newRunes[okNew]), IsInsertion: true})
+				result = append(result, DifferenceEntry{Position: okNew, Character: rune(newRunes[okNew]), IsInsertion: true})
 			}
 			okNew++
 		} else {
@@ -243,13 +247,13 @@ func DiffInStringLCS(old string, new string) []DifferenceEntry {
 
 	//Do last insertions and deletions
 	for i := len(oldRunes) - 1; i >= okOld; i-- {
-		resultDelete = appendAtTop(resultDelete, DifferenceEntry{Position: i, Character: rune(oldRunes[i]), IsInsertion: false})
+		result = append(result, DifferenceEntry{Position: i, Character: rune(oldRunes[i]), IsInsertion: false})
 	}
 	for i := okNew + webtools.FormatByBool(checkedLast, 1, 0); i < len(newRunes); i++ {
-		resultAdd = append(resultAdd, DifferenceEntry{Position: i, Character: rune(newRunes[i]), IsInsertion: true})
+		result = append(result, DifferenceEntry{Position: i, Character: rune(newRunes[i]), IsInsertion: true})
 	}
 
-	return append(resultDelete, resultAdd...)
+	return result
 }
 
 /*
@@ -261,16 +265,19 @@ func DiffInStringLCSAlt(old string, new string) []DifferenceEntry {
 	//Get same letters
 	oldRunes := []rune(old)
 	newRunes := []rune(new)
+	if len(oldRunes) == 0 && len(newRunes) == 0 {
+		return nil
+	}
 
 	//Make LCS diff matrix but only 2 rpws
 	//OLD -> Placed in row = Identifies COLUMN -> X
 	//NEW -> Placed in column = Identifies ROW -> Y
 	//MATRIX[y = ROW][x = COLUMN]
-	matrix := make([][]int, 2)
-	matrix[0] = make([]int, len(oldRunes))
-	matrix[1] = make([]int, len(oldRunes))
-	matrixValuesByLetterValues := make([][]webtools.KeyValuePair[int, int], 0)
-	var jumpValue int = 0
+	matrix := make([][]uint32, 2)
+	matrix[0] = make([]uint32, len(oldRunes))
+	matrix[1] = make([]uint32, len(oldRunes))
+	matrixValuesByLetterValues := make([][]uint64, 0)
+	var jumpValue uint32 = 0
 
 	//Fill matrix
 	//fmt.Println("Matrix:")
@@ -293,26 +300,26 @@ func DiffInStringLCSAlt(old string, new string) []DifferenceEntry {
 				}
 
 				//Values same - create row if needed
-				if len(matrixValuesByLetterValues) < matrix[1][x] {
+				if uint32(len(matrixValuesByLetterValues)) < matrix[1][x] {
 					matrixValuesByLetterValues = append(matrixValuesByLetterValues, nil)
 				}
-				if len(matrixValuesByLetterValues) == matrix[1][x] {
-					matrixValuesByLetterValues = append(matrixValuesByLetterValues, make([]webtools.KeyValuePair[int, int], 0))
+				if uint32(len(matrixValuesByLetterValues)) == matrix[1][x] {
+					matrixValuesByLetterValues = append(matrixValuesByLetterValues, make([]uint64, 0))
 				}
 
 				//Add entry in matrixValues
 				if matrix[1][x] >= jumpValue {
-					matrixValuesByLetterValues[jumpValue] = append(matrixValuesByLetterValues[jumpValue], webtools.KeyValuePair[int, int]{Key: x, Value: y})
+					matrixValuesByLetterValues[jumpValue] = append(matrixValuesByLetterValues[jumpValue], ((uint64(x) << 32) | (uint64(y) & 0xFFFFFFFF)))
 				}
 				continue
 			}
 
 			//Values not same
-			a := 0
+			var a uint32 = 0
 			if x > 0 {
 				a = matrix[1][x-1]
 			}
-			b := 0
+			var b uint32 = 0
 			if y > 0 {
 				b = matrix[0][x]
 			}
@@ -349,7 +356,7 @@ func DiffInStringLCSAlt(old string, new string) []DifferenceEntry {
 	fmt.Println()
 	usedRamCounter := 0
 	for _, v := range matrixValuesByLetterValues {
-		usedRamCounter += len(v) * 2 * 8
+		usedRamCounter += len(v) * 8
 	}
 
 	//Backtrack the matrix
@@ -358,48 +365,53 @@ func DiffInStringLCSAlt(old string, new string) []DifferenceEntry {
 	//MATRIX[y = ROW][x = COLUMN]
 	matrixResults := make([]webtools.ThreeValuePair[rune, int, int], 0)
 	//matrixResultLinking :=
-	x := len(oldRunes) - 1
-	y := len(newRunes) - 1
+	x := uint32(len(oldRunes) - 1)
+	y := uint32(len(newRunes) - 1)
 	for letterCount := matrix[1][x]; letterCount > 0; letterCount-- {
 		//Multiple values, filter area
-		matrixValuesByLetterValues[letterCount] = slices.DeleteFunc(matrixValuesByLetterValues[letterCount], func(element webtools.KeyValuePair[int, int]) bool {
-			return element.Key > x || element.Value > y
+		matrixValuesByLetterValues[letterCount] = slices.DeleteFunc(matrixValuesByLetterValues[letterCount], func(element uint64) bool {
+			return uint32(element>>32) > x || uint32(element&0xFFFFFFFF) > y
 		})
 
 		//Check if letter count has only one letter
 		if len(matrixValuesByLetterValues[letterCount]) == 1 {
 			//Only value, jump to it
-			point := matrixValuesByLetterValues[letterCount][0]
-			matrixResults = append(matrixResults, webtools.ThreeValuePair[rune, int, int]{A: oldRunes[point.Key], B: point.Key, C: point.Value})
-			x = point.Key - 1
-			y = point.Value - 1
+			pointX := uint32(matrixValuesByLetterValues[letterCount][0] >> 32)
+			pointY := uint32(matrixValuesByLetterValues[letterCount][0] & 0xFFFFFFFF)
+			matrixResults = append(matrixResults, webtools.ThreeValuePair[rune, int, int]{A: oldRunes[pointX], B: int(pointX), C: int(pointY)})
+			x = pointX - 1
+			y = pointY - 1
 			continue
 		}
 
 		//Select the most right (right has a priority) and the most bottom value
-		bestPoint := matrixValuesByLetterValues[letterCount][0]
+		bestPointX := uint32(matrixValuesByLetterValues[letterCount][0] >> 32)
+		bestPointY := uint32(matrixValuesByLetterValues[letterCount][0] & 0xFFFFFFFF)
 		for i := 1; i < len(matrixValuesByLetterValues[letterCount]); i++ {
-			point := matrixValuesByLetterValues[letterCount][i]
-			if bestPoint.Key < point.Key || bestPoint.Key == point.Key && bestPoint.Value < point.Value {
+			pointX := uint32(matrixValuesByLetterValues[letterCount][i] >> 32)
+			pointY := uint32(matrixValuesByLetterValues[letterCount][i] & 0xFFFFFFFF)
+			if bestPointX < pointX || bestPointX == pointX && bestPointY < pointY {
 				//Value of point is more near to current (x,y) point
-				bestPoint = point
+				bestPointX = pointX
+				bestPointY = pointY
 				continue
 			}
 
 		}
 
 		//Jump to best point
-		matrixResults = append(matrixResults, webtools.ThreeValuePair[rune, int, int]{A: oldRunes[bestPoint.Key], B: bestPoint.Key, C: bestPoint.Value})
-		x = bestPoint.Key - 1
-		y = bestPoint.Value - 1
+		matrixResults = append(matrixResults, webtools.ThreeValuePair[rune, int, int]{A: oldRunes[bestPointX], B: int(bestPointX), C: int(bestPointY)})
+		x = bestPointX - 1
+		y = bestPointY - 1
 	}
 	slices.Reverse(matrixResults)
-	fmt.Println("Used memory:", (len(oldRunes)*2*8)+usedRamCounter, "bytes")
+	fmt.Println("Used memory:", (len(oldRunes)*2*4)+usedRamCounter, "bytes")
 	//fmt.Println("Backtracked matrix:", matrixResults)
 
 	//Detect insertions and deletions
-	resultDelete := make([]DifferenceEntry, 0)
-	resultAdd := make([]DifferenceEntry, 0)
+	//resultDelete := make([]DifferenceEntry, 0)
+	//resultAdd := make([]DifferenceEntry, 0)
+	result := make([]DifferenceEntry, 0)
 	okOld := 0
 	okNew := 0
 	checkedLast := false
@@ -407,7 +419,8 @@ func DiffInStringLCSAlt(old string, new string) []DifferenceEntry {
 		if okOld < matrixItem.B {
 			//All items before this are invalid
 			for _ = okOld; okOld < matrixItem.B; okOld++ {
-				resultDelete = appendAtTop(resultDelete, DifferenceEntry{Position: okOld, Character: rune(oldRunes[okOld]), IsInsertion: false})
+				//resultDelete = appendAtTop(resultDelete, DifferenceEntry{Position: okOld, Character: rune(oldRunes[okOld]), IsInsertion: false})
+				result = append(result, DifferenceEntry{Position: okOld, Character: rune(oldRunes[okOld]), IsInsertion: false})
 			}
 			okOld++
 		} else {
@@ -417,7 +430,7 @@ func DiffInStringLCSAlt(old string, new string) []DifferenceEntry {
 			//All items before this are new
 			for _ = okNew; okNew < matrixItem.C; okNew++ {
 				//resultAdd = append([]webtools.ThreeValuePair[int, rune, bool]{{A: okNew, B: rune(newRunes[okNew]), C: true}}, resultAdd...)
-				resultAdd = append(resultAdd, DifferenceEntry{Position: okNew, Character: rune(newRunes[okNew]), IsInsertion: true})
+				result = append(result, DifferenceEntry{Position: okNew, Character: rune(newRunes[okNew]), IsInsertion: true})
 			}
 			okNew++
 		} else {
@@ -430,13 +443,13 @@ func DiffInStringLCSAlt(old string, new string) []DifferenceEntry {
 
 	//Do last insertions and deletions
 	for i := len(oldRunes) - 1; i >= okOld; i-- {
-		resultDelete = appendAtTop(resultDelete, DifferenceEntry{Position: i, Character: rune(oldRunes[i]), IsInsertion: false})
+		result = append(result, DifferenceEntry{Position: i, Character: rune(oldRunes[i]), IsInsertion: false})
 	}
 	for i := okNew + webtools.FormatByBool(checkedLast, 1, 0); i < len(newRunes); i++ {
-		resultAdd = append(resultAdd, DifferenceEntry{Position: i, Character: rune(newRunes[i]), IsInsertion: true})
+		result = append(result, DifferenceEntry{Position: i, Character: rune(newRunes[i]), IsInsertion: true})
 	}
 
-	return append(resultDelete, resultAdd...)
+	return result
 }
 
 ///*
