@@ -269,18 +269,18 @@ func DiffInStringLCSAlt(old string, new string) []DifferenceEntry {
 	matrix := make([][]int, 2)
 	matrix[0] = make([]int, len(oldRunes))
 	matrix[1] = make([]int, len(oldRunes))
-	matrixValuesByRows := make([][]webtools.KeyValuePair[int, int], 0)
+	matrixValuesByLetterValues := make([][]webtools.KeyValuePair[int, int], 0)
 	var jumpValue int = 0
 
 	//Fill matrix
-	fmt.Println("Matrix:")
+	//fmt.Println("Matrix:")
 	for y := 0; y < len(newRunes); y++ {
 		for x := 0; x < len(oldRunes); x++ {
 			if oldRunes[x] == newRunes[y] {
 				//Values same - create row if needed
-				if len(matrixValuesByRows) <= y {
-					matrixValuesByRows = append(matrixValuesByRows, make([]webtools.KeyValuePair[int, int], 0))
-				}
+				//if len(matrixValuesByLetterValues) <= y {
+				//	matrixValuesByLetterValues = append(matrixValuesByLetterValues, make([]webtools.KeyValuePair[int, int], 0))
+				//}
 
 				//Set value
 				if y < 1 || x < 1 {
@@ -292,9 +292,17 @@ func DiffInStringLCSAlt(old string, new string) []DifferenceEntry {
 					jumpValue = matrix[1][x]
 				}
 
+				//Values same - create row if needed
+				if len(matrixValuesByLetterValues) < matrix[1][x] {
+					matrixValuesByLetterValues = append(matrixValuesByLetterValues, nil)
+				}
+				if len(matrixValuesByLetterValues) == matrix[1][x] {
+					matrixValuesByLetterValues = append(matrixValuesByLetterValues, make([]webtools.KeyValuePair[int, int], 0))
+				}
+
 				//Add entry in matrixValues
 				if matrix[1][x] >= jumpValue {
-					matrixValuesByRows[y] = append(matrixValuesByRows[y], webtools.KeyValuePair[int, int]{Key: x, Value: matrix[1][x]})
+					matrixValuesByLetterValues[jumpValue] = append(matrixValuesByLetterValues[jumpValue], webtools.KeyValuePair[int, int]{Key: x, Value: y})
 				}
 				continue
 			}
@@ -312,15 +320,16 @@ func DiffInStringLCSAlt(old string, new string) []DifferenceEntry {
 		}
 
 		//Values same - create empty row
-		if len(matrixValuesByRows) <= y {
-			matrixValuesByRows = append(matrixValuesByRows, nil)
+		if len(matrixValuesByLetterValues) <= y {
+			matrixValuesByLetterValues = append(matrixValuesByLetterValues, nil)
 		}
 
+		//for x := 0; x < len(matrix[1]); x++ {
+		//	fmt.Print(matrix[1][x])
+		//}
+		//fmt.Println()
+
 		//Shift row
-		for x := 0; x < len(matrix[1]); x++ {
-			fmt.Print(matrix[1][x])
-		}
-		fmt.Println()
 		copy(matrix[0], matrix[1])
 	}
 	//fmt.Println("Matrix:")
@@ -338,6 +347,10 @@ func DiffInStringLCSAlt(old string, new string) []DifferenceEntry {
 	//}
 	//fmt.Println()
 	fmt.Println()
+	usedRamCounter := 0
+	for _, v := range matrixValuesByLetterValues {
+		usedRamCounter += len(v) * 2 * 8
+	}
 
 	//Backtrack the matrix
 	//OLD -> Placed in row = Identifies COLUMN -> X
@@ -347,45 +360,40 @@ func DiffInStringLCSAlt(old string, new string) []DifferenceEntry {
 	//matrixResultLinking :=
 	x := len(oldRunes) - 1
 	y := len(newRunes) - 1
-	for letterCount := matrix[1][x]; letterCount >= 0; letterCount-- {
-		found := false
-		//Look for next letter
-		for j := x; j >= 0; j-- {
-			for i := y; i >= 0; i-- {
-				if matrixValuesByRows[i] == nil {
-					//Empty row
-					continue
-				}
-				//Find optimal value
-				valIndex, ok := slices.BinarySearchFunc(matrixValuesByRows[i], j, func(comparedItem webtools.KeyValuePair[int, int], targetValue int) int {
-					if comparedItem.Key == targetValue {
-						return 0
-					}
-					if comparedItem.Key < targetValue {
-						return -1
-					} else {
-						return 1
-					}
-				})
-				if ok && matrixValuesByRows[i][valIndex].Value == letterCount {
-					//Match = jump to direction of matrix
-					x = j - 1
-					y = i - 1
-					matrixResults = append(matrixResults, webtools.ThreeValuePair[rune, int, int]{A: oldRunes[j], B: j, C: i})
-					found = true
-					break
-				}
-			}
-			if found {
-				break
-			}
+	for letterCount := matrix[1][x]; letterCount > 0; letterCount-- {
+		//Multiple values, filter area
+		matrixValuesByLetterValues[letterCount] = slices.DeleteFunc(matrixValuesByLetterValues[letterCount], func(element webtools.KeyValuePair[int, int]) bool {
+			return element.Key > x || element.Value > y
+		})
+
+		//Check if letter count has only one letter
+		if len(matrixValuesByLetterValues[letterCount]) == 1 {
+			//Only value, jump to it
+			point := matrixValuesByLetterValues[letterCount][0]
+			matrixResults = append(matrixResults, webtools.ThreeValuePair[rune, int, int]{A: oldRunes[point.Key], B: point.Key, C: point.Value})
+			x = point.Key - 1
+			y = point.Value - 1
+			continue
 		}
+
+		//Select the most right (right has a priority) and the most bottom value
+		bestPoint := matrixValuesByLetterValues[letterCount][0]
+		for i := 1; i < len(matrixValuesByLetterValues[letterCount]); i++ {
+			point := matrixValuesByLetterValues[letterCount][i]
+			if bestPoint.Key < point.Key || bestPoint.Key == point.Key && bestPoint.Value < point.Value {
+				//Value of point is more near to current (x,y) point
+				bestPoint = point
+				continue
+			}
+
+		}
+
+		//Jump to best point
+		matrixResults = append(matrixResults, webtools.ThreeValuePair[rune, int, int]{A: oldRunes[bestPoint.Key], B: bestPoint.Key, C: bestPoint.Value})
+		x = bestPoint.Key - 1
+		y = bestPoint.Value - 1
 	}
 	slices.Reverse(matrixResults)
-	usedRamCounter := 0
-	for _, v := range matrixValuesByRows {
-		usedRamCounter += len(v) * 2 * 8
-	}
 	fmt.Println("Used memory:", (len(oldRunes)*2*8)+usedRamCounter, "bytes")
 	//fmt.Println("Backtracked matrix:", matrixResults)
 

@@ -312,8 +312,8 @@ func main() {
 			//new := "cbabac"
 			//old := "ABCBDAB"
 			//new := "BDCABA"
-			old := "A" + strings.Repeat("C", 3) + "C"
-			new := "A" + strings.Repeat("B", 3) + "C"
+			old := "A" + strings.Repeat("CD", 10000) + "C"
+			new := "A" + strings.Repeat("DC", 10000) + "C"
 
 			//changes := filesystem.DiffInStringMyers(old, new)
 			//return
