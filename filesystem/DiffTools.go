@@ -5,31 +5,29 @@ import (
 	"webtools"
 )
 
-/*
- */
-func ChangesInSequence(old []byte, new []byte) []webtools.KeyValuePair[int, FileSystemEventType] {
-	result := make([]webtools.KeyValuePair[int, FileSystemEventType], 0)
-	var pos int = 0
-	for pos = 0; pos < len(new); pos++ {
-		if len(old) <= pos {
-			//All after is added
-			for _ = pos; pos < len(new); pos++ {
-				result = append(result, webtools.KeyValuePair[int, FileSystemEventType]{Key: pos, Value: FSEventCreated})
-			}
-			break
-		}
-		if old[pos] != new[pos] {
-			result = append(result, webtools.KeyValuePair[int, FileSystemEventType]{Key: pos, Value: FSEventModified})
-		}
-	}
-	if len(old) > pos {
-		//All after is removed
-		for _ = pos; pos < len(old); pos++ {
-			result = append(result, webtools.KeyValuePair[int, FileSystemEventType]{Key: pos, Value: FSEventDeleted})
-		}
-	}
-	return result
-}
+//func ChangesInSequence(old []byte, new []byte) []webtools.KeyValuePair[int, FileSystemEventType] {
+//	result := make([]webtools.KeyValuePair[int, FileSystemEventType], 0)
+//	var pos int = 0
+//	for pos = 0; pos < len(new); pos++ {
+//		if len(old) <= pos {
+//			//All after is added
+//			for _ = pos; pos < len(new); pos++ {
+//				result = append(result, webtools.KeyValuePair[int, FileSystemEventType]{Key: pos, Value: FSEventCreated})
+//			}
+//			break
+//		}
+//		if old[pos] != new[pos] {
+//			result = append(result, webtools.KeyValuePair[int, FileSystemEventType]{Key: pos, Value: FSEventModified})
+//		}
+//	}
+//	if len(old) > pos {
+//		//All after is removed
+//		for _ = pos; pos < len(old); pos++ {
+//			result = append(result, webtools.KeyValuePair[int, FileSystemEventType]{Key: pos, Value: FSEventDeleted})
+//		}
+//	}
+//	return result
+//}
 
 type DifferenceEntry[T comparable] struct {
 	Position    int
