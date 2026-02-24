@@ -305,25 +305,29 @@ func main() {
 		{
 			//old := "12:17777"
 			//new := "271:98887"
-			old := []rune("127.0.0.2")
-			new := []rune("127.0.0.1:17777")
+			//old := []rune("127.0.0.2")
+			//new := []rune("127.0.0.1:17777")
 			//old := "test"
 			//new := "tsxqet"
-			//old := "abcabba"
-			//new := "cbabac"
+			old := []rune("abcabba")
+			new := []rune("cbabac")
 			//old := "ABCBDAB"
 			//new := "BDCABA"
-			//old := "A" + strings.Repeat("C", 500) + "C"
-			//new := "B" + strings.Repeat("C", 500) + "C"
+			//old := []rune(webtools.GenerateRandomString(10))
+			//new := []rune(webtools.GenerateRandomString(10))
+			//old := []rune("A" + strings.Repeat("CD", 50000) + "C")
+			//new := []rune("B" + strings.Repeat("DC", 50000) + "C")
 			//old := []rune("Češi jsou nejlepší")
 			//new := []rune("Češi jsou nejlepší")
 			//old := []string{"fmt.Println('Hello')", "if true {} else {", "return}"}
 			//new := []string{"fmt.Println('Hi')", "if true {} else {", "return}"}
 
-			//changes := filesystem.DiffInStringMyers(old, new)
-			//return
+			fmt.Println("Old", string(old))
+			fmt.Println("New", string(new))
+			changes := filesystem.DiffInStringMyers(old, new)
+			return
 
-			changes := filesystem.DiffInStringLCS(old, new)
+			changes = filesystem.DiffInStringLCS(old, new)
 			fmt.Println("Changes: ")
 			for i := 0; i < len(changes); i++ {
 				fmt.Println(changes[i])

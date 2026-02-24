@@ -1,6 +1,7 @@
 package filesystem
 
 import (
+	"fmt"
 	"slices"
 	"webtools"
 )
@@ -799,6 +800,78 @@ https://blog.robertelder.org/diff-algorithm/
 //	fmt.Println("Iterations:", iteration)
 //	return result
 //}
+
+/*
+https://blog.robertelder.org/diff-algorithm/
+*/
+func DiffInStringMyers[T comparable](old []T, new []T) []DifferenceEntry[T] {
+	//Create kLineValues map = stores values of each k line, key calculated by k = x - y
+	kLineValues := []map[int]int{{0: 0}}
+	found := false
+
+	//Calculate max number of differences
+	//OLD -> Placed in row = Identifies COLUMN -> X
+	//NEW -> Placed in column = Identifies ROW -> Y
+	for differences := 0; differences <= (len(old) + len(new)); differences++ {
+		//Get and make k line maps
+		var kLineValuesPrevious = kLineValues[differences]
+		var kLineValuesNew = make(map[int]int)
+		//Simulate each k line (can skip because of Myers behavior)
+		for kLineIndex := -differences; kLineIndex <= differences; kLineIndex += 2 {
+			//Get value of kLineValuesOld and set them to kLineValuesNew = simulate
+			var x int
+			if kLineIndex == 0 && differences == 0 {
+				x = 0
+			} else {
+				xAtKMinus, ok := kLineValuesPrevious[kLineIndex-1]
+				if !ok {
+					xAtKMinus = -1
+				}
+				xAtKPlus, ok := kLineValuesPrevious[kLineIndex+1]
+				if !ok {
+					xAtKPlus = -1
+				}
+
+				//Check if can move
+				if kLineIndex == -differences || (kLineIndex != differences && xAtKMinus < xAtKPlus) {
+					//Can go down
+					x = xAtKPlus
+					//fmt.Println("Going down")
+				} else {
+					//Can go right
+					x = xAtKMinus + 1
+					//fmt.Println("Going right")
+				}
+			}
+			//Get y
+			y := x - kLineIndex
+			//fmt.Println("Simulating: [", x, ",", y, "] with k line index:", kLineIndex, "and differences:", differences)
+
+			//Check cases
+			for x < len(old) && y < len(new) && old[x] == new[y] {
+				x++
+				y++
+			}
+
+			kLineValuesNew[kLineIndex] = x
+			//Check for end
+			if x >= len(old) && y >= len(new) {
+				fmt.Println("Simulation ended at: [", x, ",", y, "] with k line index:", kLineIndex, "and differences:", differences)
+				found = true
+				break
+			}
+		}
+
+		//fmt.Println(kLineValuesNew)
+		//Clone data to new map
+		kLineValues = append(kLineValues, kLineValuesNew)
+		if found {
+			break
+		}
+	}
+	//fmt.Println(kLineValues)
+	return nil
+}
 
 /*
 PatchUsingChanges patches old array using changes (differences)
