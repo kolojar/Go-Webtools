@@ -801,77 +801,129 @@ https://blog.robertelder.org/diff-algorithm/
 //	return result
 //}
 
-/*
-https://blog.robertelder.org/diff-algorithm/
-*/
-func DiffInStringMyers[T comparable](old []T, new []T) []DifferenceEntry[T] {
-	//Create kLineValues map = stores values of each k line, key calculated by k = x - y
-	kLineValues := []map[int]int{{0: 0}}
-	found := false
-
-	//Calculate max number of differences
-	//OLD -> Placed in row = Identifies COLUMN -> X
-	//NEW -> Placed in column = Identifies ROW -> Y
-	for differences := 0; differences <= (len(old) + len(new)); differences++ {
-		//Get and make k line maps
-		var kLineValuesPrevious = kLineValues[differences]
-		var kLineValuesNew = make(map[int]int)
-		//Simulate each k line (can skip because of Myers behavior)
-		for kLineIndex := -differences; kLineIndex <= differences; kLineIndex += 2 {
-			//Get value of kLineValuesOld and set them to kLineValuesNew = simulate
-			var x int
-			if kLineIndex == 0 && differences == 0 {
-				x = 0
-			} else {
-				xAtKMinus, ok := kLineValuesPrevious[kLineIndex-1]
-				if !ok {
-					xAtKMinus = -1
-				}
-				xAtKPlus, ok := kLineValuesPrevious[kLineIndex+1]
-				if !ok {
-					xAtKPlus = -1
-				}
-
-				//Check if can move
-				if kLineIndex == -differences || (kLineIndex != differences && xAtKMinus < xAtKPlus) {
-					//Can go down
-					x = xAtKPlus
-					//fmt.Println("Going down")
-				} else {
-					//Can go right
-					x = xAtKMinus + 1
-					//fmt.Println("Going right")
-				}
-			}
-			//Get y
-			y := x - kLineIndex
-			//fmt.Println("Simulating: [", x, ",", y, "] with k line index:", kLineIndex, "and differences:", differences)
-
-			//Check cases
-			for x < len(old) && y < len(new) && old[x] == new[y] {
-				x++
-				y++
-			}
-
-			kLineValuesNew[kLineIndex] = x
-			//Check for end
-			if x >= len(old) && y >= len(new) {
-				fmt.Println("Simulation ended at: [", x, ",", y, "] with k line index:", kLineIndex, "and differences:", differences)
-				found = true
-				break
-			}
-		}
-
-		//fmt.Println(kLineValuesNew)
-		//Clone data to new map
-		kLineValues = append(kLineValues, kLineValuesNew)
-		if found {
-			break
-		}
-	}
-	//fmt.Println(kLineValues)
-	return nil
-}
+///*
+//https://blog.robertelder.org/diff-algorithm/
+//*/
+//func DiffInStringMyers[T comparable](old []T, new []T) []DifferenceEntry[T] {
+//	//Create kLineValues map = stores values of each k line, key calculated by k = x - y
+//	kLineValues := []map[int]int{{0: 0}}
+//	found := false
+//	x := 0
+//	y := 0
+//	differences := 0
+//	kLineIndex := 0
+//	result := make([]DifferenceEntry[T], 0)
+//
+//	//Calculate max number of differences
+//	//OLD -> Placed in row = Identifies COLUMN -> X
+//	//NEW -> Placed in column = Identifies ROW -> Y
+//	for differences = differences; differences <= (len(old) + len(new)); differences++ {
+//		//Get and make k line maps
+//		var kLineValuesPrevious = kLineValues[differences]
+//		var kLineValuesNew = make(map[int]int)
+//		//Simulate each k line (can skip because of Myers behavior)
+//		for kLineIndex := -differences; kLineIndex <= differences; kLineIndex += 2 {
+//			//Get value of kLineValuesOld and set them to kLineValuesNew = simulate
+//			if kLineIndex == 0 && differences == 0 {
+//				x = 0
+//			} else {
+//				xAtKMinus, ok := kLineValuesPrevious[kLineIndex-1]
+//				if !ok {
+//					xAtKMinus = -1
+//				}
+//				xAtKPlus, ok := kLineValuesPrevious[kLineIndex+1]
+//				if !ok {
+//					xAtKPlus = -1
+//				}
+//
+//				//Check if can move
+//				if kLineIndex == -differences || (kLineIndex != differences && xAtKMinus < xAtKPlus) {
+//					//Can go down
+//					x = xAtKPlus
+//					//fmt.Println("Going down")
+//				} else {
+//					//Can go right
+//					x = xAtKMinus + 1
+//					//fmt.Println("Going right")
+//				}
+//			}
+//			//Get y
+//			y = x - kLineIndex
+//			//fmt.Println("Simulating: [", x, ",", y, "] with k line index:", kLineIndex, "and differences:", differences)
+//
+//			//Check cases
+//			for x < len(old) && y < len(new) && old[x] == new[y] {
+//				x++
+//				y++
+//			}
+//
+//			kLineValuesNew[kLineIndex] = x
+//			//Check for end
+//			if x >= len(old) && y >= len(new) {
+//				fmt.Println("Simulation ended at: [", x, ",", y, "] with k line index:", kLineIndex, "and differences:", differences)
+//				found = true
+//				break
+//			}
+//		}
+//
+//		//fmt.Println(kLineValuesNew)
+//		//Clone data to new map
+//		kLineValues = append(kLineValues, kLineValuesNew)
+//		if found {
+//			break
+//		}
+//	}
+//
+//	//Backtrace
+//	fmt.Println(kLineValues)
+//	fmt.Println(x, y, kLineIndex)
+//	//ended := false
+//	var prevKLineIndex int
+//	for differences = differences; differences > 0; differences-- {
+//		kLineIndex = x - y
+//		if kLineIndex == -differences {
+//			//Moved up
+//			prevKLineIndex = kLineIndex + 1
+//		} else if kLineIndex == differences {
+//			//Moved left
+//			prevKLineIndex = kLineIndex - 1
+//		} else if kLineValues[differences-1][kLineIndex-1] < kLineValues[differences-1][kLineIndex+1] {
+//			//Move up because of bigger value
+//			prevKLineIndex = kLineIndex + 1
+//		} else {
+//			//Move left
+//			prevKLineIndex = kLineIndex - 1
+//		}
+//
+//		//Get prevous x
+//		prevX := kLineValues[differences-1][prevKLineIndex]
+//		prevY := prevX - prevKLineIndex
+//
+//		//Check for diagonal
+//		for x > prevX && y > prevY {
+//			//Same, jump up
+//			fmt.Println("Moved diagonally from: [", x, ",", y, "] to: [", x-1, ",", y-1, "]")
+//			x--
+//			y--
+//		}
+//
+//		//Check for insertion
+//		if prevKLineIndex == kLineIndex+1 && y > 0 {
+//			result = append(result, DifferenceEntry[T]{Position: x - 1, Character: new[y-1], IsInsertion: true})
+//			fmt.Println("Moved up from: [", x, ",", y, "] to: [", x, ",", y-1, "]")
+//			y--
+//		}
+//
+//		//Check for deletion
+//		if prevKLineIndex == kLineIndex-1 && x > 0 {
+//			result = append(result, DifferenceEntry[T]{Position: y, Character: old[x-1], IsInsertion: false})
+//			fmt.Println("Moved left from: [", x, ",", y, "] to: [", x-1, ",", y, "]")
+//			x--
+//		}
+//		kLineIndex = x - y
+//	}
+//	return result
+//}
 
 /*
 PatchUsingChanges patches old array using changes (differences)
@@ -891,11 +943,11 @@ func PatchUsingChanges[T comparable](old []T, changes []DifferenceEntry[T]) []T 
 	//Process
 	for _, v := range deletions {
 		old = webtools.RemoveElementAtIndex(old, v.Position)
-		//fmt.Println(old)
+		fmt.Println(old)
 	}
 	for _, v := range insertions {
 		old = webtools.InsertElementAtIndex(old, v.Position, v.Character)
-		//fmt.Println(old)
+		fmt.Println(old)
 	}
 	return old
 }

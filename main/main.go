@@ -307,7 +307,8 @@ func main() {
 			//new := "271:98887"
 			//old := []rune("127.0.0.2")
 			//new := []rune("127.0.0.1:17777")
-			//old := "test"
+			//old := []rune("test")
+			//new := []rune("tex")
 			//new := "tsxqet"
 			old := []rune("abcabba")
 			new := []rune("cbabac")
@@ -324,17 +325,16 @@ func main() {
 
 			fmt.Println("Old", string(old))
 			fmt.Println("New", string(new))
-			changes := filesystem.DiffInStringMyers(old, new)
-			return
+			//changes := filesystem.DiffInStringMyers(old, new)
 
-			changes = filesystem.DiffInStringLCS(old, new)
+			changes := filesystem.DiffInStringLCS(old, new)
 			fmt.Println("Changes: ")
 			for i := 0; i < len(changes); i++ {
 				fmt.Println(changes[i])
 			}
 			fmt.Println("Changes:", len(changes))
 			updOld := filesystem.PatchUsingChanges(old, changes)
-			//fmt.Println(updOld)
+			fmt.Println(string(updOld))
 			fmt.Println("Maches:", (slices.Equal(updOld, new)))
 
 			changes = filesystem.DiffInStringLCSAlt(old, new)
