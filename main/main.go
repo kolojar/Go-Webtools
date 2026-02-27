@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -302,12 +303,51 @@ func main() {
 		}
 	case "fs":
 		{
-			fmt.Println(filesystem.JoinPathSecure("/mnt/DATA/Programming/Go/Go-Webtools/test/", ".."))
-			fmt.Println(filesystem.JoinPathSecure("/mnt/DATA/Programming/Go/Go-Webtools/test/", "c"))
-			fmt.Println(filesystem.JoinPathSecure("/mnt/DATA/Programming/Go/Go-Webtools/test/", "a/../.."))
-			watcher := filesystem.NewFileSystemWatcher("/mnt/DATA/Programming/Go/Go-Webtools/test", filesystemEvent, true, true)
-			defer watcher.StopWatching()
-			watcher.StartWatching()
+			//old := "12:17777"
+			//new := "271:98887"
+			//old := []rune("127.0.0.2")
+			//new := []rune("127.0.0.1:17777")
+			//old := []rune("test")
+			//new := []rune("tex")
+			//new := "tsxqet"
+			old := []rune("abcabba")
+			new := []rune("cbabac")
+			//old := "ABCBDAB"
+			//new := "BDCABA"
+			//old := []rune(webtools.GenerateRandomString(10))
+			//new := []rune(webtools.GenerateRandomString(10))
+			//old := []rune("A" + strings.Repeat("CD", 50000) + "C")
+			//new := []rune("B" + strings.Repeat("DC", 50000) + "C")
+			//old := []rune("Češi jsou nejlepší")
+			//new := []rune("Češi jsou nejlepší")
+			//old := []string{"fmt.Println('Hello')", "if true {} else {", "return}"}
+			//new := []string{"fmt.Println('Hi')", "if true {} else {", "return}"}
+
+			fmt.Println("Old", string(old))
+			fmt.Println("New", string(new))
+			//changes := filesystem.DiffInStringMyers(old, new)
+
+			changes := filesystem.DiffInStringLCS(old, new)
+			fmt.Println("Changes: ")
+			for i := 0; i < len(changes); i++ {
+				fmt.Println(changes[i])
+			}
+			fmt.Println("Changes:", len(changes))
+			updOld := filesystem.PatchUsingChanges(old, changes)
+			fmt.Println(string(updOld))
+			fmt.Println("Maches:", (slices.Equal(updOld, new)))
+
+			changes = filesystem.DiffInStringLCSAlt(old, new)
+			fmt.Println("Changes:", len(changes))
+			updOld = filesystem.PatchUsingChanges(old, changes)
+			fmt.Println("Maches:", (slices.Equal(updOld, new)))
+
+			//fmt.Println(filesystem.JoinPathSecure("/mnt/DATA/Programming/Go/Go-Webtools/test/", ".."))
+			//fmt.Println(filesystem.JoinPathSecure("/mnt/DATA/Programming/Go/Go-Webtools/test/", "c"))
+			//fmt.Println(filesystem.JoinPathSecure("/mnt/DATA/Programming/Go/Go-Webtools/test/", "a/../.."))
+			//watcher := filesystem.NewFileSystemWatcher("/mnt/DATA/Programming/Go/Go-Webtools/test", filesystemEvent, true, true)
+			//defer watcher.StopWatching()
+			//watcher.StartWatching()
 		}
 	}
 }
