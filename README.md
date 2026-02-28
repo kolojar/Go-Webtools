@@ -1,6 +1,12 @@
 # Go Web Tools
 - This package provides tools for UDP, TCP, HTTP, WebSockets, Peer to Peer (P2P) and some proxies (translating one type of traffic to another - one protocol to another)
 - Go Web servers and clients
+- Run this to update submodules: ```git submodule update --recursive --remote```
+- Add this to go.mod:
+    ``` 
+    replace webtools => ./kolojar/webtools
+    require webtools v0.0.0-00010101000000-000000000000
+    ```
 - To init this as submodule: ```git submodule add https://github.com/kolojar/Go-Webtools ./Go-WebTools```
 - Run this to update submodules: ```git submodule update --recursive --remote``
 

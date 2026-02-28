@@ -7,11 +7,13 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
 	"webtools"
+	"webtools/database"
 	"webtools/filesystem"
 	"webtools/httptools"
 	"webtools/p2p"
@@ -301,6 +303,104 @@ func main() {
 				time.Sleep(100 * time.Millisecond)
 			}
 		}
+	case "testdb":
+		{
+			/*v := struct {
+				A []string `db:"a"`
+				B []struct {
+					C string `db:"c"`
+					D uint8  `db:"d"`
+				} `db:"b"`
+				E int `db:"e"`
+			}{A: []string{"text"}, B: []struct {
+				C string "db:\"c\""
+				D uint8  "db:\"d\""
+			}{{C: "data", D: 8}}, E: 1}*/
+			var lim = database.MakeLimitedString(1)
+			lim.Set("LIMITED")
+			var lim1 = database.MakeLimitedString(1)
+			lim1.Set("abc")
+			var lim2 = database.MakeLimitedString(1)
+			lim2.Set("XYZ")
+			var v = make([]testdbExample, 0)
+			for i := 0; i < 1; i++ {
+				v = append(v, testdbExample{
+					//A: []string{"a", "b", "c", strconv.Itoa(i)},
+					B: append(make([]testdbSubExample, 0), testdbSubExample{C: "textC", D: 1}),
+					//E: &map[int]database.LimitedString{5: lim1, 8: lim2},
+					P: p2p.UPnPXMLService{},
+					Q: lim,
+				})
+			}
+
+			//fmt.Println(v[0].E)
+			field, schema := database.BuildDBSchema(reflect.TypeOf(v))
+			fmt.Println(schema)
+			fmt.Println(database.BuildDBSchemaString(field))
+			fmt.Println("@")
+			_, schema = database.BuildDBSchema(reflect.TypeOf(v))
+			fmt.Println(schema)
+
+			//Test write
+			//Delete file if exists
+			//os.Remove("test.db")
+			os.Remove("test.json")
+
+			//Create DB file
+			//file, err := os.Create("test.db")
+			//if err != nil {
+			//	panic(err)
+			//}
+			//defer file.Close()
+			//database.ConvertAnyToBytesDB(file, v)
+			//file.Close()
+
+			//Create JSON example
+			//file, err = os.Create("test.json")
+			//if err != nil {
+			//	panic(err)
+			//}
+			//defer file.Close()
+			//data, _ := json.MarshalIndent(v, "", "	")
+			//file.Write(data)
+			//file.Close()
+
+			//Open file
+			database.RegisterCustomDBType[*database.LimitedString]()
+			fmt.Println("Reading")
+			file, err := os.Open("test.db")
+			if err != nil {
+				panic(err)
+			}
+			defer file.Close()
+			//result := testdbExample{}
+			lim.Set("")
+			lim1.Set("")
+			lim2.Set("")
+			var result = append(make([]testdbExample, 0), testdbExample{
+				Q: lim,
+				//E: &map[int]database.LimitedString{5: lim1, 8: lim2},
+			})
+			err = database.ParseAnyToObjectDB(file, &result, true)
+			fmt.Println(result[0].Q.Get())
+			//a := (*result[0].E)[6]
+			//fmt.Println(a.Get())
+			fmt.Println(result)
+		}
+	}
+}
+
+type testdbSubExample struct {
+	C string `db:"c"`
+	D uint8  `db:"d"`
+}
+
+type testdbExample struct {
+	//A []string                        `db:"a"`
+	B []testdbSubExample `db:"b"`
+	//E *map[int]database.LimitedString `db:"e"`
+	P p2p.UPnPXMLService "db:\"P\""
+	Q database.LimitedString
 	case "fs":
 		{
 			//old := "12:17777"

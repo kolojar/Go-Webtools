@@ -50,6 +50,13 @@ func RemoveElement[T comparable](array []T, item T) []T {
 }
 
 /*
+CeilDivision divides number a by b and threats it as ceiled value
+*/
+func CeilDivision[T int | int8 | int16 | int32 | int64 | uint | uint8 | uint16 | uint32 | uint64](a, b T) T {
+	return (a + b - 1) / b
+}
+
+/*
 RemoveElementAtIndex removes element at specified index
 */
 func RemoveElementAtIndex[T any](slice []T, index int) []T {

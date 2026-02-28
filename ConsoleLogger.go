@@ -36,7 +36,7 @@ ConsoleLogger is simple logger
 */
 type ConsoleLogger struct {
 	LogReportFunction LogReportFunc
-	//saveToFile        bool
+	// saveToFile        bool
 	Prefix        string
 	Preprefix     string
 	minPrintLevel uint8
