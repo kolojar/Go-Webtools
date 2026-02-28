@@ -387,20 +387,6 @@ func main() {
 			//fmt.Println(a.Get())
 			fmt.Println(result)
 		}
-	}
-}
-
-type testdbSubExample struct {
-	C string `db:"c"`
-	D uint8  `db:"d"`
-}
-
-type testdbExample struct {
-	//A []string                        `db:"a"`
-	B []testdbSubExample `db:"b"`
-	//E *map[int]database.LimitedString `db:"e"`
-	P p2p.UPnPXMLService "db:\"P\""
-	Q database.LimitedString
 	case "fs":
 		{
 			//old := "12:17777"
@@ -450,6 +436,19 @@ type testdbExample struct {
 			//watcher.StartWatching()
 		}
 	}
+}
+
+type testdbSubExample struct {
+	C string `db:"c"`
+	D uint8  `db:"d"`
+}
+
+type testdbExample struct {
+	//A []string                        `db:"a"`
+	B []testdbSubExample `db:"b"`
+	//E *map[int]database.LimitedString `db:"e"`
+	P p2p.UPnPXMLService "db:\"P\""
+	Q database.LimitedString
 }
 
 func filesystemEvent(path string, operation filesystem.FileSystemEventType, isDir bool, newPath string) {
