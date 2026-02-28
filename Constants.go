@@ -5,22 +5,29 @@ BufferSize is shared buffer size over all tools
 */
 const BufferSize = 1024 * 16
 
-/*
-ReadDataStatus is status of read
-*/
-const ReadDataStatus = uint8(3)
+type NetworkStatus uint8
 
 /*
 ConnectStatus is status of connect
 */
-const ConnectStatus = uint8(0)
+const NoneNetworkStatus NetworkStatus = 0
+
+/*
+ReadDataStatus is status of read
+*/
+const ReadDataStatus NetworkStatus = 4
+
+/*
+ConnectStatus is status of connect
+*/
+const ConnectStatus NetworkStatus = 1
 
 /*
 DisconnectStatus is status of disconnect
 */
-const DisconnectStatus = uint8(1)
+const DisconnectStatus NetworkStatus = 2
 
 /*
 FinishedReadFuncStatus is status of finished reading of one read function and switching to other
 */
-const FinishedReadFuncStatus = uint8(2)
+const FinishedReadFuncStatus NetworkStatus = 3

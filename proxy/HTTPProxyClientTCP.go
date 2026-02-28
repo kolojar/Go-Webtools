@@ -47,7 +47,7 @@ func NewHTTPProxyClientTCP(httpProxyAddress string, tcpServerAddress string, rep
 	return cl, nil
 }
 
-func (cl *HTTPProxyClientTCP) handleWebTransportReadFunc(_ *httptools.WebSocketClient, frame []byte, status uint8, isBinary bool) {
+func (cl *HTTPProxyClientTCP) handleWebTransportReadFunc(_ *httptools.WebSocketClient, frame []byte, status webtools.NetworkStatus, isBinary bool) {
 	_ = isBinary //Get rid of unneded property
 	if status == webtools.DisconnectStatus {
 		// Close all connections
@@ -101,7 +101,7 @@ func (cl *HTTPProxyClientTCP) handleWebTransportReadFunc(_ *httptools.WebSocketC
 	}
 }
 
-func (cl *HTTPProxyClientTCP) handleTCPReadFunc(tcpConn *tcp.ServerConn, data []byte, status uint8) {
+func (cl *HTTPProxyClientTCP) handleTCPReadFunc(tcpConn *tcp.ServerConn, data []byte, status webtools.NetworkStatus) {
 	if status == webtools.ConnectStatus {
 		return
 	}

@@ -7,6 +7,8 @@
     replace webtools => ./kolojar/webtools
     require webtools v0.0.0-00010101000000-000000000000
     ```
+- To init this as submodule: ```git submodule add https://github.com/kolojar/Go-Webtools ./Go-WebTools```
+- Run this to update submodules: ```git submodule update --recursive --remote``
 
 # TODO
 - [X] TCP Server

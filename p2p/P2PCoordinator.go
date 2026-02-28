@@ -144,7 +144,7 @@ func (p2p *Coordinator) generateNewID(portByte []byte, address string, sourceUDP
 	return ID
 }
 
-func (p2p *Coordinator) readFuncTCP(conn *tcp.ServerConn, data []byte, status uint8) {
+func (p2p *Coordinator) readFuncTCP(conn *tcp.ServerConn, data []byte, status webtools.NetworkStatus) {
 	for _, frame := range webtools.UnpackWebtoolsFrame(data, p2p.udpServer.Logger) {
 		if frame.Operation == p2pCMDAssocateTCP {
 			//Associate with this conn

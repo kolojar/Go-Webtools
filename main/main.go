@@ -8,11 +8,13 @@ import (
 	"net"
 	"os"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 	"webtools"
 	"webtools/database"
+	"webtools/filesystem"
 	"webtools/httptools"
 	"webtools/p2p"
 	"webtools/proxy"
@@ -399,6 +401,60 @@ type testdbExample struct {
 	//E *map[int]database.LimitedString `db:"e"`
 	P p2p.UPnPXMLService "db:\"P\""
 	Q database.LimitedString
+	case "fs":
+		{
+			//old := "12:17777"
+			//new := "271:98887"
+			//old := []rune("127.0.0.2")
+			//new := []rune("127.0.0.1:17777")
+			//old := []rune("test")
+			//new := []rune("tex")
+			//new := "tsxqet"
+			old := []rune("abcabba")
+			new := []rune("cbabac")
+			//old := "ABCBDAB"
+			//new := "BDCABA"
+			//old := []rune(webtools.GenerateRandomString(10))
+			//new := []rune(webtools.GenerateRandomString(10))
+			//old := []rune("A" + strings.Repeat("CD", 50000) + "C")
+			//new := []rune("B" + strings.Repeat("DC", 50000) + "C")
+			//old := []rune("Češi jsou nejlepší")
+			//new := []rune("Češi jsou nejlepší")
+			//old := []string{"fmt.Println('Hello')", "if true {} else {", "return}"}
+			//new := []string{"fmt.Println('Hi')", "if true {} else {", "return}"}
+
+			fmt.Println("Old", string(old))
+			fmt.Println("New", string(new))
+			//changes := filesystem.DiffInStringMyers(old, new)
+
+			changes := filesystem.DiffInStringLCS(old, new)
+			fmt.Println("Changes: ")
+			for i := 0; i < len(changes); i++ {
+				fmt.Println(changes[i])
+			}
+			fmt.Println("Changes:", len(changes))
+			updOld := filesystem.PatchUsingChanges(old, changes)
+			fmt.Println(string(updOld))
+			fmt.Println("Maches:", (slices.Equal(updOld, new)))
+
+			changes = filesystem.DiffInStringLCSAlt(old, new)
+			fmt.Println("Changes:", len(changes))
+			updOld = filesystem.PatchUsingChanges(old, changes)
+			fmt.Println("Maches:", (slices.Equal(updOld, new)))
+
+			//fmt.Println(filesystem.JoinPathSecure("/mnt/DATA/Programming/Go/Go-Webtools/test/", ".."))
+			//fmt.Println(filesystem.JoinPathSecure("/mnt/DATA/Programming/Go/Go-Webtools/test/", "c"))
+			//fmt.Println(filesystem.JoinPathSecure("/mnt/DATA/Programming/Go/Go-Webtools/test/", "a/../.."))
+			//watcher := filesystem.NewFileSystemWatcher("/mnt/DATA/Programming/Go/Go-Webtools/test", filesystemEvent, true, true)
+			//defer watcher.StopWatching()
+			//watcher.StartWatching()
+		}
+	}
+}
+
+func filesystemEvent(path string, operation filesystem.FileSystemEventType, isDir bool, newPath string) {
+	fmt.Println(path, operation)
+	//fmt.Println(path, operation, isDir, newPath)
 }
 
 func p2pReadFunc(client *p2p.Client, sourceID []byte, data []byte, _ bool, _ *webtools.ConsoleLogger) {
@@ -411,13 +467,13 @@ func p2pReadFunc2(_ *p2p.Client, _ []byte, data []byte, _ bool, _ *webtools.Cons
 
 var rc = 0
 
-func readFuncTCPSv(conn *tcp.ServerConn, data []byte, status uint8) {
+func readFuncTCPSv(conn *tcp.ServerConn, data []byte, status webtools.NetworkStatus) {
 	if status == webtools.ReadDataStatus {
 		conn.Send(data)
 	}
 }
 
-func readFuncTCPCl(_ *tcp.ClientSimple, data []byte, _ uint8) {
+func readFuncTCPCl(_ *tcp.ClientSimple, data []byte, _ webtools.NetworkStatus) {
 	//conn.Send(data)
 	//if !ended {
 	//	//conn.Stop()
@@ -456,19 +512,19 @@ func readFuncUDPCl(_ *udp.Client, _ *net.UDPAddr, data []byte, _ bool) {
 //	}
 //}
 
-func readFuncHTTPWsSv(conn *httptools.WebSocketServerConn, data []byte, status uint8, _ bool) {
+func readFuncHTTPWsSv(conn *httptools.WebSocketServerConn, data []byte, status webtools.NetworkStatus, _ bool) {
 	if status > 1 {
 		conn.Send(data)
 	}
 }
 
-func readFuncHTTPWsCl(conn *httptools.WebSocketClient, _ []byte, status uint8, _ bool) {
+func readFuncHTTPWsCl(conn *httptools.WebSocketClient, _ []byte, status webtools.NetworkStatus, _ bool) {
 	if status == webtools.ReadDataStatus {
 		conn.Stop()
 	}
 }
 
-func readFuncHTTPWsInstanceSv(inst *httptools.WebSocketInstanceServerInstance, conn *httptools.WebSocketServerConn, data []byte, status uint8, _ bool) {
+func readFuncHTTPWsInstanceSv(inst *httptools.WebSocketInstanceServerInstance, conn *httptools.WebSocketServerConn, data []byte, status webtools.NetworkStatus, _ bool) {
 	if status > 1 {
 		conn.Send(append([]byte(inst.GetID()+" "), data...))
 	}

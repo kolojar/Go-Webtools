@@ -51,7 +51,7 @@ func (instance *WebSocketInstanceServerInstance) FilterConns(filterURLParams map
 /*
 WebSocketInstanceServerReadFunc is function definition for reading data from WebSocketInstanceServer
 */
-type WebSocketInstanceServerReadFunc func(instance *WebSocketInstanceServerInstance, conn *WebSocketServerConn, data []byte, status uint8, isBinary bool)
+type WebSocketInstanceServerReadFunc func(instance *WebSocketInstanceServerInstance, conn *WebSocketServerConn, data []byte, status webtools.NetworkStatus, isBinary bool)
 
 /*
 WebSocketInstanceServerAccessFunc is function definition for event when someone wants some resource on server (access), returns true if request was handeled by this method
@@ -138,7 +138,7 @@ func (sv *WebSocketInstanceServer) createNewInstance(requestedURL string, w http
 	sv.htmlCreatorRedirectMutex.Unlock()
 }
 
-func (sv *WebSocketInstanceServer) readFuncLocal(conn *WebSocketServerConn, data []byte, status uint8, isBinary bool) {
+func (sv *WebSocketInstanceServer) readFuncLocal(conn *WebSocketServerConn, data []byte, status webtools.NetworkStatus, isBinary bool) {
 	//Get cookies
 	serverIDCookie := conn.GetCookie("instanceServerUniqueId")
 	instanceIDCookie := conn.GetCookie("instanceServerInstanceId")

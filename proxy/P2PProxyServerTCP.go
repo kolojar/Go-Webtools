@@ -139,7 +139,7 @@ func (sv *P2PProxyServerTCP) handleP2PReadFunc(_ *p2p.Client, sourceID []byte, f
 	}
 }
 
-func (sv *P2PProxyServerTCP) handleTCPReadFunc(tcp *tcp.ClientSimple, data []byte, status uint8) {
+func (sv *P2PProxyServerTCP) handleTCPReadFunc(tcp *tcp.ClientSimple, data []byte, status webtools.NetworkStatus) {
 	//Get P2P client
 	if sv.clientToID.Get(tcp) == "" || sv.idToClient.Get(sv.clientToID.Get(tcp)) == nil {
 		//Connection does not exists

@@ -61,12 +61,12 @@ NewHTTPProxyServerTCP creates new HTTP Proxy Server for TCP but does not starts 
 */
 func NewHTTPProxyServerTCP(httpProxyAddress string, tcpServerAddress string, reportTraffic bool) *HTTPProxyServerTCP {
 	sv := &HTTPProxyServerTCP{tcpServerAddress: tcpServerAddress, clientToID: webtools.MakeSafeMap[*tcp.ClientSimple, string](), idToClient: webtools.MakeSafeMap[string, *HTTPProxyServerTCPConn](), reportTrafic: reportTraffic}
-	sv.httpServer = httptools.NewWebSocketServer(httpProxyAddress, sv.handleWebSocketReadFunc, nil, "",false,false, reportTraffic)
+	sv.httpServer = httptools.NewWebSocketServer(httpProxyAddress, sv.handleWebSocketReadFunc, nil, "", false, false, reportTraffic)
 	sv.httpServer.GetLogger().Prefix = "HTTPProxyServerTCP - " + sv.httpServer.GetLogger().Prefix
 	return sv
 }
 
-func (sv *HTTPProxyServerTCP) handleWebSocketReadFunc(conn *httptools.WebSocketServerConn, frame []byte, status uint8, isBinary bool) {
+func (sv *HTTPProxyServerTCP) handleWebSocketReadFunc(conn *httptools.WebSocketServerConn, frame []byte, status webtools.NetworkStatus, isBinary bool) {
 	_ = isBinary //Get rid of unneded property
 	if status == webtools.ConnectStatus {
 		conn.IsBinary = true
@@ -136,7 +136,7 @@ func (sv *HTTPProxyServerTCP) handleWebSocketReadFunc(conn *httptools.WebSocketS
 	}
 }
 
-func (sv *HTTPProxyServerTCP) handleTCPReadFunc(tcp *tcp.ClientSimple, data []byte, status uint8) {
+func (sv *HTTPProxyServerTCP) handleTCPReadFunc(tcp *tcp.ClientSimple, data []byte, status webtools.NetworkStatus) {
 	if status == webtools.ConnectStatus {
 		return
 	}

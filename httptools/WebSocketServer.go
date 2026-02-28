@@ -33,7 +33,7 @@ func computeWebSocketKey(webSocketKey string) string {
 /*
 WebSocketServerReadFunc is function definition for reading data from WebSocketServer
 */
-type WebSocketServerReadFunc func(conn *WebSocketServerConn, data []byte, status uint8, isBinary bool)
+type WebSocketServerReadFunc func(conn *WebSocketServerConn, data []byte, status webtools.NetworkStatus, isBinary bool)
 
 /*
 WebSocketServerConn is connection object of WebSocketServer
@@ -390,7 +390,7 @@ func WriteToWebSocketFrameHandler(cl *tcp.ClientUniversal, data []byte, otherDat
 	return tcp.WriteToTCPHandler(cl, PackWebSocketFrame(data, opcode.(uint8), cl.Logger), otherData)
 }
 
-func (sv *WebSocketServer) readFuncLocal(cl *tcp.ClientUniversal, data []byte, status uint8, otherData map[string]any) {
+func (sv *WebSocketServer) readFuncLocal(cl *tcp.ClientUniversal, data []byte, status webtools.NetworkStatus, otherData map[string]any) {
 	if status != webtools.ReadDataStatus && status != webtools.DisconnectStatus && status != webtools.ConnectStatus {
 		//Non data requests
 		return

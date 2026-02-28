@@ -56,7 +56,7 @@ func (conn *ServerConn) Close() {
 /*
 ServerReadFunc is function definition for reading data from Server
 */
-type ServerReadFunc func(conn *ServerConn, data []byte, status uint8)
+type ServerReadFunc func(conn *ServerConn, data []byte, status webtools.NetworkStatus)
 
 /*
 Server is basic TCP server
@@ -86,6 +86,13 @@ GetAddress gets address of server
 */
 func (sv *Server) GetAddress() string {
 	return sv.address.String()
+}
+
+/*
+GetConns gets all connections on server
+*/
+func (sv *Server) GetConns() []*ServerConn {
+	return sv.conns.GetValues()
 }
 
 /*
@@ -154,7 +161,7 @@ func (sv *Server) Start() {
 	sv.isAlive = false
 }
 
-func (sv *Server) readFuncLocal(client *ClientSimple, data []byte, status uint8) {
+func (sv *Server) readFuncLocal(client *ClientSimple, data []byte, status webtools.NetworkStatus) {
 	// Sort connection
 	var tcpConn *ServerConn = sv.conns.Get(client)
 	if tcpConn == nil {
