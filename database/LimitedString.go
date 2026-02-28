@@ -2,7 +2,11 @@ package database
 
 import (
 	"errors"
+	"fmt"
 	"io"
+	"strconv"
+	"strings"
+	"webtools"
 )
 
 /*
@@ -24,6 +28,9 @@ Parameter lengthStoreByteSize sets, how big (how much bytes) will the lenght par
 Recommended max size is from 8 to 64 bytes (int64 of real length). Enter byte count for length (values from 1 to 8)
 */
 func MakeLimitedString(lengthStoreByteSize uint8) LimitedString {
+	if lengthStoreByteSize < 1 || lengthStoreByteSize > 8 {
+		panic("invalid argument: lengthStoreByteSize: " + strconv.Itoa(int(lengthStoreByteSize)))
+	}
 	return LimitedString{lengthStoreByteSize: lengthStoreByteSize}
 }
 
@@ -90,4 +97,28 @@ CanParseDBToAny returns false = All values are not written to DB (the object mus
 */
 func (limitedString *LimitedString) CanParseDBToAny() bool {
 	return false
+}
+
+func (limitedString *LimitedString) InteractiveRepairDB() (bool, error) {
+	//Read length
+	data, err := webtools.ReadLineFromConsole("Enter LimitedString lengthStoreByteSize: ")
+	if err != nil {
+		fmt.Println("input err:", err)
+		return false, err
+	}
+
+	//Parse to number
+	num, err := strconv.Atoi(strings.ReplaceAll(string(data), "\n", ""))
+	if err != nil {
+		fmt.Println("convert err:", err)
+		return false, err
+	}
+
+	//Check if value in range
+	if num < 1 || num > 8 {
+		fmt.Println("Value of LimitedString lengthStoreByteSize out of range of (1 to 8)!")
+		return false, nil
+	}
+	limitedString.lengthStoreByteSize = uint8(num)
+	return true, nil
 }

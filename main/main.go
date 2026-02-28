@@ -325,12 +325,13 @@ func main() {
 				v = append(v, testdbExample{
 					//A: []string{"a", "b", "c", strconv.Itoa(i)},
 					B: append(make([]testdbSubExample, 0), testdbSubExample{C: "textC", D: 1}),
-					E: &map[int]database.LimitedString{5: lim1, 6: lim2},
+					//E: &map[int]database.LimitedString{5: lim1, 8: lim2},
 					P: p2p.UPnPXMLService{},
 					Q: lim,
 				})
 			}
 
+			//fmt.Println(v[0].E)
 			field, schema := database.BuildDBSchema(reflect.TypeOf(v))
 			fmt.Println(schema)
 			fmt.Println(database.BuildDBSchemaString(field))
@@ -376,12 +377,12 @@ func main() {
 			lim2.Set("")
 			var result = append(make([]testdbExample, 0), testdbExample{
 				Q: lim,
-				E: &map[int]database.LimitedString{5: lim1, 6: lim2},
+				//E: &map[int]database.LimitedString{5: lim1, 8: lim2},
 			})
-			err = database.ParseAnyToObjectDB(file, &result)
+			err = database.ParseAnyToObjectDB(file, &result, true)
 			fmt.Println(result[0].Q.Get())
-			a := (*result[0].E)[6]
-			fmt.Println(a.Get())
+			//a := (*result[0].E)[6]
+			//fmt.Println(a.Get())
 			fmt.Println(result)
 		}
 	}
@@ -394,9 +395,9 @@ type testdbSubExample struct {
 
 type testdbExample struct {
 	//A []string                        `db:"a"`
-	B []testdbSubExample              `db:"b"`
-	E *map[int]database.LimitedString `db:"e"`
-	P p2p.UPnPXMLService              "db:\"P\""
+	B []testdbSubExample `db:"b"`
+	//E *map[int]database.LimitedString `db:"e"`
+	P p2p.UPnPXMLService "db:\"P\""
 	Q database.LimitedString
 }
 
