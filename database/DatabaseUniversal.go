@@ -382,46 +382,34 @@ func parseAnyValueToBytesDBValue(reader io.Reader, valType string, objectValue *
 	switch valType {
 	case "bool":
 		result, err = ParseBoolDB(reader)
-		break
 	case "uint":
 		result, err = ParseDynamicUintBytesDB(reader)
 		result = uint(result.(uint64))
-		break
 	case "int":
 		result, err = ParseDynamicUintBytesDB(reader)
 		result = int(int64(result.(uint64)))
-		break
 	case "uint64":
 		result, err = ParseDynamicUintBytesDB(reader)
-		break
 	case "int64":
 		result, err = ParseDynamicUintBytesDB(reader)
 		result = int64(result.(uint64))
-		break
 	case "uint8":
 		result, err = ParseUint8DB(reader)
-		break
 	case "int8":
 		result, err = ParseBoolDB(reader)
 		result = int8(result.(uint8))
-		break
 	case "string":
 		result, err = ParseStringDB(reader)
-		break
 	case "int16":
 		result, err = ParseUint16DB(reader)
 		result = int16(result.(uint16))
-		break
 	case "int32":
 		result, err = ParseDynamicUintBytesDB(reader)
 		result = int32(result.(uint32))
-		break
 	case "uint16":
 		result, err = ParseUint16DB(reader)
-		break
 	case "uint32":
 		result, err = ParseDynamicUintBytesDB(reader)
-		break
 	default:
 		//Check user defined types
 		for _, t := range registeredCustomTypes {
@@ -985,7 +973,7 @@ func ParseAnyDB[T any](reader io.ReadSeeker, interactiveRepair bool) (T, error) 
 		result := val.Interface()
 		return result.(T), nil
 	}
-	if err != nil && !errors.Is(os.ErrInvalid, err) {
+	if !errors.Is(os.ErrInvalid, err) {
 		// Invalid type (read error)
 		var zero T
 		return zero, err
