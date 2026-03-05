@@ -20,6 +20,7 @@ import (
 	"webtools/proxy"
 	"webtools/tcp"
 	"webtools/udp"
+	"webtools/webrtc"
 )
 
 func main() {
@@ -434,6 +435,17 @@ func main() {
 			//watcher := filesystem.NewFileSystemWatcher("/mnt/DATA/Programming/Go/Go-Webtools/test", filesystemEvent, true, true)
 			//defer watcher.StopWatching()
 			//watcher.StartWatching()
+		}
+	case "webrtc-cl":
+		{
+			cl, err := webrtc.NewSTUNClient("stun.l.google.com:19302", true, true)
+			if err != nil {
+				fmt.Println(err.Error())
+				return
+			}
+			cl.Connect()
+			cl.Send(webrtc.MessageTypeSTUNBinding, webrtc.MessageClassSTUNRequest, nil)
+			webtools.ReadLineFromConsole("Press enter to exit.")
 		}
 	}
 }

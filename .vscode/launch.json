@@ -10,7 +10,7 @@
             "request": "launch",
             "mode": "auto",
             "program": "./main/main.go",
-            "args": ["testdb"]
+            "args": ["webrtc-cl"]
         }
     ]
 }
