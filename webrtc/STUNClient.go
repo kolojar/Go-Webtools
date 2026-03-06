@@ -85,7 +85,7 @@ func (stunClient *STUNClient) readFunc(_ *udp.Client, _ *net.UDPAddr, data []byt
 	}
 
 	//Unpack packet
-	messageType, messageClass, transactionID, message, err := UnpackSTUNPacket(data, stunClient.isIPv4)
+	messageType, messageClass, transactionID, message, isSTUNPacket, err := UnpackSTUNPacket(data, stunClient.isIPv4)
 	if err != nil {
 		stunClient.client.Logger.Log(3, "Error unpacking STUN packet: "+err.Error())
 		return
@@ -93,7 +93,7 @@ func (stunClient *STUNClient) readFunc(_ *udp.Client, _ *net.UDPAddr, data []byt
 
 	//Mark as delivered
 	stunClient.sentPackets.Delete(transactionID)
-	fmt.Println(messageType, messageClass, transactionID, message[0])
+	fmt.Println(messageType, messageClass, transactionID, isSTUNPacket, message[0])
 	decode, err := message[0].DecodeSTUNPacketAttribute()
 	fmt.Println("Decoded:")
 	for k, v := range decode {

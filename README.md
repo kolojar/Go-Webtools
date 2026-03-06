@@ -43,6 +43,15 @@
 - [X] Add some kind of connection merger and splitter
 - [ ] Add encryption to all servers and clients
 - [ ] P2P
+- [ ] WEBRTC
+    - [ ] STUN Client
+        - [X] Get public IP
+        - [ ] Handle ERROR
+        - [ ] Handle LOGIN and FINGERPRINT
+        - [ ] Handle other attributes
+        - [ ] Add TCP support
+    - [ ] STUN Server
+    - [ ] SDP Parser and Generator
 
 # Fixes
 - [X] Fix map sync error

@@ -1,7 +1,7 @@
 package webtools
 
 /*
-SetBitValueArray sets bit to value at specific position in array - position in array = pos/8, position in bit = pos%8 -> 0 = 128, 7 = 0
+SetBitValueArray sets bit to value at specific position in array - position in array = pos/8, position in bit = pos%8 -> 0 = 128, 7 = 1
 */
 func SetBitValueArray(b []byte, pos uint64, value bool) []byte {
 	//Check for overflow
@@ -15,7 +15,7 @@ func SetBitValueArray(b []byte, pos uint64, value bool) []byte {
 }
 
 /*
-SetBitValue sets bit to value at specific position -> 0 = 128, 7 = 0
+SetBitValue sets bit to value at specific position -> 0 = 128, 7 = 1
 */
 func SetBitValue(b byte, pos uint8, value bool) byte {
 	if value {
@@ -25,7 +25,7 @@ func SetBitValue(b byte, pos uint8, value bool) byte {
 }
 
 /*
-SetBit sets bit (sets 1) at specific position -> 0 = 128, 7 = 0
+SetBit sets bit (sets 1) at specific position -> 0 = 128, 7 = 1
 */
 func SetBit(b byte, pos uint8) byte {
 	//Check for overflow
@@ -37,7 +37,7 @@ func SetBit(b byte, pos uint8) byte {
 }
 
 /*
-ClearBit clears bit (sets 0) at specific position -> 0 = 128, 7 = 0
+ClearBit clears bit (sets 0) at specific position -> 0 = 128, 7 = 1
 */
 func ClearBit(b byte, pos uint8) byte {
 	//Check for overflow
@@ -49,7 +49,7 @@ func ClearBit(b byte, pos uint8) byte {
 }
 
 /*
-CheckBitArray checks bit at specific position in array - position in array = pos/8, position in bit = pos%8 -> 0 = 128, 7 = 0
+CheckBitArray checks bit at specific position in array - position in array = pos/8, position in bit = pos%8 -> 0 = 128, 7 = 1
 */
 func CheckBitArray(b []byte, pos uint64) bool {
 	//Check for overflow
@@ -62,7 +62,7 @@ func CheckBitArray(b []byte, pos uint64) bool {
 }
 
 /*
-CheckBit checks if bit is set (1). pos -> 0 = 128, 7 = 0
+CheckBit checks if bit is set (1). pos -> 0 = 128, 7 = 1
 */
 func CheckBit(b byte, pos uint8) bool {
 	//Check for overflow
