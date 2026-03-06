@@ -93,7 +93,12 @@ func (stunClient *STUNClient) readFunc(_ *udp.Client, _ *net.UDPAddr, data []byt
 
 	//Mark as delivered
 	stunClient.sentPackets.Delete(transactionID)
-	fmt.Println(messageType, messageClass, transactionID, string(message))
+	fmt.Println(messageType, messageClass, transactionID, message[0])
+	decode, err := message[0].DecodeSTUNPacketAttribute()
+	fmt.Println("Decoded:")
+	for k, v := range decode {
+		fmt.Println(" -", k, v)
+	}
 }
 
 /*

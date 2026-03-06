@@ -71,3 +71,19 @@ func CheckBit(b byte, pos uint8) bool {
 	}
 	return b&(1<<(7-pos)) == 1
 }
+
+/*
+XORArrays applies XOR operation to whole arrays -> a[i] ^ b[i].
+*/
+func XORArrays(a []byte, b []byte) []byte {
+	if len(a) != len(b) {
+		return nil
+	}
+
+	//Do XOR
+	result := make([]byte, len(a))
+	for i := range result {
+		result[i] = a[i] ^ b[i]
+	}
+	return result
+}
