@@ -78,9 +78,9 @@ type SDPMessageTiming struct {
 Specification: https://datatracker.ietf.org/doc/html/rfc4566#section-5.10
 */
 type SDPMessageRepeatTime struct {
-	RepeatInterval string
-	ActiveDuration string
-	Offsets        []string
+	RepeatInterval string   //repeat interval
+	ActiveDuration string   //active duration
+	Offsets        []string //offsets from start-time
 }
 
 /*
