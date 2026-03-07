@@ -7,96 +7,12 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"webtools"
 )
 
 var constSDPSessionDescriptionOptionalTypes1 = []string{"i", "u", "e", "p", "c", "b"}
 var constSDPSessionDescriptionOptionalTypes2 = []string{"z", "k", "a"}
 var constSDPMediaDescriptionOptionalTypes = []string{"i", "c", "b", "k", "a"}
-
-/*
-Specification: https://datatracker.ietf.org/doc/html/rfc4566#section-5.2
-*/
-type SDPMessageOrigin struct {
-	Username       string //username
-	SessionID      string //sess-id
-	SessionVersion string //sess-version
-	NetworkType    string //nettype
-	AddressType    string //addrtype
-	UnicastAddress string //unicast-address
-}
-
-/*
-Specification: https://datatracker.ietf.org/doc/html/rfc4566#section-5.10
-*/
-type SDPMessageRepeatTime struct {
-	RepeatInterval string
-	ActiveDuration string
-	Offsets        []string
-}
-
-/*
-Specification: https://datatracker.ietf.org/doc/html/rfc4566#section-5.9
-*/
-type SDPMessageTiming struct {
-	StartTime   string                 //t -> start-time
-	EndTime     string                 //t -> stop-time
-	RepeatTimes []SDPMessageRepeatTime //r*
-}
-
-/*
-Specification: https://datatracker.ietf.org/doc/html/rfc4566#section-5.12
-*/
-type SDPMessageEncyptionKey struct {
-	Method        string //method
-	EncryptionKey string //encryption key
-}
-
-/*
-Specification: https://datatracker.ietf.org/doc/html/rfc4566#section-5.14
-*/
-type SDPMessageMediaDescription struct {
-	Media                 string                   //m - media
-	Port                  string                   //m - port
-	NumberOfPorts         string                   //m - number of ports
-	Protocol              string                   //m - proto
-	Formats               []string                 //m - fmt
-	MediaTitle            string                   //i*
-	ConnectionData        SDPMessageConnectionData //c*
-	BandwidthInformations []SDPMessageBandwidth    //b*
-	EncryptionKey         SDPMessageEncyptionKey   //k*
-	Attributes            []SDPMessageAttribute    //a*
-}
-
-/*
-Specification: https://datatracker.ietf.org/doc/html/rfc4566#section-5.7
-*/
-type SDPMessageConnectionData struct {
-	NetworkType         string   //nettype
-	AddressType         string   //addrtype
-	ConnectionAddresses []string //connection-address
-	TimeToLive          uint8    //ttl
-}
-
-/*
-Specification: https://datatracker.ietf.org/doc/html/rfc4566#section-5.8
-*/
-type SDPMessageBandwidth struct {
-	BandwidthType string //bwtype
-	Bandwidth     string //bandwidth
-}
-
-/*
-Specification: https://datatracker.ietf.org/doc/html/rfc4566#section-5.11
-*/
-type SDPMessageTimeZone struct {
-	AdjustmentTime string //adjustment time
-	Offset         string //offset
-}
-
-type SDPMessageAttribute struct {
-	Attribute string //attribute
-	Value     string //value
-}
 
 /*
 Specification: https://datatracker.ietf.org/doc/html/rfc4566#section-5
@@ -116,6 +32,95 @@ type SDPMessage struct {
 	EncryptionKey         SDPMessageEncyptionKey       //k*
 	Attributes            []SDPMessageAttribute        //a*
 	MediaDescriptions     []SDPMessageMediaDescription //m and optional attributes for m: i*, c*, b*, k*, a*
+}
+
+/*
+Specification: https://datatracker.ietf.org/doc/html/rfc4566#section-5.2
+*/
+type SDPMessageOrigin struct {
+	Username       string //username
+	SessionID      string //sess-id
+	SessionVersion string //sess-version
+	NetworkType    string //nettype
+	AddressType    string //addrtype
+	UnicastAddress string //unicast-address
+}
+
+/*
+Specification: https://datatracker.ietf.org/doc/html/rfc4566#section-5.7
+*/
+type SDPMessageConnectionData struct {
+	NetworkType       string //nettype
+	AddressType       string //addrtype
+	ConnectionAddress string //connection-address
+	NumberOfAddresses int    //number of addresses
+	TimeToLive        uint8  //ttl
+}
+
+/*
+Specification: https://datatracker.ietf.org/doc/html/rfc4566#section-5.8
+*/
+type SDPMessageBandwidth struct {
+	BandwidthType string //bwtype
+	Bandwidth     string //bandwidth
+}
+
+/*
+Specification: https://datatracker.ietf.org/doc/html/rfc4566#section-5.9
+*/
+type SDPMessageTiming struct {
+	StartTime   string                 //t -> start-time
+	EndTime     string                 //t -> stop-time
+	RepeatTimes []SDPMessageRepeatTime //r*
+}
+
+/*
+Specification: https://datatracker.ietf.org/doc/html/rfc4566#section-5.10
+*/
+type SDPMessageRepeatTime struct {
+	RepeatInterval string
+	ActiveDuration string
+	Offsets        []string
+}
+
+/*
+Specification: https://datatracker.ietf.org/doc/html/rfc4566#section-5.11
+*/
+type SDPMessageTimeZone struct {
+	AdjustmentTime string //adjustment time
+	Offset         string //offset
+}
+
+/*
+Specification: https://datatracker.ietf.org/doc/html/rfc4566#section-5.12
+*/
+type SDPMessageEncyptionKey struct {
+	Method        string //method
+	EncryptionKey string //encryption key
+}
+
+/*
+Specification: https://datatracker.ietf.org/doc/html/rfc4566#section-5.13
+*/
+type SDPMessageAttribute struct {
+	Attribute string //attribute
+	Value     string //value
+}
+
+/*
+Specification: https://datatracker.ietf.org/doc/html/rfc4566#section-5.14
+*/
+type SDPMessageMediaDescription struct {
+	Media                 string                   //m - media
+	Port                  uint16                   //m - port
+	NumberOfPorts         uint16                   //m - number of ports
+	Protocol              string                   //m - proto
+	Formats               []string                 //m - fmt
+	MediaTitle            string                   //i*
+	ConnectionData        SDPMessageConnectionData //c*
+	BandwidthInformations []SDPMessageBandwidth    //b*
+	EncryptionKey         SDPMessageEncyptionKey   //k*
+	Attributes            []SDPMessageAttribute    //a*
 }
 
 func getSDPMessageLineValue(line string, lineType string) (string, error) {
@@ -173,7 +178,7 @@ func unpackSDPMessageBroadcastLine(value string) (SDPMessageBandwidth, error) {
 }
 
 func unpackSDPMessageConnectionInformationLine(value string) (SDPMessageConnectionData, error) {
-	connectionData := SDPMessageConnectionData{ConnectionAddresses: make([]string, 0)}
+	connectionData := SDPMessageConnectionData{}
 
 	//Process connection data
 	valueSplit := strings.SplitN(value, " ", 3)
@@ -194,7 +199,7 @@ func unpackSDPMessageConnectionInformationLine(value string) (SDPMessageConnecti
 	if err != nil {
 		return connectionData, err
 	}
-	repeatCount := 0
+	repeatCount := 1
 
 	//Sort IP types
 	if connectionData.AddressType == "IP4" {
@@ -206,11 +211,11 @@ func unpackSDPMessageConnectionInformationLine(value string) (SDPMessageConnecti
 		//Check length
 		if len(connectionAddressSplit) == 1 {
 			fmt.Println("Warning: connectionData-connectionAddress - No TTL specified")
-			connectionData.ConnectionAddresses = append(connectionData.ConnectionAddresses, ip.String())
+			connectionData.ConnectionAddress = ip.String()
 		}
 		if len(connectionAddressSplit) >= 2 {
 			//Format: IP/TTL
-			connectionData.ConnectionAddresses = append(connectionData.ConnectionAddresses, ip.String())
+			connectionData.ConnectionAddress = ip.String()
 
 			//Convert TTL
 			ttl, err := strconv.ParseUint(connectionAddressSplit[1], 10, 8)
@@ -235,7 +240,7 @@ func unpackSDPMessageConnectionInformationLine(value string) (SDPMessageConnecti
 		//Check length
 		if len(connectionAddressSplit) == 1 {
 			//Format: IP
-			connectionData.ConnectionAddresses = append(connectionData.ConnectionAddresses, ip.String())
+			connectionData.ConnectionAddress = ip.String()
 		}
 		if len(connectionAddressSplit) == 2 {
 			//Repeat count
@@ -247,10 +252,7 @@ func unpackSDPMessageConnectionInformationLine(value string) (SDPMessageConnecti
 	}
 
 	//Repeat IP
-	for i := 1; i < repeatCount; i++ {
-		ip = ip.Next()
-		connectionData.ConnectionAddresses = append(connectionData.ConnectionAddresses, ip.String())
-	}
+	connectionData.NumberOfAddresses = repeatCount
 	return connectionData, nil
 }
 
@@ -272,7 +274,7 @@ func unpackSDPMessageEncryptionKeyLine(value string) (SDPMessageEncyptionKey, er
 }
 
 func unpackSDPMessageAttributeLine(value string) (SDPMessageAttribute, error) {
-	attributeSplit := strings.SplitN(value, " ", 2)
+	attributeSplit := strings.SplitN(value, ":", 2)
 	if len(attributeSplit) < 1 {
 		return SDPMessageAttribute{}, errors.New("invalid attribute length")
 	}
@@ -289,7 +291,9 @@ func unpackSDPMessageAttributeLine(value string) (SDPMessageAttribute, error) {
 }
 
 /*
+UnpackSDPMessage converts string message to SDPMessage struct with error checking
 Specification: https://datatracker.ietf.org/doc/html/rfc4566#section-5
+Other specifications on sub-structs
 */
 func UnpackSDPMessage(message string) (SDPMessage, error) {
 	//Split to lines
@@ -544,10 +548,39 @@ func UnpackSDPMessage(message string) (SDPMessage, error) {
 		if len(mediaSplit) < 4 {
 			return sdpMessage, errors.New("invalid media length")
 		}
+
+		//Process port
+		portSplit := strings.SplitN(mediaSplit[1], "/", 2)
+		if len(portSplit) < 1 {
+			return sdpMessage, errors.New("invalid media - port length")
+		}
+
+		//Parse port
+		port, err := strconv.ParseUint(portSplit[0], 10, 16)
+		if err != nil {
+			return sdpMessage, err
+		}
+		if port == 0 {
+			return sdpMessage, errors.New("invalid media - port value")
+		}
+
+		//Parse numberOfPorts
+		var numberOfPorts uint64 = 1
+		if len(portSplit) == 2 {
+			numberOfPorts, err = strconv.ParseUint(portSplit[1], 10, 16)
+			if err != nil {
+				return sdpMessage, err
+			}
+			if numberOfPorts == 0 {
+				return sdpMessage, errors.New("invalid media - numberOfPorts value")
+			}
+		}
+
 		mediaType := SDPMessageMediaDescription{
 			Media:         mediaSplit[0],
-			Port:          mediaSplit[1],
-			NumberOfPorts: mediaSplit[2],
+			Port:          uint16(port),
+			NumberOfPorts: uint16(numberOfPorts),
+			Protocol:      mediaSplit[2],
 			Formats:       mediaSplit[3:],
 			Attributes:    make([]SDPMessageAttribute, 0),
 		}
@@ -584,7 +617,7 @@ func UnpackSDPMessage(message string) (SDPMessage, error) {
 				continue
 			}
 			if t == "c" {
-				//ConnectionData
+				//Connection data
 				foundConnectionInformation = true
 				mediaType.ConnectionData, err = unpackSDPMessageConnectionInformationLine(value)
 				if err != nil {
@@ -618,7 +651,7 @@ func UnpackSDPMessage(message string) (SDPMessage, error) {
 				if err != nil {
 					return sdpMessage, err
 				}
-				mediaType.Attributes = append(sdpMessage.Attributes, attribute)
+				mediaType.Attributes = append(mediaType.Attributes, attribute)
 				i--
 				continue
 			}
@@ -630,4 +663,337 @@ func UnpackSDPMessage(message string) (SDPMessage, error) {
 		sdpMessage.MediaDescriptions = append(sdpMessage.MediaDescriptions, mediaType)
 	}
 	return sdpMessage, nil
+}
+
+const sdpLineEnd = "\r\n"
+
+func isInvalidSDPValue(value string) bool {
+	return webtools.IsStringEmpty(value) || strings.ContainsAny(value, " \n\r")
+}
+
+func packSDPMessageConnectionInformationLine(connectionData SDPMessageConnectionData, errorPrefix string) (string, error) {
+	result := ""
+	if connectionData.NetworkType != "" && connectionData.AddressType != "" {
+		//First same part
+		if isInvalidSDPValue(connectionData.AddressType) {
+			return "", errors.New(errorPrefix + "connectionData - addressType invalid")
+		}
+		if isInvalidSDPValue(connectionData.NetworkType) {
+			return "", errors.New(errorPrefix + "connectionData - networkType invalid")
+		}
+		if isInvalidSDPValue(connectionData.ConnectionAddress) {
+			return "", errors.New(errorPrefix + "connectionData - networkType invalid")
+		}
+		if connectionData.NumberOfAddresses < 1 {
+			return "", errors.New(errorPrefix + "connectionData - NumberOfAddresses too small")
+		}
+		result = "c=" + connectionData.AddressType + " " + connectionData.NetworkType + " " + connectionData.ConnectionAddress
+
+		//Write TTL for IPv4
+		if connectionData.NetworkType == "IP4" {
+			result += "/" + strconv.FormatUint(uint64(connectionData.TimeToLive), 10)
+		}
+
+		//Write NumberOfAddresses if needed
+		if connectionData.NumberOfAddresses != 1 {
+			result += "/" + strconv.Itoa(connectionData.NumberOfAddresses)
+		}
+		result += sdpLineEnd
+	}
+	return result, nil
+}
+
+func packSDPMessageBandwithInformationLine(bandwidth SDPMessageBandwidth, errorPrefix string) (string, error) {
+	if isInvalidSDPValue(bandwidth.BandwidthType) {
+		return "", errors.New(errorPrefix + "bandwidth - bandwidthType empty or invalid")
+	}
+	if isInvalidSDPValue(bandwidth.Bandwidth) {
+		return "", errors.New(errorPrefix + "bandwidth - Bandwidth empty or invalid")
+	}
+	return "b=" + bandwidth.BandwidthType + ":" + bandwidth.Bandwidth + sdpLineEnd, nil
+}
+
+func packSDPMessageEncryptionKeyLine(encryptionKey SDPMessageEncyptionKey, errorPrefix string) (string, error) {
+	result := ""
+	if encryptionKey.Method != "" {
+		if isInvalidSDPValue(encryptionKey.Method) {
+			return "", errors.New(errorPrefix + "encryptionKey - method invalid")
+		}
+		result += encryptionKey.Method
+
+		//Put optional encryptionKey
+		if encryptionKey.EncryptionKey != "" {
+			if strings.ContainsAny(encryptionKey.EncryptionKey, "\n\r") {
+				return "", errors.New(errorPrefix + "encryptionKey - encryptionKey invalid")
+			}
+			result += ":" + encryptionKey.EncryptionKey
+		}
+		result += sdpLineEnd
+	}
+	return result, nil
+}
+
+func packSDPMessageAttributeLine(attribute SDPMessageAttribute, errorPrefix string) (string, error) {
+	if isInvalidSDPValue(attribute.Attribute) {
+		return "", errors.New(errorPrefix + "attribute - attribute empty or invalid")
+	}
+	result := "a=" + attribute.Attribute
+
+	//Put optional Value
+	if attribute.Value != "" {
+		if strings.ContainsAny(attribute.Value, "\n\r") {
+			return "", errors.New(errorPrefix + "attribute - value invalid")
+		}
+		result += ":" + attribute.Value
+	}
+	result += sdpLineEnd
+	return result, nil
+}
+
+/*
+PackSDPMessage converts SDPMessage struct to crossplatform string message with error checking
+Specification: https://datatracker.ietf.org/doc/html/rfc4566#section-5
+Other specifications on sub-structs
+*/
+func PackSDPMessage(sdpMessage SDPMessage) (string, error) {
+	resultMessage := ""
+
+	//Put ProtocolVersion
+	if isInvalidSDPValue(sdpMessage.ProtocolVersion) {
+		return "", errors.New("protocolVersion empty or invalid")
+	}
+	resultMessage += "v=" + sdpMessage.ProtocolVersion + sdpLineEnd
+
+	//Put Origin
+	if isInvalidSDPValue(sdpMessage.Origin.Username) {
+		return "", errors.New("origin - username empty or invalid")
+	}
+	if isInvalidSDPValue(sdpMessage.Origin.SessionID) {
+		return "", errors.New("origin - sessionID empty or invalid")
+	}
+	if isInvalidSDPValue(sdpMessage.Origin.SessionVersion) {
+		return "", errors.New("origin - sessionVersion empty or invalid")
+	}
+	if isInvalidSDPValue(sdpMessage.Origin.NetworkType) {
+		return "", errors.New("origin - networkType empty or invalid")
+	}
+	if isInvalidSDPValue(sdpMessage.Origin.AddressType) {
+		return "", errors.New("origin - addressType empty or invalid")
+	}
+	if isInvalidSDPValue(sdpMessage.Origin.UnicastAddress) {
+		return "", errors.New("origin - unicastAddress empty or invalid")
+	}
+	resultMessage += "o=" + sdpMessage.Origin.Username + " " + sdpMessage.Origin.SessionID + " " + sdpMessage.Origin.SessionVersion + " " + sdpMessage.Origin.NetworkType + " " + sdpMessage.Origin.AddressType + " " + sdpMessage.Origin.UnicastAddress + sdpLineEnd
+
+	//Put SessionName
+	if sdpMessage.SessionName == "" || strings.ContainsAny(sdpMessage.SessionName, "\n\r") {
+		return "", errors.New("sessionName empty or invalid")
+	}
+	resultMessage += "s=" + sdpMessage.SessionName + sdpLineEnd
+
+	//Put sessionInformation - optional
+	if sdpMessage.SessionInformation != "" {
+		if strings.ContainsAny(sdpMessage.SessionInformation, "\n\r") {
+			return "", errors.New("sessionInformation invalid")
+		}
+		resultMessage += "i=" + sdpMessage.SessionInformation + sdpLineEnd
+	}
+
+	//Put uriOfDescription - optional
+	if sdpMessage.URIOfDescription != "" {
+		if strings.ContainsAny(sdpMessage.URIOfDescription, "\n\r") {
+			return "", errors.New("uriOfDescription invalid")
+		}
+		resultMessage += "u=" + sdpMessage.URIOfDescription + sdpLineEnd
+	}
+
+	//Put EmailAddresses - optional
+	for _, email := range sdpMessage.EmailAddresses {
+		if strings.ContainsAny(email, "\n\r") {
+			return "", errors.New("email invalid")
+		}
+		resultMessage += "e=" + email + sdpLineEnd
+	}
+
+	//Put PhoneNumbers - optional
+	for _, phone := range sdpMessage.PhoneNumbers {
+		if strings.ContainsAny(phone, "\n\r") {
+			return "", errors.New("phone invalid")
+		}
+		resultMessage += "p=" + phone + sdpLineEnd
+	}
+
+	//Put connectionData - optional
+	wroteConnectionData := false
+	connectionInformationMessage, err := packSDPMessageConnectionInformationLine(sdpMessage.ConnectionData, "")
+	if err != nil {
+		return "", err
+	}
+	if len(connectionInformationMessage) != 0 {
+		wroteConnectionData = true
+		resultMessage += connectionInformationMessage
+	}
+
+	//Put Bandwidth - optional
+	for _, bandwidth := range sdpMessage.BandwidthInformations {
+		bandwidthMessage, err := packSDPMessageBandwithInformationLine(bandwidth, "")
+		if err != nil {
+			return "", nil
+		}
+		resultMessage += bandwidthMessage
+	}
+
+	//Put Time
+	if len(sdpMessage.TimeDescriptions) == 0 {
+		return "", errors.New("timeDescriptions must have at least one item")
+	}
+	for _, time := range sdpMessage.TimeDescriptions {
+		//Put required Time
+		if isInvalidSDPValue(time.StartTime) {
+			return "", errors.New("timeDescriptions - startTime empty or invalid")
+		}
+		if isInvalidSDPValue(time.EndTime) {
+			return "", errors.New("timeDescriptions - endTime empty or invalid")
+		}
+		resultMessage += "t=" + time.StartTime + " " + time.EndTime + sdpLineEnd
+
+		//Put optional RepeatTimes
+		for _, repeatTime := range time.RepeatTimes {
+			if isInvalidSDPValue(repeatTime.RepeatInterval) {
+				return "", errors.New("timeDescriptions - repeatTime - repeatInterval empty or invalid")
+			}
+			if isInvalidSDPValue(repeatTime.ActiveDuration) {
+				return "", errors.New("timeDescriptions - repeatTime - activeDuration empty or invalid")
+			}
+			if len(repeatTime.Offsets) == 0 {
+				return "", errors.New("timeDescriptions - repeatTime - offsets empty")
+			}
+			resultMessage += "t=" + repeatTime.RepeatInterval + " " + repeatTime.ActiveDuration
+
+			//Put all offsets
+			for _, offset := range repeatTime.Offsets {
+				resultMessage += offset + " "
+			}
+			resultMessage = strings.TrimSuffix(resultMessage, " ")
+			resultMessage += sdpLineEnd
+		}
+	}
+
+	//Put Time Zone - optional
+	if len(sdpMessage.TimeZoneAdjustments) != 0 {
+		resultMessage += "z="
+		for _, timeZone := range sdpMessage.TimeZoneAdjustments {
+			if isInvalidSDPValue(timeZone.AdjustmentTime) {
+				return "", errors.New("timeZone - adjustmentTime empty or invalid")
+			}
+			if isInvalidSDPValue(timeZone.Offset) {
+				return "", errors.New("timeZone - offset empty or invalid")
+			}
+			resultMessage += timeZone.AdjustmentTime + " " + timeZone.Offset + " "
+		}
+		resultMessage = strings.TrimSuffix(resultMessage, " ")
+		resultMessage += sdpLineEnd
+	}
+
+	//Put Encryption Key - optional
+	encryptionKeyMessage, err := packSDPMessageEncryptionKeyLine(sdpMessage.EncryptionKey, "")
+	if err != nil {
+		return "", err
+	}
+	if len(encryptionKeyMessage) != 0 {
+		resultMessage += encryptionKeyMessage
+	}
+
+	//Put Attributes - optional
+	for _, attribute := range sdpMessage.Attributes {
+		attributeMessage, err := packSDPMessageAttributeLine(attribute, "")
+		if err != nil {
+			return "", err
+		}
+		resultMessage += attributeMessage
+	}
+
+	//Put MediaDescription - optional
+	for _, media := range sdpMessage.MediaDescriptions {
+		//Check m type
+		if isInvalidSDPValue(media.Media) {
+			return "", errors.New("mediaDescriptions - media invalid")
+		}
+		if media.Port == 0 {
+			return "", errors.New("mediaDescriptions - port invalid")
+		}
+		if media.NumberOfPorts == 0 {
+			return "", errors.New("mediaDescriptions - numberOfPorts invalid")
+		}
+		if isInvalidSDPValue(media.Protocol) {
+			return "", errors.New("mediaDescriptions - protocol invalid")
+		}
+		//Put basic data
+		resultMessage += "m=" + media.Media + " " + strconv.FormatUint(uint64(media.Port), 10) + " " + strconv.FormatUint(uint64(media.NumberOfPorts), 10) + " " + media.Protocol
+
+		//Put formats
+		for _, format := range media.Formats {
+			resultMessage += format + " "
+		}
+		resultMessage = strings.TrimSuffix(resultMessage, " ")
+		resultMessage += sdpLineEnd
+
+		//Put optional MediaTitle
+		if media.MediaTitle != "" {
+			if strings.ContainsAny(media.MediaTitle, "\n\r") {
+				return "", errors.New("media - mediaTitle invalid")
+			}
+			resultMessage += media.MediaTitle + sdpLineEnd
+		}
+
+		//Put optional MediaTitle
+		if media.MediaTitle != "" {
+			if strings.ContainsAny(media.MediaTitle, "\n\r") {
+				return "", errors.New("media - mediaTitle invalid")
+			}
+			resultMessage += media.MediaTitle + sdpLineEnd
+		}
+
+		//Put optional ConnectionInformation
+		connectionInformationMessage, err := packSDPMessageConnectionInformationLine(media.ConnectionData, "media - ")
+		if err != nil {
+			return "", err
+		}
+		if len(connectionInformationMessage) != 0 {
+			resultMessage += connectionInformationMessage
+		} else {
+			if !wroteConnectionData {
+				return "", errors.New("media - connectionData empty")
+			}
+		}
+
+		//Put optional Bandwidth
+		for _, bandwidth := range media.BandwidthInformations {
+			bandwidthMessage, err := packSDPMessageBandwithInformationLine(bandwidth, "media - ")
+			if err != nil {
+				return "", nil
+			}
+			resultMessage += bandwidthMessage
+		}
+
+		//Put optional Encryption Key
+		encryptionKeyMessage, err := packSDPMessageEncryptionKeyLine(media.EncryptionKey, "media - ")
+		if err != nil {
+			return "", err
+		}
+		if len(encryptionKeyMessage) != 0 {
+			resultMessage += encryptionKeyMessage
+		}
+
+		//Put optional Attributes
+		for _, attribute := range media.Attributes {
+			attributeMessage, err := packSDPMessageAttributeLine(attribute, "media - ")
+			if err != nil {
+				return "", err
+			}
+			resultMessage += attributeMessage
+		}
+	}
+	resultMessage = strings.TrimSuffix(resultMessage, sdpLineEnd)
+	return resultMessage, nil
 }

@@ -462,6 +462,12 @@ a=max-message-size:1073741823`)
 				return
 			}
 			fmt.Println(sdp)
+			pack, err := webrtc.PackSDPMessage(sdp)
+			if err != nil {
+				fmt.Println(err.Error())
+				return
+			}
+			fmt.Println(pack)
 			//cl.Connect()
 			//cl.Send(webrtc.MessageTypeSTUNBinding, webrtc.MessageClassSTUNRequest, nil)
 			webtools.ReadLineFromConsole("Press enter to exit.")

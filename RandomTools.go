@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -103,6 +104,13 @@ func IntAbs[T int | int8 | int16 | int32 | int64](x T) T {
 		return -x
 	}
 	return x
+}
+
+/*
+IsStringEmpty checks if string is empty
+*/
+func IsStringEmpty(text string) bool {
+	return strings.TrimSpace(text) == ""
 }
 
 /*
