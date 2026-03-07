@@ -2,6 +2,7 @@ package webrtc
 
 import (
 	"errors"
+	"fmt"
 	"net/netip"
 	"os"
 	"strconv"
@@ -204,7 +205,8 @@ func unpackSDPMessageConnectionInformationLine(value string) (SDPMessageConnecti
 
 		//Check length
 		if len(connectionAddressSplit) == 1 {
-			return connectionData, errors.New("invalid connectionData-connectionAddress length")
+			fmt.Println("Warning: connectionData-connectionAddress - No TTL specified")
+			connectionData.ConnectionAddresses = append(connectionData.ConnectionAddresses, ip.String())
 		}
 		if len(connectionAddressSplit) >= 2 {
 			//Format: IP/TTL
@@ -293,7 +295,7 @@ func UnpackSDPMessage(message string) (SDPMessage, error) {
 	//Split to lines
 	messageLines := make([]string, 0)
 	for line := range strings.Lines(message) {
-		messageLines = append(messageLines, line)
+		messageLines = append(messageLines, strings.ReplaceAll(line, "\n", ""))
 	}
 	sdpMessage := SDPMessage{}
 	var err error
@@ -428,6 +430,7 @@ func UnpackSDPMessage(message string) (SDPMessage, error) {
 		}
 
 		//Split Time type
+		foundFirstTimeType = true
 		timeTypeValueSplit := strings.SplitN(timeTypeValue, " ", 2)
 		if len(timeTypeValueSplit) != 2 {
 			return sdpMessage, errors.New("invalid time length")
@@ -548,6 +551,7 @@ func UnpackSDPMessage(message string) (SDPMessage, error) {
 			Formats:       mediaSplit[3:],
 			Attributes:    make([]SDPMessageAttribute, 0),
 		}
+		lineNumber++
 
 		//Read optional values
 		foundConnectionInformation := false
@@ -623,6 +627,7 @@ func UnpackSDPMessage(message string) (SDPMessage, error) {
 			//No connection specified
 			return sdpMessage, errors.New("no connection specified")
 		}
+		sdpMessage.MediaDescriptions = append(sdpMessage.MediaDescriptions, mediaType)
 	}
 	return sdpMessage, nil
 }

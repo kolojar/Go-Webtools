@@ -438,13 +438,32 @@ func main() {
 		}
 	case "webrtc-cl":
 		{
-			cl, err := webrtc.NewSTUNClient("stun.l.google.com:19302", true, true)
+			sdp, err := webrtc.UnpackSDPMessage(`v=0
+o=mozilla...THIS_IS_SDPARTA-99.0 4285904491553544859 0 IN IP4 0.0.0.0
+s=-
+t=0 0
+a=fingerprint:sha-256 42:0D:6B:63:56:57:29:6B:CF:C0:39:55:ED:F5:51:43:1C:C9:BB:7A:ED:0D:F8:7B:B1:E3:F4:06:5E:DA:66:4A
+a=group:BUNDLE 0
+a=ice-options:trickle
+a=msid-semantic:WMS *
+m=application 9 UDP/DTLS/SCTP webrtc-datachannel
+c=IN IP4 0.0.0.0
+a=sendrecv
+a=extmap-allow-mixed
+a=ice-pwd:fa8b7d6938bfaaeee84efcbe1321ef25
+a=ice-ufrag:0c12b46d
+a=mid:0
+a=setup:active
+a=sctp-port:5000
+a=max-message-size:1073741823`)
+			//cl, err := webrtc.NewSTUNClient("stun.l.google.com:19302", true, true)
 			if err != nil {
 				fmt.Println(err.Error())
 				return
 			}
-			cl.Connect()
-			cl.Send(webrtc.MessageTypeSTUNBinding, webrtc.MessageClassSTUNRequest, nil)
+			fmt.Println(sdp)
+			//cl.Connect()
+			//cl.Send(webrtc.MessageTypeSTUNBinding, webrtc.MessageClassSTUNRequest, nil)
 			webtools.ReadLineFromConsole("Press enter to exit.")
 		}
 	}
