@@ -438,6 +438,7 @@ func main() {
 		}
 	case "webrtc-cl":
 		{
+
 			sdp, err := webrtc.UnpackSDPMessage(`v=0
 o=mozilla...THIS_IS_SDPARTA-99.0 4285904491553544859 0 IN IP4 0.0.0.0
 s=-
@@ -456,11 +457,13 @@ a=mid:0
 a=setup:active
 a=sctp-port:5000
 a=max-message-size:1073741823`)
+			//cert, err := webrtc.GenerateDTLSCertificate("test", time.Now(), time.Now().Add(time.Hour*24*365))
 			//cl, err := webrtc.NewSTUNClient("stun.l.google.com:19302", true, true)
 			if err != nil {
 				fmt.Println(err.Error())
 				return
 			}
+			//fmt.Println(cert)
 			fmt.Println(sdp)
 			pack, err := webrtc.PackSDPMessage(sdp)
 			if err != nil {
