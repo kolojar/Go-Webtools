@@ -21,36 +21,40 @@ var constMagicCookie = [...]byte{0x21, 0x12, 0xA4, 0x42}
 
 type MessageTypeSTUN uint16
 type MessageClassSTUN uint8
+type STUNPacketAttributeType uint16
 
 const MessageTypeSTUNBinding MessageTypeSTUN = 0b000000000001
 
 const MessageClassSTUNRequest MessageClassSTUN = 0b00
 const MessageClassSTUNIndication MessageClassSTUN = 0b01
-const MessageClassSTUNSuccessResponce MessageClassSTUN = 0b10
-const MessageClassSTUNErrorResponce MessageClassSTUN = 0b11
+const MessageClassSTUNSuccessResponse MessageClassSTUN = 0b10
+const MessageClassSTUNErrorResponse MessageClassSTUN = 0b11
+
+const STUNPacketAttributeTypeMappedAddress STUNPacketAttributeType = 0x0001
+const STUNPacketAttributeTypeXORMappedAddress STUNPacketAttributeType = 0x0020
 
 type STUNPacketAttribute struct {
-	Type          uint16
+	Type          STUNPacketAttributeType
 	Data          []byte
 	TransactionID []byte
+}
+
+type STUNPacketDecodedAttribute struct {
+	Type STUNPacketAttributeType
+	Data map[string]any
+	TransactionID []byte //When creating should be nil
 }
 
 /*
 EncodeSTUNPacketAttribute encodes type and data to STUNPacketAttribute
 Specification: https://datatracker.ietf.org/doc/html/rfc5389#section-18.2
 */
-func EncodeSTUNPacketAttribute(t uint16, data []byte) *STUNPacketAttribute {
-	//TODO: ADD SUPPORT FOR ENCODING XOR
-	return &STUNPacketAttribute{Type: t, Data: data}
-}
-
-/*
-DecodeSTUNPacketAttribute decodes STUNPacketAttribute using type and returns decoded value
-Specification: https://datatracker.ietf.org/doc/html/rfc5389#section-18.2
-Specification: https://datatracker.ietf.org/doc/html/rfc5389#section-15
-*/
-func (attribute *STUNPacketAttribute) DecodeSTUNPacketAttribute() (map[string]any, error) {
-	if attribute.Type == 0x0001 {
+func EncodeSTUNPacketAttribute(data STUNPacketDecodedAttribute, transactionID []byte) (*STUNPacketAttribute, error) {
+	if data.TransactionID == nil && transactionID == nil{
+		return nil, errors.New()
+	}
+	attribute := &STUNPacketAttribute{Type: t, Data: make([]byte, 0),TransactionID: data.TransactionID,}
+	if t == STUNPacketAttributeTypeMappedAddress {
 		//Mapped address
 		//Check for length
 		if len(attribute.Data) < 4 {
@@ -93,7 +97,112 @@ func (attribute *STUNPacketAttribute) DecodeSTUNPacketAttribute() (map[string]an
 		}
 		return result, nil
 	}
-	if attribute.Type == 0x0020 {
+	if attribute.Type == STUNPacketAttributeTypeXORMappedAddress {
+		//XOR Mapped address
+		//Check for length
+		if len(attribute.Data) < 4 {
+			return nil, errors.New("data to short for mapped address")
+		}
+
+		//First byte must be 0
+		if attribute.Data[0] != 0 {
+			return nil, errors.New("invalid first byte of attribute")
+		}
+
+		//Get IP family
+		family := attribute.Data[1]
+		if family != 1 && family != 2 {
+			return nil, errors.New("invalid ip family")
+		}
+		addressLength := webtools.FormatByBool(family == 1, 4, 16)
+
+		//Check for length
+		if len(attribute.Data) < 4+addressLength {
+			return nil, errors.New("data to short for mapped address")
+		}
+
+		//Get port = 16 bits XOR
+		port := binary.BigEndian.Uint16(webtools.XORArrays(attribute.Data[2:4], constMagicCookie[0:2]))
+
+		//Get address
+		addressBytesXOR := attribute.Data[4:(4 + addressLength)]
+
+		//Make result map - Specified in: https://datatracker.ietf.org/doc/html/rfc5389#section-15
+		result := make(map[string]any)
+		result["family"] = webtools.FormatByBool(addressLength == 4, "IPv4", "IPv6")
+		result["port"] = port
+		if addressLength == 4 {
+			//Decode using 32 bits of magicCookie
+			addressBytesXOR = webtools.XORArrays(addressBytesXOR, constMagicCookie[:])
+
+			//Write results
+			result["family"] = "IPv4"
+			address := net.IP(addressBytesXOR)
+			result["address"] = address.To4().String()
+		} else {
+			//Decode using 32 bits of magicCookie and 96 bits of transactionID
+			addressBytesXOR = webtools.XORArrays(addressBytesXOR, append(constMagicCookie[:], attribute.TransactionID...))
+
+			//Write results
+			result["family"] = "IPv6"
+			address := net.IP(addressBytesXOR)
+			result["address"] = address.To16().String()
+		}
+		return result, nil
+	}
+	return &STUNPacketAttribute{Type: t, Data: data}
+}
+
+/*
+DecodeSTUNPacketAttribute decodes STUNPacketAttribute using type and returns decoded value
+Specification: https://datatracker.ietf.org/doc/html/rfc5389#section-18.2
+Specification: https://datatracker.ietf.org/doc/html/rfc5389#section-15
+*/
+func (attribute *STUNPacketAttribute) DecodeSTUNPacketAttribute() (*STUNPacketDecodedAttribute, error) {
+	if attribute.Type == STUNPacketAttributeTypeMappedAddress {
+		//Mapped address
+		//Check for length
+		if len(attribute.Data) < 4 {
+			return nil, errors.New("data to short for mapped address")
+		}
+
+		//First byte must be 0
+		if attribute.Data[0] != 0 {
+			return nil, errors.New("invalid first byte of attribute")
+		}
+
+		//Get IP family
+		family := attribute.Data[1]
+		if family != 1 && family != 2 {
+			return nil, errors.New("invalid ip family")
+		}
+		addressLength := webtools.FormatByBool(family == 1, 4, 16)
+
+		//Check for length
+		if len(attribute.Data) < 4+addressLength {
+			return nil, errors.New("data to short for mapped address")
+		}
+
+		//Get port
+		port := binary.BigEndian.Uint16(attribute.Data[2:4])
+
+		//Get address
+		address := net.IP(attribute.Data[4:(4 + addressLength)])
+
+		//Make result map - Specified in: https://datatracker.ietf.org/doc/html/rfc5389#section-15
+		result := make(map[string]any)
+		result["family"] = webtools.FormatByBool(addressLength == 4, "IPv4", "IPv6")
+		result["port"] = port
+		if addressLength == 4 {
+			result["family"] = "IPv4"
+			result["address"] = address.To4().String()
+		} else {
+			result["family"] = "IPv6"
+			result["address"] = address.To16().String()
+		}
+		return result, nil
+	}
+	if attribute.Type == STUNPacketAttributeTypeXORMappedAddress {
 		//XOR Mapped address
 		//Check for length
 		if len(attribute.Data) < 4 {
@@ -277,7 +386,7 @@ func UnpackSTUNPacket(data []byte, isIPv4 bool) (MessageTypeSTUN, MessageClassST
 			}
 			return 0, 0, "", nil, true, err
 		}
-		attributeType := binary.BigEndian.Uint16(attributeTypeBytes)
+		attributeType := STUNPacketAttributeType(binary.BigEndian.Uint16(attributeTypeBytes))
 
 		//Get attribute Length
 		attributeLengthBytes := make([]byte, 2)

@@ -11,7 +11,7 @@ import (
 
 type STUNClient struct {
 	client      *udp.Client
-	rtt         uint32 //Base time that si waited before resending
+	rtt         uint32 //Base time that is waited before resending
 	rc          uint8  //Resend count
 	sentPackets webtools.SafeMap[string, bool]
 	isIPv4      bool

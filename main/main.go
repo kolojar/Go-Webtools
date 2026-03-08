@@ -436,6 +436,15 @@ func main() {
 			//defer watcher.StopWatching()
 			//watcher.StartWatching()
 		}
+	case "webrtc-sv":
+		{
+			stunServer, err := webrtc.NewSTUNServer("127.0.0.1:5000", true)
+			if err != nil {
+				fmt.Println(err.Error())
+				return
+			}
+			stunServer.Start()
+		}
 	case "webrtc-cl":
 		{
 
