@@ -48,8 +48,8 @@ func NewSTUNClient(targetIP string, isIPv4 bool, reportTraffic bool) (*STUNClien
 /*
 Send packs packet and sends it to server
 */
-func (stunClient *STUNClient) Send(messageType MessageTypeSTUN, messageClass MessageClassSTUN, message []byte) {
-	transactionID, packet, err := PackSTUNPacket(messageType, messageClass, message)
+func (stunClient *STUNClient) Send(messageType MessageTypeSTUN, messageClass MessageClassSTUN, attributes []STUNPacketDecodedAttribute) {
+	transactionID, packet, err := PackSTUNPacket(messageType, messageClass, attributes)
 	if err != nil {
 		stunClient.client.Logger.Log(3, "Error packing packet: "+err.Error())
 		return
@@ -93,12 +93,9 @@ func (stunClient *STUNClient) readFunc(_ *udp.Client, _ *net.UDPAddr, data []byt
 
 	//Mark as delivered
 	stunClient.sentPackets.Delete(transactionID)
-	fmt.Println(messageType, messageClass, transactionID, isSTUNPacket, message[0])
+	fmt.Println(messageType, messageClass, transactionID, isSTUNPacket, message)
 	decode, err := message[0].DecodeSTUNPacketAttribute()
-	fmt.Println("Decoded:")
-	for k, v := range decode {
-		fmt.Println(" -", k, v)
-	}
+	decode.Print()
 }
 
 /*

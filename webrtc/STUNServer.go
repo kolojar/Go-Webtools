@@ -48,7 +48,34 @@ func (stunServer *STUNServer) readFunc(conn *udp.ServerConn, data []byte, ended 
 	if messageType == MessageTypeSTUNBinding && messageClass == MessageClassSTUNRequest {
 		//Specification: https://datatracker.ietf.org/doc/html/rfc5389#section-7.3.1.1
 		//Binding request
-		
+		addressPort := conn.Address.AddrPort()
+		xorMappedAttribute := STUNPacketDecodedAttribute{Type: STUNPacketAttributeTypeXORMappedAddress, Data: make(map[string]any)}
+
+		//Get IP family
+		if addressPort.Addr().Is4() {
+			xorMappedAttribute.Data["family"] = "IPv4"
+		} else if addressPort.Addr().Is6() {
+			xorMappedAttribute.Data["family"] = "IPv6"
+		} else {
+			stunServer.udpServer.Logger.Log(3, "Error packing Binding request - invalid IP family")
+			return
+		}
+
+		//Get port
+		xorMappedAttribute.Data["port"] = addressPort.Port()
+
+		//Get IP string
+		xorMappedAttribute.Data["address"] = addressPort.Addr().String()
+		xorMappedAttribute.Print()
+
+		//Pack and send
+		_, packet, err := PackSTUNPacket(MessageTypeSTUNBinding, MessageClassSTUNSuccessResponse, []STUNPacketDecodedAttribute{xorMappedAttribute})
+		if err != nil {
+			stunServer.udpServer.Logger.Log(3, "Error packing Binding request: "+err.Error())
+			return
+		}
+		stunServer.udpServer.Logger.Log(1, "Sending Binding request for: "+conn.Address.String())
+		conn.Send(packet)
 	}
 }
 
