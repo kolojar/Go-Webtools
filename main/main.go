@@ -492,9 +492,24 @@ func main() {
 					b := make([]byte, 10)
 					conn.Read(b)
 					fmt.Println(b)
+					conn.Write(b)
 				}
 			}, true)
 			sv.Start()
+		}
+	case "uat-cl":
+		{
+			sv, _ := udpastcp.NewClient("127.0.0.1:17777", true)
+			conn, _ := sv.Connect()
+			go func() {
+				for {
+					b := make([]byte, 10)
+					conn.Read(b)
+					fmt.Println(b)
+				}
+			}()
+			conn.Write([]byte("Toto je test"))
+			webtools.ReadLineFromConsole("Press enter to exit.")
 		}
 	}
 }
