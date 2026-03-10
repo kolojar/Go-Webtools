@@ -98,8 +98,8 @@ func (cl *Client) readFuncLocal(addrFrom *net.UDPAddr, data []byte, ended bool) 
 /*
 Send sends data to server
 */
-func (cl *Client) Send(data []byte) {
-	processSendForUDP(false, cl.Conn, cl.address, data, cl.Logger, cl.udpFramer)
+func (cl *Client) Send(data []byte) (int, error) {
+	return processSendForUDP(false, cl.Conn, cl.address, data, cl.Logger, cl.udpFramer)
 }
 
 /*

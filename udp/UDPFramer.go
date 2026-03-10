@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"net"
+	"os"
 	"slices"
 	"strconv"
 	"sync"
@@ -26,6 +27,7 @@ type FramerConfig struct {
 	//Retry count
 	ResendMaxLimit uint
 	UseKeepAlive   bool
+	RunInParaler   bool
 }
 
 /*
@@ -51,8 +53,8 @@ type Framer struct {
 /*
 NewUDPFramer creates new UDP framer
 */
-func NewUDPFramer(readFunc FramerReadFunc, failSendFunc FramerReadFunc, timeoutForResendInMs int64, resendMaxLimit uint, isOrganised bool, organisedTimeoutInMs int64, useKeepAlive bool) *Framer {
-	framer := NewUDPFramerSimpleFromConfig(&FramerConfig{TimeoutForResendInMs: timeoutForResendInMs, ResendMaxLimit: resendMaxLimit, IsOrganised: isOrganised, OrganisedTimeoutInMs: organisedTimeoutInMs, UseKeepAlive: useKeepAlive}, failSendFunc)
+func NewUDPFramer(readFunc FramerReadFunc, failSendFunc FramerReadFunc, timeoutForResendInMs int64, resendMaxLimit uint, isOrganised bool, organisedTimeoutInMs int64, useKeepAlive bool, runInParaler bool) *Framer {
+	framer := NewUDPFramerSimpleFromConfig(&FramerConfig{TimeoutForResendInMs: timeoutForResendInMs, ResendMaxLimit: resendMaxLimit, IsOrganised: isOrganised, OrganisedTimeoutInMs: organisedTimeoutInMs, UseKeepAlive: useKeepAlive, RunInParaler: runInParaler}, failSendFunc)
 	framer.onReadFunc = readFunc
 	return framer
 }
@@ -306,9 +308,11 @@ func processDataForUDP(address *net.UDPAddr, data []byte, ended bool, readFunc F
 /*
 SendFrame sends data frame for UDP frame protocol, blocks execution thread
 */
-func (framer *Framer) SendFrame(isServer bool, listener *net.UDPConn, addr *net.UDPAddr, id string, sequenceNum uint, data []byte, logger *webtools.ConsoleLogger) {
+func (framer *Framer) SendFrame(isServer bool, listener *net.UDPConn, addr *net.UDPAddr, id string, sequenceNum uint, data []byte, logger *webtools.ConsoleLogger) (int, error) {
 	framer.AddListenerToKeepAlive(isServer, listener, addr, logger)
 	var resend = true
+	var n int
+	var err error
 	for resend {
 		//Build frame
 		frame := make([]byte, 0)
@@ -334,7 +338,10 @@ func (framer *Framer) SendFrame(isServer bool, listener *net.UDPConn, addr *net.
 		logger.Log(0, "Sending frame: "+id+" with sequence number: "+strconv.FormatUint(uint64(sequenceNum), 10))
 
 		//Send
-		writeToUDP(isServer, listener, addr, frame, logger)
+		n, err = writeToUDP(isServer, listener, addr, frame, logger)
+		if err != nil {
+			return n, err
+		}
 		framer.gotResponce.Set(id, false)
 
 		//Check responce
@@ -346,6 +353,8 @@ func (framer *Framer) SendFrame(isServer bool, listener *net.UDPConn, addr *net.
 				//Failed sending
 				if framer.onFailSendFunc != nil {
 					framer.onFailSendFunc(addr, data, false)
+					n = 0
+					err = os.ErrInvalid
 				}
 			}
 		} else {
@@ -355,16 +364,22 @@ func (framer *Framer) SendFrame(isServer bool, listener *net.UDPConn, addr *net.
 		framer.gotResponce.Delete(id)
 		sequenceNum++
 	}
+	return n, err
 }
 
-func processSendForUDP(isServer bool, listener *net.UDPConn, addr *net.UDPAddr, data []byte, logger *webtools.ConsoleLogger, framer *Framer) {
+func processSendForUDP(isServer bool, listener *net.UDPConn, addr *net.UDPAddr, data []byte, logger *webtools.ConsoleLogger, framer *Framer) (int, error) {
 	if framer == nil {
 		//No framing
-		writeToUDP(isServer, listener, addr, data, logger)
+		return writeToUDP(isServer, listener, addr, data, logger)
 	} else {
 		//Framing
-		go framer.SendFrame(isServer, listener, addr, webtools.GenerateRandomID(), 1, data, logger)
-
+		if framer.config.RunInParaler {
+			go framer.SendFrame(isServer, listener, addr, webtools.GenerateRandomID(), 1, data, logger)
+			return 0, nil
+		} else {
+			//10. 3. 2026 - REMOVED GO! RUNS IN ONE ROUTINE
+			return framer.SendFrame(isServer, listener, addr, webtools.GenerateRandomID(), 1, data, logger)
+		}
 	}
 }
 

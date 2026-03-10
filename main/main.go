@@ -20,6 +20,7 @@ import (
 	"webtools/proxy"
 	"webtools/tcp"
 	"webtools/udp"
+	udpastcp "webtools/udpAsTCP"
 	"webtools/webrtc"
 )
 
@@ -59,7 +60,7 @@ func main() {
 	case "uc":
 		{
 			client, _ := udp.NewClient("127.0.0.1:17777", readFuncUDPCl, true)
-			client.SetupFraming(framer)
+			//client.SetupFraming(framer)
 			client.Connect()
 			for i := 0; i < 10; i++ {
 				client.Send([]byte("Test" + strconv.Itoa(i) + "|"))
@@ -467,7 +468,7 @@ func main() {
 			//a=sctp-port:5000
 			//a=max-message-size:1073741823`)
 			//			//cert, err := webrtc.GenerateDTLSCertificate("test", time.Now(), time.Now().Add(time.Hour*24*365))
-			cl, err := webrtc.NewSTUNClient("127.0.0.1:5000", true, true)
+			cl, err := webrtc.NewSTUNClient("127.0.0.1:5000", true, 5, true)
 			if err != nil {
 				fmt.Println(err.Error())
 				return
@@ -481,8 +482,19 @@ func main() {
 			//}
 			//fmt.Println(pack)
 			cl.Connect()
-			cl.Send(webrtc.MessageTypeSTUNBinding, webrtc.MessageClassSTUNRequest, nil)
+			cl.Send(webrtc.MessageTypeSTUNBinding, webrtc.MessageClassSTUNRequest)
 			webtools.ReadLineFromConsole("Press enter to exit.")
+		}
+	case "uat-sv":
+		{
+			sv, _ := udpastcp.NewServer("127.0.0.1:17777", func(conn *udpastcp.ServerConn) {
+				for {
+					b := make([]byte, 10)
+					conn.Read(b)
+					fmt.Println(b)
+				}
+			}, true)
+			sv.Start()
 		}
 	}
 }

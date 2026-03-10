@@ -279,7 +279,7 @@ func (attribute *STUNPacketAttribute) DecodeSTUNPacketAttribute() (STUNPacketDec
 Specification: https://datatracker.ietf.org/doc/html/rfc5389#section-6
 Returns transtactionID, packet, error
 */
-func PackSTUNPacket(messageType MessageTypeSTUN, messageClass MessageClassSTUN, attributes []STUNPacketDecodedAttribute) (string, []byte, error) {
+func PackSTUNPacket(messageType MessageTypeSTUN, messageClass MessageClassSTUN, transactionID []byte, attributes ...STUNPacketDecodedAttribute) (string, []byte, error) {
 	//Make packet header - 20 bytes is size of header
 	packet := make([]byte, 20)
 
@@ -317,9 +317,16 @@ func PackSTUNPacket(messageType MessageTypeSTUN, messageClass MessageClassSTUN, 
 	//fmt.Println(packet[4:8])
 
 	//Generate and write Transaction ID
-	_, err := rand.Read(packet[8:20])
-	if err != nil {
-		return "", nil, err
+	if transactionID != nil {
+		if len(transactionID) != 12 {
+			return "", nil, errors.New("invalid transactionID inserted")
+		}
+		copy(packet[8:20], transactionID)
+	} else {
+		_, err := rand.Read(packet[8:20])
+		if err != nil {
+			return "", nil, err
+		}
 	}
 
 	//Encode attributes
@@ -367,17 +374,17 @@ func PackSTUNPacket(messageType MessageTypeSTUN, messageClass MessageClassSTUN, 
 /*
 Specification: https://datatracker.ietf.org/doc/html/rfc5389#section-6
 Specification: https://datatracker.ietf.org/doc/html/rfc5389#section-15
-Returns: MessageTypeSTUN, transactionID (as hex), message,isStunPacket error
+Returns: MessageTypeSTUN, transactionID, message,isStunPacket error
 */
-func UnpackSTUNPacket(data []byte, isIPv4 bool) (MessageTypeSTUN, MessageClassSTUN, string, []STUNPacketAttribute, bool, error) {
+func UnpackSTUNPacket(data []byte, isIPv4 bool) (MessageTypeSTUN, MessageClassSTUN, []byte, []STUNPacketAttribute, bool, error) {
 	//Check length
 	if len(data) < 20 || len(data) > webtools.FormatByBool(isIPv4, 576, 1280) {
-		return 0, 0, "", nil, false, errors.New("invalid packet size")
+		return 0, 0, nil, nil, false, errors.New("invalid packet size")
 	}
 
 	//Check if first 2 bits are 0
 	if webtools.CheckBitArray(data, 0) || webtools.CheckBitArray(data, 1) {
-		return 0, 0, "", nil, false, errors.New("invalid bit 0 or 1")
+		return 0, 0, nil, nil, false, errors.New("invalid bit 0 or 1")
 	}
 
 	//Get STUN Message Type + STUN Message Class = 14 bits
@@ -402,22 +409,22 @@ func UnpackSTUNPacket(data []byte, isIPv4 bool) (MessageTypeSTUN, MessageClassST
 
 	//Check Message Length = 16 bits - last 2 bits must be 0
 	if webtools.CheckBit(data[3], 6) || webtools.CheckBit(data[3], 7) {
-		return 0, 0, "", nil, false, errors.New("invalid MessageLength suffix")
+		return 0, 0, nil, nil, false, errors.New("invalid MessageLength suffix")
 	}
 
 	//Get Message Length = 16 bits
 	messageLength := binary.BigEndian.Uint16(data[2:4])
 	if webtools.CheckBit(data[3], 6) || webtools.CheckBit(data[3], 7) {
-		return 0, 0, "", nil, false, errors.New("invalid bits in length")
+		return 0, 0, nil, nil, false, errors.New("invalid bits in length")
 	}
 
 	//Get Magic Cookie = 32 bits + check
 	if !slices.Equal(data[4:8], constMagicCookie[:]) {
-		return 0, 0, "", nil, false, errors.New("invalid MagicCookie")
+		return 0, 0, nil, nil, false, errors.New("invalid MagicCookie")
 	}
 
 	//Get Transaction ID = 96 bits
-	transactionID := hex.EncodeToString(data[8:20])
+	transactionID := data[8:20]
 
 	//Get Message
 	fmt.Println(messageLength)
@@ -433,7 +440,7 @@ func UnpackSTUNPacket(data []byte, isIPv4 bool) (MessageTypeSTUN, MessageClassST
 			if errors.Is(err, io.EOF) {
 				break
 			}
-			return 0, 0, "", nil, true, err
+			return 0, 0, nil, nil, true, err
 		}
 		attributeType := STUNPacketAttributeType(binary.BigEndian.Uint16(attributeTypeBytes))
 
@@ -441,7 +448,7 @@ func UnpackSTUNPacket(data []byte, isIPv4 bool) (MessageTypeSTUN, MessageClassST
 		attributeLengthBytes := make([]byte, 2)
 		_, err = messageBuffer.Read(attributeLengthBytes)
 		if err != nil {
-			return 0, 0, "", nil, true, err
+			return 0, 0, nil, nil, true, err
 		}
 		attributeLength := binary.BigEndian.Uint16(attributeLengthBytes)
 
@@ -449,14 +456,14 @@ func UnpackSTUNPacket(data []byte, isIPv4 bool) (MessageTypeSTUN, MessageClassST
 		attributeValueBytes := make([]byte, attributeLength)
 		_, err = messageBuffer.Read(attributeValueBytes)
 		if err != nil {
-			return 0, 0, "", nil, true, err
+			return 0, 0, nil, nil, true, err
 		}
 
 		//Align to end
 		for i := 4 - attributeLength%4; i < 4; i++ {
 			_, err := messageBuffer.ReadByte()
 			if err != nil {
-				return 0, 0, "", nil, true, err
+				return 0, 0, nil, nil, true, err
 			}
 		}
 

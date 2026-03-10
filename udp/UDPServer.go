@@ -31,8 +31,8 @@ func (conn *ServerConn) GetOrigin() *Server {
 /*
 Send sends data to client
 */
-func (conn *ServerConn) Send(data []byte) {
-	conn.origin.WriteToClient(conn, data)
+func (conn *ServerConn) Send(data []byte) (int, error) {
+	return conn.origin.WriteToClient(conn, data)
 }
 
 /*
@@ -196,40 +196,42 @@ func (udp *Server) readFuncLocal(addr *net.UDPAddr, data []byte, ended bool) {
 /*
 WriteToClient writes to Client
 */
-func (udp *Server) WriteToClient(conn *ServerConn, data []byte) {
+func (udp *Server) WriteToClient(conn *ServerConn, data []byte) (int, error) {
 	//writeToUDP(true, conn.origin.listener, conn.Address, data, udp.Logger)
-	processSendForUDP(true, udp.listener, conn.Address, data, udp.Logger, udp.udpFramer)
+	return processSendForUDP(true, udp.listener, conn.Address, data, udp.Logger, udp.udpFramer)
 	//udp.WriteToClient(conn, data)
 }
 
 /*
 Handles UDP Write
 */
-func writeToUDP(isServer bool, listener *net.UDPConn, addr *net.UDPAddr, data []byte, logger *webtools.ConsoleLogger) {
+func writeToUDP(isServer bool, listener *net.UDPConn, addr *net.UDPAddr, data []byte, logger *webtools.ConsoleLogger) (int, error) {
 	if addr == nil {
 		logger.Log(1, "Invalid connecting, cancelling write.")
-		return
+		return 0, nil
 	}
 	if data == nil {
 		logger.Log(1, "Invalid data, cancelling write.")
-		return
+		return 0, nil
 	}
 	if listener == nil {
 		logger.Log(3, "Invalid listener.")
-		return
+		return 0, nil
 	}
 
 	//Write
 	logger.Log(0, "Writing to: "+addr.String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data))
+	var n int
 	var err error
 	if isServer {
-		_, err = listener.WriteToUDP(data, addr)
+		n, err = listener.WriteToUDP(data, addr)
 	} else {
-		_, err = listener.Write(data)
+		n, err = listener.Write(data)
 	}
 	if err != nil {
 		logger.Log(3, "Error writing to: "+addr.String()+" | Error: "+err.Error())
 	}
+	return n, err
 }
 
 /*

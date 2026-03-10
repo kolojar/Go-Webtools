@@ -55,3 +55,7 @@ func GenerateDTLSCertificate(commonName string, notBefore time.Time, notAfter ti
 	result = strings.TrimSuffix(result, ":")
 	return result, nil
 }
+
+func DecryptDTLS() {
+
+}

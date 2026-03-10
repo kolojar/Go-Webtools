@@ -1,6 +1,7 @@
 package webrtc
 
 import (
+	"encoding/hex"
 	"fmt"
 	"net"
 	"strconv"
@@ -20,12 +21,13 @@ type STUNClient struct {
 /*
 Specification: https://datatracker.ietf.org/doc/html/rfc5389#section-6
 */
-func NewSTUNClient(targetIP string, isIPv4 bool, reportTraffic bool) (*STUNClient, error) {
+func NewSTUNClient(targetIP string, isIPv4 bool, resendCount uint8, reportTraffic bool) (*STUNClient, error) {
 	//Create new STUN client
 	stunClient := &STUNClient{
 		rtt:         2000, //Recommended: 500
 		sentPackets: webtools.MakeSafeMap[string, bool](),
 		isIPv4:      isIPv4,
+		rc:          resendCount,
 	}
 
 	//Create UDP client (STUN uses UDP)
@@ -48,8 +50,8 @@ func NewSTUNClient(targetIP string, isIPv4 bool, reportTraffic bool) (*STUNClien
 /*
 Send packs packet and sends it to server
 */
-func (stunClient *STUNClient) Send(messageType MessageTypeSTUN, messageClass MessageClassSTUN, attributes []STUNPacketDecodedAttribute) {
-	transactionID, packet, err := PackSTUNPacket(messageType, messageClass, attributes)
+func (stunClient *STUNClient) Send(messageType MessageTypeSTUN, messageClass MessageClassSTUN, attributes ...STUNPacketDecodedAttribute) {
+	transactionID, packet, err := PackSTUNPacket(messageType, messageClass, nil, attributes...)
 	if err != nil {
 		stunClient.client.Logger.Log(3, "Error packing packet: "+err.Error())
 		return
@@ -92,8 +94,9 @@ func (stunClient *STUNClient) readFunc(_ *udp.Client, _ *net.UDPAddr, data []byt
 	}
 
 	//Mark as delivered
-	stunClient.sentPackets.Delete(transactionID)
-	fmt.Println(messageType, messageClass, transactionID, isSTUNPacket, message)
+	transactionIDHex := hex.EncodeToString(transactionID)
+	stunClient.sentPackets.Delete(transactionIDHex)
+	fmt.Println(messageType, messageClass, transactionIDHex, isSTUNPacket, message)
 	decode, err := message[0].DecodeSTUNPacketAttribute()
 	decode.Print()
 }

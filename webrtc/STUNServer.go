@@ -44,7 +44,7 @@ func (stunServer *STUNServer) readFunc(conn *udp.ServerConn, data []byte, ended 
 	}
 
 	//Process STUN packet
-	fmt.Println(messageType, messageClass, transactionID, attributes)
+	fmt.Println(messageType, messageClass, hex.EncodeToString(transactionID), attributes)
 	if messageType == MessageTypeSTUNBinding && messageClass == MessageClassSTUNRequest {
 		//Specification: https://datatracker.ietf.org/doc/html/rfc5389#section-7.3.1.1
 		//Binding request
@@ -69,7 +69,7 @@ func (stunServer *STUNServer) readFunc(conn *udp.ServerConn, data []byte, ended 
 		xorMappedAttribute.Print()
 
 		//Pack and send
-		_, packet, err := PackSTUNPacket(MessageTypeSTUNBinding, MessageClassSTUNSuccessResponse, []STUNPacketDecodedAttribute{xorMappedAttribute})
+		_, packet, err := PackSTUNPacket(MessageTypeSTUNBinding, MessageClassSTUNSuccessResponse, []byte(transactionID), xorMappedAttribute)
 		if err != nil {
 			stunServer.udpServer.Logger.Log(3, "Error packing Binding request: "+err.Error())
 			return
