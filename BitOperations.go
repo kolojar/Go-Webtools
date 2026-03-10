@@ -69,7 +69,7 @@ func CheckBit(b byte, pos uint8) bool {
 	if pos > 7 {
 		return false
 	}
-	return b&(1<<(7-pos)) == 1
+	return b&byte(1<<(7-pos)) != 0
 }
 
 /*

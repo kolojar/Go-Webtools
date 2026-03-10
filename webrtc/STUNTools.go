@@ -297,8 +297,8 @@ func PackSTUNPacket(messageType MessageTypeSTUN, messageClass MessageClassSTUN, 
 	packet[0] = webtools.SetBitValue(packet[0], 4, webtools.CheckBit(messageTypeAsBytes[0], 6))
 	packet[0] = webtools.SetBitValue(packet[0], 5, webtools.CheckBit(messageTypeAsBytes[0], 7))
 	packet[0] = webtools.SetBitValue(packet[0], 6, webtools.CheckBit(messageTypeAsBytes[1], 0))
-	packet[0] = webtools.SetBitValue(packet[0], 7, webtools.CheckBit(messageTypeAsBytes[1], 1))
-	packet[1] = webtools.SetBitValue(packet[1], 0, webtools.CheckBit(byte(messageClass), 6))
+	packet[0] = webtools.SetBitValue(packet[0], 7, webtools.CheckBit(byte(messageClass), 6))
+	packet[1] = webtools.SetBitValue(packet[1], 0, webtools.CheckBit(messageTypeAsBytes[1], 1))
 	packet[1] = webtools.SetBitValue(packet[1], 1, webtools.CheckBit(messageTypeAsBytes[1], 2))
 	packet[1] = webtools.SetBitValue(packet[1], 2, webtools.CheckBit(messageTypeAsBytes[1], 3))
 	packet[1] = webtools.SetBitValue(packet[1], 3, webtools.CheckBit(byte(messageClass), 7))
@@ -306,6 +306,8 @@ func PackSTUNPacket(messageType MessageTypeSTUN, messageClass MessageClassSTUN, 
 	packet[1] = webtools.SetBitValue(packet[1], 5, webtools.CheckBit(messageTypeAsBytes[1], 5))
 	packet[1] = webtools.SetBitValue(packet[1], 6, webtools.CheckBit(messageTypeAsBytes[1], 6))
 	packet[1] = webtools.SetBitValue(packet[1], 7, webtools.CheckBit(messageTypeAsBytes[1], 7))
+	fmt.Println(packet[0:2])
+	fmt.Println("message type:", messageType, "message class:", messageClass)
 
 	//Write Magic Cookie
 	packet[4] = constMagicCookie[0]
@@ -350,6 +352,7 @@ func PackSTUNPacket(messageType MessageTypeSTUN, messageClass MessageClassSTUN, 
 
 	//Write Message Length = 16 bits
 	message := messageBuffer.Bytes()
+	fmt.Println(message)
 	binary.BigEndian.PutUint16(packet[2:4], uint16(len(message)))
 
 	//Last 2 bits must be 0
@@ -385,8 +388,8 @@ func UnpackSTUNPacket(data []byte, isIPv4 bool) (MessageTypeSTUN, MessageClassST
 	messageTypeAsBytes[0] = webtools.SetBitValue(messageTypeAsBytes[0], 6, webtools.CheckBit(data[0], 4))
 	messageTypeAsBytes[0] = webtools.SetBitValue(messageTypeAsBytes[0], 7, webtools.CheckBit(data[0], 5))
 	messageTypeAsBytes[1] = webtools.SetBitValue(messageTypeAsBytes[1], 0, webtools.CheckBit(data[0], 6))
-	messageTypeAsBytes[1] = webtools.SetBitValue(messageTypeAsBytes[1], 1, webtools.CheckBit(data[0], 7))
-	messageClass = webtools.SetBitValue(messageClass, 6, webtools.CheckBit(data[1], 0))
+	messageClass = webtools.SetBitValue(messageClass, 6, webtools.CheckBit(data[0], 7))
+	messageTypeAsBytes[1] = webtools.SetBitValue(messageTypeAsBytes[1], 1, webtools.CheckBit(data[1], 0))
 	messageTypeAsBytes[1] = webtools.SetBitValue(messageTypeAsBytes[1], 2, webtools.CheckBit(data[1], 1))
 	messageTypeAsBytes[1] = webtools.SetBitValue(messageTypeAsBytes[1], 3, webtools.CheckBit(data[1], 2))
 	messageClass = webtools.SetBitValue(messageClass, 7, webtools.CheckBit(data[1], 3))
@@ -395,6 +398,7 @@ func UnpackSTUNPacket(data []byte, isIPv4 bool) (MessageTypeSTUN, MessageClassST
 	messageTypeAsBytes[1] = webtools.SetBitValue(messageTypeAsBytes[1], 6, webtools.CheckBit(data[1], 6))
 	messageTypeAsBytes[1] = webtools.SetBitValue(messageTypeAsBytes[1], 7, webtools.CheckBit(data[1], 7))
 	messageType := binary.BigEndian.Uint16(messageTypeAsBytes)
+	fmt.Println("message type:", messageType, "message class:", messageClass)
 
 	//Check Message Length = 16 bits - last 2 bits must be 0
 	if webtools.CheckBit(data[3], 6) || webtools.CheckBit(data[3], 7) {
