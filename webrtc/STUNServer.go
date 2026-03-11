@@ -11,14 +11,15 @@ Specification: https://datatracker.ietf.org/doc/html/rfc5389#section-6
 Specification: https://datatracker.ietf.org/doc/html/rfc8445#section-1
 */
 type STUNServer struct {
-	udpServer *udp.Server
+	udpServer             *udp.Server
+	unknownPacketReadFunc udp.ServerReadFunc
 }
 
 /*
 NewSTUNServer creates new STUN Server on UDP but does not starts it
 */
-func NewSTUNServer(address string, reportTraffic bool) (*STUNServer, error) {
-	stunServer := &STUNServer{}
+func NewSTUNServer(address string, unknownPacketReadFunc udp.ServerReadFunc, reportTraffic bool) (*STUNServer, error) {
+	stunServer := &STUNServer{unknownPacketReadFunc: unknownPacketReadFunc}
 	var err error
 	stunServer.udpServer, err = udp.NewServer(address, stunServer.readFunc, reportTraffic)
 	if err != nil {
@@ -35,6 +36,11 @@ func (stunServer *STUNServer) readFunc(conn *udp.ServerConn, data []byte, ended 
 	//Unpack STUN packet
 	messageType, messageClass, transactionID, attributes, isSTUNPacket, err := UnpackSTUNPacket(data, conn.Address.IP.To4() != nil)
 	if !isSTUNPacket {
+		if stunServer.unknownPacketReadFunc != nil {
+			stunServer.udpServer.Logger.Log(0, "Not a STUN packet - handeled by unknownPacketReadFunc")
+			stunServer.unknownPacketReadFunc(conn, data, ended)
+			return
+		}
 		stunServer.udpServer.Logger.Log(2, "Not a STUN packet: "+hex.EncodeToString(data))
 		return
 	}

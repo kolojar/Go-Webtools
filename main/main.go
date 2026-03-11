@@ -439,7 +439,7 @@ func main() {
 		}
 	case "webrtc-sv":
 		{
-			stunServer, err := webrtc.NewSTUNServer("127.0.0.1:5000", true)
+			stunServer, err := webrtc.NewSTUNServer("127.0.0.1:5000", nil, true)
 			if err != nil {
 				fmt.Println(err.Error())
 				return
@@ -487,19 +487,19 @@ func main() {
 		}
 	case "uat-sv":
 		{
-			sv, _ := udpastcp.NewServer("127.0.0.1:17777", func(conn *udpastcp.ServerConn) {
+			sv, _ := udpastcp.NewServer("127.0.0.1:17777", func(conn *udpastcp.UDPAsTCPConn) {
 				for {
 					b := make([]byte, 10)
 					conn.Read(b)
 					fmt.Println(b)
 					conn.Write(b)
 				}
-			}, true)
+			}, true, true)
 			sv.Start()
 		}
 	case "uat-cl":
 		{
-			sv, _ := udpastcp.NewClient("127.0.0.1:17777", true)
+			sv, _ := udpastcp.NewClient("127.0.0.1:17777", true, true)
 			conn, _ := sv.Connect()
 			go func() {
 				for {

@@ -57,5 +57,5 @@ func GenerateDTLSCertificate(commonName string, notBefore time.Time, notAfter ti
 }
 
 func DecryptDTLS() {
-
+	//tls.Server().
 }

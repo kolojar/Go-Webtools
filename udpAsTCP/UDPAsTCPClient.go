@@ -1,11 +1,9 @@
 package udpastcp
 
 import (
-	"bytes"
 	"encoding/hex"
 	"net"
 	"strconv"
-	"time"
 	"webtools/udp"
 )
 
@@ -13,8 +11,9 @@ import (
 Client is Client that simulates net.Conn (TCP conn) on top of UDP
 */
 type Client struct {
-	client *udp.Client
-	conn   *ClientConn
+	client                   *udp.Client
+	conn                     *UDPAsTCPConn
+	preservePacketBoundaries bool
 }
 
 /*
@@ -27,8 +26,8 @@ func (server *Client) IsAlive() bool {
 /*
 NewServer creates new UDP Client but does not starts it
 */
-func NewClient(address string, reportTraffic bool) (*Client, error) {
-	cl := &Client{}
+func NewClient(address string, preservePacketBoundaries bool, reportTraffic bool) (*Client, error) {
+	cl := &Client{preservePacketBoundaries: preservePacketBoundaries}
 	var err error
 	cl.client, err = udp.NewClient(address, cl.readFuncLocal, reportTraffic)
 	if err != nil {
@@ -41,7 +40,7 @@ func NewClient(address string, reportTraffic bool) (*Client, error) {
 /*
 Connect connects to UDP server, does not lock execution thread
 */
-func (client *Client) Connect() (*ClientConn, error) {
+func (client *Client) Connect() (*UDPAsTCPConn, error) {
 	//Connect
 	err := client.client.Connect()
 	if err != nil {
@@ -49,21 +48,31 @@ func (client *Client) Connect() (*ClientConn, error) {
 	}
 
 	//Make connection
-	client.conn = &ClientConn{client: client.client, readDeadline: time.Time{}, writeDeadline: time.Time{}, buffer: *bytes.NewBuffer(make([]byte, 0))}
+	client.conn = NewUDPAsTCPConn(nil, client, client.client.Conn.LocalAddr(), client.client.Conn.RemoteAddr(), func(data []byte) (n int, err error) {
+		//Write func
+		return client.client.Send(data)
+	}, func() error {
+		//Close func
+		client.Stop()
+		return nil
+	}, client.preservePacketBoundaries)
 	return client.conn, nil
 }
 
 /*
 Handles UDP Read for client
 */
-func (server *Client) readFuncLocal(_ *udp.Client, sourceAddress *net.UDPAddr, data []byte, ended bool) {
+func (client *Client) readFuncLocal(_ *udp.Client, sourceAddress *net.UDPAddr, data []byte, ended bool) {
 	if !ended {
 		//Process read
-		server.client.Logger.Log(0, "Reading from and buffering: "+sourceAddress.String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data))
-		server.conn.buffer.Write(data)
+		client.client.Logger.Log(0, "Reading from and buffering: "+sourceAddress.String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data))
+		err := client.conn.WriteToReadBuffer(data)
+		if err != nil {
+			client.client.Logger.Log(4, "Error writing to buffer: "+err.Error())
+		}
 	} else {
 		//Process end
-		server.conn.Close()
+		client.conn.Close()
 	}
 }
 

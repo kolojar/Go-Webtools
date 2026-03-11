@@ -38,12 +38,13 @@ func (conn *ServerConn) Send(data []byte) (int, error) {
 /*
 Close closes connection to client
 */
-func (conn *ServerConn) Close() {
+func (conn *ServerConn) Close() error {
 	conn.origin.conns.Delete(conn.Address.String())
 	conn.origin.Logger.Log(0, "Closed connection on "+conn.Address.String())
 	if conn.origin.readFunc != nil {
 		conn.origin.readFunc(conn, nil, true)
 	}
+	return nil
 	//udpConn.Client.Stop()
 }
 

@@ -840,9 +840,9 @@ func ConvertSliceToBytesDB[V any](writer io.Writer, data []V, convertDBFunc func
 }
 
 /*
-ParseArrayDB parses bytes from reader to array
+ParseSliceDB parses bytes from reader to array
 */
-func ParseArrayDB[V any](reader io.Reader, parseDBFunc func(reader io.Reader) (V, error)) ([]V, error) {
+func ParseSliceDB[V any](reader io.Reader, parseDBFunc func(reader io.Reader) (V, error)) ([]V, error) {
 	data := make([]V, 0)
 	if parseDBFunc == nil {
 		return data, os.ErrInvalid
@@ -864,3 +864,25 @@ func ParseArrayDB[V any](reader io.Reader, parseDBFunc func(reader io.Reader) (V
 	}
 	return data, nil
 }
+
+///*
+//ConvertByteToBytesDB converts byte to bytes
+//*/
+//func ConvertByteToBytesDB(writer io.Writer, data byte) error {
+//	//Write number
+//	_, err := writer.Write([]byte{data})
+//	return err
+//}
+//
+///*
+//ParseByteDB parses bytes from reader to byte
+//*/
+//func ParseByteDB(reader io.Reader) (byte, error) {
+//	//Read number
+//	dataByte := make([]byte, 1)
+//	_, err := reader.Read(dataByte)
+//	if err != nil {
+//		return 0, err
+//	}
+//	return dataByte[0], nil
+//}

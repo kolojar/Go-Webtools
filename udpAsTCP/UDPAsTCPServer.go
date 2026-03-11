@@ -1,24 +1,23 @@
 package udpastcp
 
 import (
-	"bytes"
 	"encoding/hex"
 	"net"
 	"strconv"
-	"time"
 	"webtools"
 	"webtools/udp"
 )
 
-type ServerConnectFunc func(conn *ServerConn)
+type ServerConnectFunc func(conn *UDPAsTCPConn)
 
 /*
 Server is Server that simulates net.Conn (TCP conn) on top of UDP
 */
 type Server struct {
-	server        *udp.Server
-	conns         webtools.SafeMap[*udp.ServerConn, *ServerConn]
-	onConnectFunc ServerConnectFunc
+	server                   *udp.Server
+	conns                    webtools.SafeMap[*udp.ServerConn, *UDPAsTCPConn]
+	onConnectFunc            ServerConnectFunc
+	preservePacketBoundaries bool
 }
 
 /*
@@ -38,8 +37,8 @@ func (server *Server) GetAddress() *net.UDPAddr {
 /*
 NewServer creates new UDP Server but does not starts it
 */
-func NewServer(address string, onConnectFunc ServerConnectFunc, reportTraffic bool) (*Server, error) {
-	sv := &Server{conns: webtools.MakeSafeMap[*udp.ServerConn, *ServerConn](), onConnectFunc: onConnectFunc}
+func NewServer(address string, onConnectFunc ServerConnectFunc, preservePacketBoundaries bool, reportTraffic bool) (*Server, error) {
+	sv := &Server{conns: webtools.MakeSafeMap[*udp.ServerConn, *UDPAsTCPConn](), onConnectFunc: onConnectFunc, preservePacketBoundaries: preservePacketBoundaries}
 	var err error
 	sv.server, err = udp.NewServer(address, sv.readFuncLocal, reportTraffic)
 	if err != nil {
@@ -62,10 +61,17 @@ Handles UDP Read for server
 func (server *Server) readFuncLocal(conn *udp.ServerConn, data []byte, ended bool) {
 	if !ended {
 		//Get connection association
-		var udpConn *ServerConn = server.conns.Get(conn)
+		var udpConn *UDPAsTCPConn = server.conns.Get(conn)
 		if udpConn == nil {
 			//No connection, create new
-			udpConn = &ServerConn{conn: conn, localAddress: server.GetAddress(), readDeadline: time.Time{}, writeDeadline: time.Time{}, buffer: *bytes.NewBuffer(make([]byte, 0)), origin: server}
+			udpConn = NewUDPAsTCPConn(server, nil, server.GetAddress(), conn.Address, func(data []byte) (n int, err error) {
+				//Write func
+				return conn.Send(data)
+			}, func() error {
+				//Close func
+				server.conns.Delete(conn)
+				return conn.Close()
+			}, server.preservePacketBoundaries)
 			server.conns.Set(conn, udpConn)
 			if server.onConnectFunc != nil {
 				go server.onConnectFunc(udpConn)
@@ -74,7 +80,10 @@ func (server *Server) readFuncLocal(conn *udp.ServerConn, data []byte, ended boo
 
 		//Process read
 		server.server.Logger.Log(0, "Reading from and buffering: "+conn.Address.String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data))
-		udpConn.buffer.Write(data)
+		err := udpConn.WriteToReadBuffer(data)
+		if err != nil {
+			server.server.Logger.Log(4, "Error writing to buffer: "+err.Error())
+		}
 	}
 }
 
