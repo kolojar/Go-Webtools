@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>DTLS Test</title>
+</head>
+<body>
+
+<h2>WebRTC DTLS Test</h2>
+
+<button id="start">Create Offer</button>
+
+<h3>Local SDP</h3>
+<textarea id="offer" style="width:100%;height:200px"></textarea>
+
+<h3>Remote SDP</h3>
+<textarea id="answer" style="width:100%;height:200px"></textarea>
+
+<button id="connect">Set Remote Answer</button>
+
+<script>
+let pc;
+
+document.getElementById("start").onclick = async () => {
+
+    pc = new RTCPeerConnection();
+
+    const dc = pc.createDataChannel("test");
+
+    dc.onopen = () => console.log("DataChannel open");
+    dc.onmessage = e => console.log("Message:", e.data);
+
+    pc.onicecandidate = event => {
+        if (!event.candidate) {
+            document.getElementById("offer").value =
+                pc.localDescription.sdp;
+        }
+    };
+
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+};
+
+document.getElementById("connect").onclick = async () => {
+
+    const answer = {
+        type: "answer",
+        sdp: document.getElementById("answer").value
+    };
+
+    await pc.setRemoteDescription(answer);
+};
+</script>
+
+</body>
+</html>

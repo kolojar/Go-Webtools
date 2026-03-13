@@ -9,6 +9,7 @@
     ```
 - To init this as submodule: ```git submodule add https://github.com/kolojar/Go-Webtools ./Go-WebTools```
 - Run this to update submodules: ```git submodule update --recursive --remote``
+- OpenSSL DTLS tester: ```openssl s_client -dtls1_2 -connect 127.0.0.1:5000 -timeout```
 
 # TODO
 - [X] TCP Server
@@ -42,7 +43,7 @@
     - [ ] UDP HTTP Proxy Client
 - [X] Add some kind of connection merger and splitter
 - [ ] Add encryption to all servers and clients
-- [ ] P2P
+- [ ] P2P (Will be included in WebRTC)
 - [ ] WEBRTC
     - [ ] STUN Client
         - [X] Get public IP

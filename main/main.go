@@ -4,6 +4,7 @@ Package main provides example usages
 package main
 
 import (
+	"crypto/tls"
 	"fmt"
 	"net"
 	"os"
@@ -20,7 +21,7 @@ import (
 	"webtools/proxy"
 	"webtools/tcp"
 	"webtools/udp"
-	udpastcp "webtools/udpAsTCP"
+	"webtools/udpastcp"
 	"webtools/webrtc"
 )
 
@@ -439,7 +440,20 @@ func main() {
 		}
 	case "webrtc-sv":
 		{
-			stunServer, err := webrtc.NewSTUNServer("127.0.0.1:5000", nil, true)
+			_, cert, _ := webrtc.GenerateDTLSCertificate("TestDTLS", time.Now(), time.Now().AddDate(10, 0, 0))
+			processor := webrtc.NewDTLSConnectionProcessor([]tls.Certificate{cert})
+			stunServer, err := webrtc.NewSTUNServer("127.0.0.1:5000", func(conn *udp.ServerConn, data []byte, ended bool) {
+				//Unknown packet
+				tlsConn, _ := processor.ProcessUDPConn(conn.GetOrigin().GetAddress(), conn, data, ended)
+				//buffer := make([]byte, 64)
+				err := tlsConn.Handshake()
+				if err != nil {
+					fmt.Println(err.Error())
+				}
+				fmt.Println("No error")
+				//tlsConn.Read(buffer)
+				//fmt.Println(string(buffer))
+			}, true)
 			if err != nil {
 				fmt.Println(err.Error())
 				return
@@ -487,7 +501,7 @@ func main() {
 		}
 	case "uat-sv":
 		{
-			sv, _ := udpastcp.NewServer("127.0.0.1:17777", func(conn *udpastcp.UDPAsTCPConn) {
+			sv, _ := udpastcp.NewServer("127.0.0.1:17777", func(conn *udpastcp.Conn) {
 				for {
 					b := make([]byte, 10)
 					conn.Read(b)

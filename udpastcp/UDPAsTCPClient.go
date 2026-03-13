@@ -12,7 +12,7 @@ Client is Client that simulates net.Conn (TCP conn) on top of UDP
 */
 type Client struct {
 	client                   *udp.Client
-	conn                     *UDPAsTCPConn
+	conn                     *Conn
 	preservePacketBoundaries bool
 }
 
@@ -40,7 +40,7 @@ func NewClient(address string, preservePacketBoundaries bool, reportTraffic bool
 /*
 Connect connects to UDP server, does not lock execution thread
 */
-func (client *Client) Connect() (*UDPAsTCPConn, error) {
+func (client *Client) Connect() (*Conn, error) {
 	//Connect
 	err := client.client.Connect()
 	if err != nil {
@@ -48,7 +48,7 @@ func (client *Client) Connect() (*UDPAsTCPConn, error) {
 	}
 
 	//Make connection
-	client.conn = NewUDPAsTCPConn(nil, client, client.client.Conn.LocalAddr(), client.client.Conn.RemoteAddr(), func(data []byte) (n int, err error) {
+	client.conn = NewConn(client.client.Conn.LocalAddr(), client.client.Conn.RemoteAddr(), func(data []byte) (n int, err error) {
 		//Write func
 		return client.client.Send(data)
 	}, func() error {

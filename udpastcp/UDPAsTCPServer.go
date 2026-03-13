@@ -8,14 +8,14 @@ import (
 	"webtools/udp"
 )
 
-type ServerConnectFunc func(conn *UDPAsTCPConn)
+type ServerConnectFunc func(conn *Conn)
 
 /*
 Server is Server that simulates net.Conn (TCP conn) on top of UDP
 */
 type Server struct {
 	server                   *udp.Server
-	conns                    webtools.SafeMap[*udp.ServerConn, *UDPAsTCPConn]
+	conns                    webtools.SafeMap[*udp.ServerConn, *Conn]
 	onConnectFunc            ServerConnectFunc
 	preservePacketBoundaries bool
 }
@@ -38,7 +38,7 @@ func (server *Server) GetAddress() *net.UDPAddr {
 NewServer creates new UDP Server but does not starts it
 */
 func NewServer(address string, onConnectFunc ServerConnectFunc, preservePacketBoundaries bool, reportTraffic bool) (*Server, error) {
-	sv := &Server{conns: webtools.MakeSafeMap[*udp.ServerConn, *UDPAsTCPConn](), onConnectFunc: onConnectFunc, preservePacketBoundaries: preservePacketBoundaries}
+	sv := &Server{conns: webtools.MakeSafeMap[*udp.ServerConn, *Conn](), onConnectFunc: onConnectFunc, preservePacketBoundaries: preservePacketBoundaries}
 	var err error
 	sv.server, err = udp.NewServer(address, sv.readFuncLocal, reportTraffic)
 	if err != nil {
@@ -61,10 +61,10 @@ Handles UDP Read for server
 func (server *Server) readFuncLocal(conn *udp.ServerConn, data []byte, ended bool) {
 	if !ended {
 		//Get connection association
-		var udpConn *UDPAsTCPConn = server.conns.Get(conn)
+		var udpConn *Conn = server.conns.Get(conn)
 		if udpConn == nil {
 			//No connection, create new
-			udpConn = NewUDPAsTCPConn(server, nil, server.GetAddress(), conn.Address, func(data []byte) (n int, err error) {
+			udpConn = NewConn(server.GetAddress(), conn.Address, func(data []byte) (n int, err error) {
 				//Write func
 				return conn.Send(data)
 			}, func() error {

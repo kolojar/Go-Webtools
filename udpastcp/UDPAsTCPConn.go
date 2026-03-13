@@ -15,10 +15,10 @@ import (
 type UDPAsTCPConnCloseFunc func() error
 type UDPAsTCPConnWriteFunc func(data []byte) (n int, err error)
 
-type UDPAsTCPConn struct {
+type Conn struct {
 	//Sources
-	originServer *Server
-	originClient *Client
+	//originServer *Server
+	//originClient *Client
 
 	//Addresses
 	localAddress  net.Addr
@@ -45,10 +45,10 @@ type UDPAsTCPConn struct {
 	readReady chan bool
 }
 
-func NewUDPAsTCPConn(originServer *Server, originClient *Client, localAddress net.Addr, remoteAddress net.Addr, writeFunc UDPAsTCPConnWriteFunc, closeFunc UDPAsTCPConnCloseFunc, preservePacketBoundaries bool) *UDPAsTCPConn {
-	conn := &UDPAsTCPConn{
-		originServer:             originServer,
-		originClient:             originClient,
+func NewConn(localAddress net.Addr, remoteAddress net.Addr, writeFunc UDPAsTCPConnWriteFunc, closeFunc UDPAsTCPConnCloseFunc, preservePacketBoundaries bool) *Conn {
+	conn := &Conn{
+		//originServer:             originServer,
+		//originClient:             originClient,
 		localAddress:             localAddress,
 		remoteAddress:            remoteAddress,
 		readDeadline:             time.Time{},
@@ -70,7 +70,7 @@ func NewUDPAsTCPConn(originServer *Server, originClient *Client, localAddress ne
 // Read reads data from the connection.
 // Read can be made to time out and return an error after a fixed
 // time limit; see SetDeadline and SetReadDeadline.
-func (conn *UDPAsTCPConn) Read(b []byte) (n int, err error) {
+func (conn *Conn) Read(b []byte) (n int, err error) {
 	//Sort basic errors
 	if conn.ended {
 		return 0, os.ErrClosed
@@ -115,7 +115,7 @@ func (conn *UDPAsTCPConn) Read(b []byte) (n int, err error) {
 }
 
 // WriteToReadBuffer writes data to read buffer
-func (conn *UDPAsTCPConn) WriteToReadBuffer(b []byte) error {
+func (conn *Conn) WriteToReadBuffer(b []byte) error {
 	conn.mutex.Lock()
 	defer conn.mutex.Unlock()
 	if conn.preservePacketBoundaries {
@@ -123,18 +123,37 @@ func (conn *UDPAsTCPConn) WriteToReadBuffer(b []byte) error {
 		if err != nil {
 			return err
 		}
-		conn.readReady <- true
+		go func() { conn.readReady <- true }()
 		return nil
 	} else {
 		conn.buffer.Write(b)
+		go func() { conn.readReady <- true }()
 		return nil
 	}
+}
+
+/*
+ReadWholePacket reads whole packet if preservePacketBoundaries is true
+*/
+func (conn *Conn) ReadWholePacket() (packet []byte, err error) {
+	//Sort out unpreserved
+	if !conn.preservePacketBoundaries {
+		return nil, nil
+	}
+
+	//Lock and get lenght
+	conn.mutex.Lock()
+	len := conn.unpackedReadBuffer.Len()
+	packet = make([]byte, len)
+	conn.mutex.Unlock()
+	_, err = conn.Read(packet)
+	return packet, err
 }
 
 // Write writes data to the connection.
 // Write can be made to time out and return an error after a fixed
 // time limit; see SetDeadline and SetWriteDeadline.
-func (conn *UDPAsTCPConn) Write(b []byte) (n int, err error) {
+func (conn *Conn) Write(b []byte) (n int, err error) {
 	if conn.ended {
 		return 0, os.ErrClosed
 	}
@@ -149,7 +168,7 @@ func (conn *UDPAsTCPConn) Write(b []byte) (n int, err error) {
 
 // Close closes the connection.
 // Always returns nil.
-func (conn *UDPAsTCPConn) Close() error {
+func (conn *Conn) Close() error {
 	//conn.origin.conns.Delete(conn.conn)
 	conn.ended = true
 	if conn.closeFunc == nil {
@@ -159,13 +178,13 @@ func (conn *UDPAsTCPConn) Close() error {
 }
 
 // LocalAddr returns the local network address, if known.
-func (conn *UDPAsTCPConn) LocalAddr() net.Addr {
+func (conn *Conn) LocalAddr() net.Addr {
 	return conn.localAddress
 
 }
 
 // RemoteAddr returns the remote network address, if known.
-func (conn *UDPAsTCPConn) RemoteAddr() net.Addr {
+func (conn *Conn) RemoteAddr() net.Addr {
 	return conn.remoteAddress
 }
 
@@ -173,7 +192,7 @@ func (conn *UDPAsTCPConn) RemoteAddr() net.Addr {
 // with the connection. It is equivalent to calling both
 // SetReadDeadline and SetWriteDeadline.
 // Always returns nil
-func (conn *UDPAsTCPConn) SetDeadline(t time.Time) error {
+func (conn *Conn) SetDeadline(t time.Time) error {
 	err := conn.SetReadDeadline(t)
 	if err != nil {
 		return err
@@ -185,7 +204,7 @@ func (conn *UDPAsTCPConn) SetDeadline(t time.Time) error {
 // and any currently-blocked Read call.
 // A zero value for t means Read will not time out.
 // Always returns nil
-func (conn *UDPAsTCPConn) SetReadDeadline(t time.Time) error {
+func (conn *Conn) SetReadDeadline(t time.Time) error {
 	conn.readDeadline = t
 	return nil
 }
@@ -196,7 +215,7 @@ func (conn *UDPAsTCPConn) SetReadDeadline(t time.Time) error {
 // some of the data was successfully written.
 // A zero value for t means Write will not time out.
 // Always return nil
-func (conn *UDPAsTCPConn) SetWriteDeadline(t time.Time) error {
+func (conn *Conn) SetWriteDeadline(t time.Time) error {
 	conn.writeDeadline = t
 	return nil
 }
