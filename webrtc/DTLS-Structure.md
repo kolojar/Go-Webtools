@@ -21,7 +21,7 @@
 	 
 ## DTLS ClientHello structure
  - Specification: https://datatracker.ietf.org/doc/html/rfc6347#section-4.2.1
- - 1 byte protocol version
+ - 2 byte protocol version
  - 32 byte random
  - 1 byte session id length = x
  - x bytes session id
@@ -45,7 +45,7 @@
  
 ## TLS ClientHello structure
  - Specification: https://datatracker.ietf.org/doc/html/rfc5246#section-7.4.1.2
- - 1 byte protocol version
+ - 2 byte protocol version
  - 32 byte random
  - 1 byte session id length = x
  - x bytes session id

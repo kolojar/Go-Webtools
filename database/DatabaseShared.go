@@ -390,7 +390,7 @@ func ConvertUintXToBytesDB(writer io.Writer, data uint64, size uint8) error {
 	//Write number
 	dataByte := make([]byte, 8)
 	binary.BigEndian.PutUint64(dataByte, data)
-	_, err := writer.Write(dataByte[0:(webtools.CeilDivision(size, 8))])
+	_, err := writer.Write(dataByte[8-(webtools.CeilDivision(size, 8)) : 8])
 	return err
 }
 
@@ -407,7 +407,7 @@ func ParseUintXDB(reader io.Reader, size uint8) (uint64, error) {
 
 	//Convert number
 	parseByte := make([]byte, 8)
-	copy(parseByte, dataByte)
+	copy(parseByte[8-len(dataByte):8], dataByte)
 	return binary.BigEndian.Uint64(parseByte), nil
 }
 
@@ -549,7 +549,7 @@ func ParseUint8DB(reader io.Reader) (uint8, error) {
 }
 
 /*
-ConvertUint8ToBytesDB converts uint8 to bytes
+ConvertUint24ToBytesDB converts 3 bytes (uint24) to bytes
 */
 func ConvertUint24ToBytesDB(writer io.Writer, data uint32) error {
 	//Write number
@@ -557,7 +557,7 @@ func ConvertUint24ToBytesDB(writer io.Writer, data uint32) error {
 }
 
 /*
-ParseUint8DB parses bytes from reader to uint8
+ParseUint24DB parses bytes from reader to uint24 (stored as uint32)
 */
 func ParseUint24DB(reader io.Reader) (uint32, error) {
 	//Read number
@@ -566,6 +566,26 @@ func ParseUint24DB(reader io.Reader) (uint32, error) {
 		return 0, nil
 	}
 	return uint32(val), nil
+}
+
+/*
+ConvertUint48ToBytesDB converts 6 bytes (uint48) to bytes
+*/
+func ConvertUint48ToBytesDB(writer io.Writer, data uint64) error {
+	//Write number
+	return ConvertUintXToBytesDB(writer, uint64(data), 48)
+}
+
+/*
+ParseUint48DB parses bytes from reader to uint48 (stored as uint64)
+*/
+func ParseUint48DB(reader io.Reader) (uint64, error) {
+	//Read number
+	val, err := ParseUintXDB(reader, 48)
+	if err != nil {
+		return 0, nil
+	}
+	return uint64(val), nil
 }
 
 ///*
