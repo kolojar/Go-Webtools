@@ -1,5 +1,6 @@
 # DTLS
  - Specification: https://datatracker.ietf.org/doc/html/rfc6347#section-4.1
+ - Specification: https://datatracker.ietf.org/doc/html/rfc6347#section-4.3.1
  - 1 byte type
  - 2 bytes version
  - 2 bytes epoch
@@ -7,14 +8,16 @@
  - 2 bytes lenght
  - Data
  - Compare with [TLS](#tls)
+
 ## DTLS Handshake
  - Specification: https://datatracker.ietf.org/doc/html/rfc6347#section-4.2.2
-- 1 byte type
-- 3 byte length
-- 2 byte message sequence
-- 3 byte fragment offset
-- 3 byte fragment length
-- Compare with [TLS](#tls-handshake)
+ - 1 byte type
+ - 3 byte length
+ - 2 byte message sequence
+ - 3 byte fragment offset
+ - 3 byte fragment length
+ - Data
+ - Compare with [TLS](#tls-handshake)
 	 
 ## DTLS ClientHello structure
  - Specification: https://datatracker.ietf.org/doc/html/rfc6347#section-4.2.1
@@ -22,7 +25,7 @@
  - 32 byte random
  - 1 byte session id length = x
  - x bytes session id
- - 1 byte cookie legth = y
+ - 1 byte cookie length = y
  - y bytes cookie
  - Compare with [TLS](#tls-clienthello-structure)
  - Data

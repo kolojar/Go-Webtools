@@ -389,7 +389,7 @@ ConvertUintXToBytesDB converts uint64 to X/8 bytes. Parameter size is X = 8 bite
 func ConvertUintXToBytesDB(writer io.Writer, data uint64, size uint8) error {
 	//Write number
 	dataByte := make([]byte, 8)
-	binary.LittleEndian.PutUint64(dataByte, data)
+	binary.BigEndian.PutUint64(dataByte, data)
 	_, err := writer.Write(dataByte[0:(webtools.CeilDivision(size, 8))])
 	return err
 }
@@ -408,7 +408,7 @@ func ParseUintXDB(reader io.Reader, size uint8) (uint64, error) {
 	//Convert number
 	parseByte := make([]byte, 8)
 	copy(parseByte, dataByte)
-	return binary.LittleEndian.Uint64(parseByte), nil
+	return binary.BigEndian.Uint64(parseByte), nil
 }
 
 /*
@@ -546,6 +546,26 @@ func ParseUint8DB(reader io.Reader) (uint8, error) {
 		return 0, err
 	}
 	return dataByte[0], nil
+}
+
+/*
+ConvertUint8ToBytesDB converts uint8 to bytes
+*/
+func ConvertUint24ToBytesDB(writer io.Writer, data uint32) error {
+	//Write number
+	return ConvertUintXToBytesDB(writer, uint64(data), 24)
+}
+
+/*
+ParseUint8DB parses bytes from reader to uint8
+*/
+func ParseUint24DB(reader io.Reader) (uint32, error) {
+	//Read number
+	val, err := ParseUintXDB(reader, 24)
+	if err != nil {
+		return 0, nil
+	}
+	return uint32(val), nil
 }
 
 ///*

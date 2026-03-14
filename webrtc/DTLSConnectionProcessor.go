@@ -5,8 +5,10 @@ import (
 	"crypto/tls"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"net"
 	"webtools"
+	"webtools/database"
 	"webtools/udp"
 	"webtools/udpastcp"
 )
@@ -16,20 +18,138 @@ DTLSConnectionProcessor is processor for UDP connections that tries to read DTLS
 */
 type DTLSConnectionProcessor struct {
 	conns     webtools.SafeMap[*udp.ServerConn, *udpastcp.Conn]
-	dtlsConns webtools.SafeMap[*udpastcp.Conn, *tls.Conn]
+	dtlsConns webtools.SafeMap[*udpastcp.Conn, *DTLSConn]
 	config    *tls.Config
 }
 
 /*
 Specification: https://datatracker.ietf.org/doc/html/rfc6347#section-4.1
+Specification: https://datatracker.ietf.org/doc/html/rfc6347#section-4.3.1
 */
-type DTLSConnn struct {
-	ContentType     uint8
+type DTLSConn struct {
 	ProtocolVersion uint16
 	Epoch           uint16
 	SequenceNumber  uint64
 	Length          uint16
-	TLSData         []byte
+	Conn            *tls.Conn
+}
+
+/*
+Specification: https://datatracker.ietf.org/doc/html/rfc6347#section-4.2.2
+*/
+type DTLSHandshakePacket struct {
+	Type            uint8
+	Length          uint32 //uint24
+	MessageSequence uint16
+	FragmentOffset  uint32 //uint24
+	FragmentLength  uint32 //uint24
+	Fragment        []byte
+}
+
+func ParseDTLSHandshakePacket(reader io.Reader) (DTLSHandshakePacket, error) {
+	packet := DTLSHandshakePacket{}
+	var err error
+
+	//1 byte Type
+	packet.Type, err = database.ParseUint8DB(reader)
+	if err != nil {
+		return packet, err
+	}
+
+	//3 byte Length
+	packet.Length, err = database.ParseUint24DB(reader)
+	if err != nil {
+		return packet, err
+	}
+
+	//2 byte Message Sequence
+	packet.MessageSequence, err = database.ParseUint16DB(reader)
+	if err != nil {
+		return packet, err
+	}
+
+}
+
+/*
+Specification: https://datatracker.ietf.org/doc/html/rfc6347#section-4.2.1
+*/
+type DTLSClientHelloPacket struct {
+	ProtocolVersion uint8
+	Random          [32]byte
+	//SessionIdLength uint8
+	SessionId []byte
+	//CookieLength uint8
+	Cookie []byte
+	Data   []byte
+}
+
+func ParseDTLSClientHelloPacket(reader io.Reader) (DTLSClientHelloPacket, error) {
+	packet := DTLSClientHelloPacket{}
+	var err error
+
+	//1 byte Protocol Version
+	packet.ProtocolVersion, err = database.ParseUint8DB(reader)
+	if err != nil {
+		return packet, err
+	}
+
+	//32 bytes random
+	packet.Random = [32]byte{}
+	_, err = reader.Read(packet.Random[:])
+	if err != nil {
+		return packet, err
+	}
+
+	//1 byte Session ID length
+	sessionIdLength, err := database.ParseUint8DB(reader)
+	if err != nil {
+		return packet, err
+	}
+
+	//X bytes Session ID
+	packet.SessionId = make([]byte, sessionIdLength)
+	_, err = reader.Read(packet.SessionId)
+	if err != nil {
+		return packet, err
+	}
+
+	//1 byte Cookie length
+	cookieLength, err := database.ParseUint8DB(reader)
+	if err != nil {
+		return packet, err
+	}
+
+	//X byte Cookie
+	packet.Cookie = make([]byte, cookieLength)
+	_, err = reader.Read(packet.Data)
+	if err != nil {
+		return packet, err
+	}
+
+	//Rest data
+	packet.Data, err = io.ReadAll(reader)
+	return packet, err
+}
+
+func (dtlsPacket *DTLSClientHelloPacket) BuildTLSPacket() []byte {
+	//Make packet holder
+	packet := make([]byte, 34)
+
+	//Put Version
+	packet[0] = dtlsPacket.ProtocolVersion
+
+	//Put Random
+	copy(packet[1:33], dtlsPacket.Random[:])
+
+	//Put SessionIDLength
+	packet[33] = dtlsPacket.SessionIdLength
+
+	//Put SessionID
+	packet = append(packet, dtlsPacket.SessionId...)
+
+	//Put data
+	packet = append(packet, dtlsPacket.Data...)
+	return packet
 }
 
 /*
