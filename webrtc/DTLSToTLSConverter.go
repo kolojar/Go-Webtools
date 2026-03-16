@@ -310,6 +310,9 @@ func (original *DTLSHandshakePacket) ParseTLSHandshakePacket(reader io.Reader) (
 			return packet, errors.New("DTLS invalid parent - wants: 1, has: " + strconv.FormatUint(uint64(original.Type), 10))
 		}
 		packet.FragmentObject, err = original.FragmentObject.(DTLSClientHelloPacket).ParseTLSServerHelloPacket(limitedReader)
+	} else if packet.Type == 11 {
+		//Certificate
+		packet.FragmentObject, err = ParseTLSCertificatePacket(reader)
 	} else {
 		panic("unknown DTLS Handshake type:" + strconv.FormatUint(uint64(packet.Type), 10))
 	}
@@ -520,4 +523,30 @@ func (dtlsPacket DTLSServerHelloPacket) BuildDTLSPacket() []byte {
 	//Put Data
 	packet.Write(dtlsPacket.Data)
 	return packet.Bytes()
+}
+
+/*
+Specification: https://datatracker.ietf.org/doc/html/rfc5246#section-7.4.2
+*/
+type DTLSCertificatePacket struct {
+	Certificate []byte
+}
+
+/*
+Can be used for DTLS too
+*/
+func ParseTLSCertificatePacket(reader io.Reader) (DTLSCertificatePacket, error) {
+	var err error
+	packet := DTLSCertificatePacket{}
+
+	//Read Certificate
+	packet.Certificate, err = io.ReadAll(reader)
+	return packet, err
+}
+
+/*
+Can be used for TLS too
+*/
+func (dtlsPacket DTLSCertificatePacket) BuildDTLSPacket() []byte {
+	return dtlsPacket.Certificate
 }

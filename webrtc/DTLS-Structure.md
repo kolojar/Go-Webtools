@@ -27,8 +27,8 @@
  - x bytes session id
  - **1 byte cookie length = y**
  - **y bytes cookie**
- - Compare with [TLS](#tls-clienthello-structure)
  - Data
+ - Compare with [TLS](#tls-clienthello-structure)
 
 ## DTLS ServerHello structure
  - Specification: https://datatracker.ietf.org/doc/html/rfc6347#section-4.2.1
@@ -38,8 +38,13 @@
  - x bytes session id
  - **1 byte cookie length = y**
  - **y bytes cookie**
- - Compare with [TLS](#tls-serverhello-structure)
  - Data
+ - Compare with [TLS](#tls-serverhello-structure)
+ 
+## DTLS Certificate structure
+ - Specification: https://datatracker.ietf.org/doc/html/rfc5246#section-7.4.2
+ - Data
+ - Compare with [TLS](#tls-certificate-structure)
  
 # TLS
  - Specification: https://datatracker.ietf.org/doc/html/rfc5246#section-6.2.1
@@ -68,4 +73,9 @@
  - 32 byte random
  - 1 byte session id length = x
  - x bytes session id
+ - Data
+ 
+ 
+## TLS Certificate structure
+ - Specification: https://datatracker.ietf.org/doc/html/rfc5246#section-7.4.2
  - Data
