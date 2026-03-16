@@ -446,7 +446,7 @@ func main() {
 				//Unknown packet
 				tlsConn, _ := processor.ProcessUDPConn(conn.GetOrigin().GetAddress(), conn, data, ended)
 				//buffer := make([]byte, 64)
-				err := tlsConn.Handshake()
+				err := tlsConn.GetConn().Handshake()
 				if err != nil {
 					fmt.Println(err.Error())
 				}
