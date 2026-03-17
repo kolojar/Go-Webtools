@@ -100,7 +100,7 @@ func (dtlsPacket DTLSPacket) BuildTLSPacket() []byte {
 	return packet.Bytes()
 }
 
-func (original DTLSPacket) ParseTLSPacket(reader io.Reader, sequenceNumber uint64) (DTLSPacket, error) {
+func (original *DTLSPacket) ParseTLSPacket(reader io.Reader, sequenceNumber uint64, messageSequence uint16) (DTLSPacket, error) {
 	packet := DTLSPacket{}
 	var err error
 
@@ -112,8 +112,10 @@ func (original DTLSPacket) ParseTLSPacket(reader io.Reader, sequenceNumber uint6
 
 	//2 bytes Protocol Version
 	packet.ProtocolVersion, err = database.ParseUint16DB(reader)
-	if err != nil {
-		return packet, err
+	if packet.ProtocolVersion == 0x0303 {
+		packet.ProtocolVersion = 0xFEFD
+	} else {
+		panic("unknown TLS protocol version: " + strconv.FormatUint(uint64(packet.ProtocolVersion), 16))
 	}
 
 	//Pass 2 bytes Epoch
@@ -134,7 +136,7 @@ func (original DTLSPacket) ParseTLSPacket(reader io.Reader, sequenceNumber uint6
 	//Sort type
 	if packet.Type == 22 {
 		//Handshake
-		packet.FragmentHandshake, err = original.FragmentHandshake.ParseTLSHandshakePacket(limitedReader)
+		packet.FragmentHandshake, err = original.FragmentHandshake.ParseTLSHandshakePacket(limitedReader, messageSequence)
 	} else {
 		panic("unknown DTLS packet type:" + strconv.FormatUint(uint64(packet.Type), 10))
 	}
@@ -184,9 +186,8 @@ type DTLSHandshakePacket struct {
 	//Specification: https://datatracker.ietf.org/doc/html/rfc6347#section-4.3.2
 	Type uint8
 	//Length          uint32 //uint24
-	MessageSequence      uint16
-	MessageSequenceWrite uint16 //Edited on writes
-	FragmentOffset       uint32 //uint24
+	MessageSequence uint16
+	FragmentOffset  uint32 //uint24
 	//FragmentLength  uint32 //uint24
 	//Sorted using Type
 	FragmentObject any
@@ -203,7 +204,7 @@ func ParseDTLSHandshakePacket(reader io.Reader) (DTLSHandshakePacket, error) {
 	}
 
 	//3 bytes Length
-	_, err = database.ParseUint24DB(reader)
+	l, err := database.ParseUint24DB(reader)
 	if err != nil {
 		return packet, err
 	}
@@ -213,7 +214,6 @@ func ParseDTLSHandshakePacket(reader io.Reader) (DTLSHandshakePacket, error) {
 	if err != nil {
 		return packet, err
 	}
-	packet.MessageSequenceWrite = packet.MessageSequence
 
 	//3 bytes Fragment offset
 	packet.FragmentOffset, err = database.ParseUint24DB(reader)
@@ -231,6 +231,8 @@ func ParseDTLSHandshakePacket(reader io.Reader) (DTLSHandshakePacket, error) {
 	if err != nil {
 		return packet, err
 	}
+
+	fmt.Println(l, fragmentLength)
 
 	//Read Fragment
 	limitedReader := io.LimitReader(reader, int64(fragmentLength))
@@ -270,7 +272,7 @@ func (dtlsPacket DTLSHandshakePacket) BuildTLSPacket() []byte {
 	return packet.Bytes()
 }
 
-func (original *DTLSHandshakePacket) ParseTLSHandshakePacket(reader io.Reader) (DTLSHandshakePacket, error) {
+func (original *DTLSHandshakePacket) ParseTLSHandshakePacket(reader io.Reader, messageSequence uint16) (DTLSHandshakePacket, error) {
 	packet := DTLSHandshakePacket{}
 	var err error
 
@@ -280,10 +282,8 @@ func (original *DTLSHandshakePacket) ParseTLSHandshakePacket(reader io.Reader) (
 		return packet, err
 	}
 
-	//Not in TLS - ingoring: 3 bytes Length
 	//Put 2 bytes Message Sequence
-	packet.MessageSequenceWrite++
-	packet.MessageSequence = packet.MessageSequenceWrite
+	packet.MessageSequence = messageSequence
 
 	//Pass 3 bytes Fragment offset
 	packet.FragmentOffset = original.FragmentOffset
@@ -312,7 +312,13 @@ func (original *DTLSHandshakePacket) ParseTLSHandshakePacket(reader io.Reader) (
 		packet.FragmentObject, err = original.FragmentObject.(DTLSClientHelloPacket).ParseTLSServerHelloPacket(limitedReader)
 	} else if packet.Type == 11 {
 		//Certificate
-		packet.FragmentObject, err = ParseTLSCertificatePacket(reader)
+		packet.FragmentObject, err = ParseTLSCertificatePacket(limitedReader)
+	} else if packet.Type == 12 {
+		//Server Key Exchange
+		packet.FragmentObject, err = ParseTLSServerKeyExchangePacket(limitedReader)
+	} else if packet.Type == 14 {
+		//Server Hello Done = no data
+		packet.FragmentObject = nil
 	} else {
 		panic("unknown DTLS Handshake type:" + strconv.FormatUint(uint64(packet.Type), 10))
 	}
@@ -332,12 +338,21 @@ func (dtlsPacket DTLSHandshakePacket) BuildDTLSPacket() []byte {
 	var data []byte
 	if dtlsPacket.Type == 2 {
 		data = dtlsPacket.FragmentObject.(DTLSServerHelloPacket).BuildDTLSPacket()
+	} else if dtlsPacket.Type == 11 {
+		//Certificate
+		data = dtlsPacket.FragmentObject.(DTLSCertificatePacket).BuildDTLSPacket()
+	} else if dtlsPacket.Type == 12 {
+		//Server Key Exchange
+		data = dtlsPacket.FragmentObject.(DTLSServerKeyExchangePacket).BuildDTLSPacket()
+	} else if dtlsPacket.Type == 14 {
+		//Server Hello Done = no data
+		data = make([]byte, 0)
 	} else {
 		panic("unknown DTLS Handshake type:" + strconv.FormatUint(uint64(dtlsPacket.Type), 10))
 	}
 
-	//Write 3 byte Length = 2 bytes for Message Sequence, 3 bytes for Fragment Offset, 3 bytes for Fragment Length and len for length of Data
-	database.ConvertUint24ToBytesDB(packet, uint32(2+3+3+len(data)))
+	//Write 3 byte Length = 1 byte for Type, 3 bytes for Length, 2 bytes for Message Sequence, 3 bytes for Fragment Offset, 3 bytes for Fragment Length and len for length of Data
+	database.ConvertUint24ToBytesDB(packet, uint32(len(data)))
 
 	//Write 2 byte Message Sequence
 	database.ConvertUint16ToBytesDB(packet, dtlsPacket.MessageSequence)
@@ -354,6 +369,7 @@ func (dtlsPacket DTLSHandshakePacket) BuildDTLSPacket() []byte {
 
 	//Write Fragment
 	packet.Write(data)
+	fmt.Println("Handshake:", packet.Bytes())
 	return packet.Bytes()
 }
 
@@ -408,7 +424,7 @@ func ParseDTLSClientHelloPacket(reader io.Reader) (DTLSClientHelloPacket, error)
 
 	//X byte Cookie
 	packet.Cookie = make([]byte, cookieLength)
-	_, err = reader.Read(packet.Data)
+	_, err = reader.Read(packet.Cookie)
 	if err != nil {
 		return packet, err
 	}
@@ -451,9 +467,7 @@ type DTLSServerHelloPacket struct {
 	Random          [32]byte
 	//SessionIdLength uint8
 	SessionId []byte
-	//CookieLength uint8
-	Cookie []byte
-	Data   []byte
+	Data      []byte
 }
 
 func (original DTLSClientHelloPacket) ParseTLSServerHelloPacket(reader io.Reader) (DTLSServerHelloPacket, error) {
@@ -465,11 +479,11 @@ func (original DTLSClientHelloPacket) ParseTLSServerHelloPacket(reader io.Reader
 	if err != nil {
 		return dtlsPacket, err
 	}
-	if dtlsPacket.ProtocolVersion == 0x0303 {
-		dtlsPacket.ProtocolVersion = 0xFEFD
-	} else {
-		panic("unknown TLS protocol version: " + strconv.FormatUint(uint64(dtlsPacket.ProtocolVersion), 16))
-	}
+	//if dtlsPacket.ProtocolVersion == 0x0303 {
+	//	dtlsPacket.ProtocolVersion = 0xFEFD
+	//} else {
+	//	panic("unknown TLS protocol version: " + strconv.FormatUint(uint64(dtlsPacket.ProtocolVersion), 16))
+	//}
 
 	//32 bytes Random
 	_, err = reader.Read(dtlsPacket.Random[:])
@@ -489,9 +503,6 @@ func (original DTLSClientHelloPacket) ParseTLSServerHelloPacket(reader io.Reader
 	if err != nil {
 		return dtlsPacket, err
 	}
-
-	//Pass Cookie
-	dtlsPacket.Cookie = original.Cookie
 
 	//Read Data
 	dtlsPacket.Data, err = io.ReadAll(reader)
@@ -513,12 +524,6 @@ func (dtlsPacket DTLSServerHelloPacket) BuildDTLSPacket() []byte {
 
 	//Put SessionID
 	packet.Write(dtlsPacket.SessionId)
-
-	//Put Cookie Length
-	database.ConvertUint8ToBytesDB(packet, uint8(len(dtlsPacket.Cookie)))
-
-	//Put Cookie
-	packet.Write(dtlsPacket.Cookie)
 
 	//Put Data
 	packet.Write(dtlsPacket.Data)
@@ -549,4 +554,30 @@ Can be used for TLS too
 */
 func (dtlsPacket DTLSCertificatePacket) BuildDTLSPacket() []byte {
 	return dtlsPacket.Certificate
+}
+
+/*
+Specification: https://datatracker.ietf.org/doc/html/rfc5246#section-7.4.3
+*/
+type DTLSServerKeyExchangePacket struct {
+	KeyExchangeData []byte
+}
+
+/*
+Can be used for DTLS too
+*/
+func ParseTLSServerKeyExchangePacket(reader io.Reader) (DTLSServerKeyExchangePacket, error) {
+	var err error
+	packet := DTLSServerKeyExchangePacket{}
+
+	//Read Key Exchange Data
+	packet.KeyExchangeData, err = io.ReadAll(reader)
+	return packet, err
+}
+
+/*
+Can be used for TLS too
+*/
+func (dtlsPacket DTLSServerKeyExchangePacket) BuildDTLSPacket() []byte {
+	return dtlsPacket.KeyExchangeData
 }

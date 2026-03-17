@@ -4,7 +4,6 @@ Package main provides example usages
 package main
 
 import (
-	"crypto/tls"
 	"fmt"
 	"net"
 	"os"
@@ -440,16 +439,24 @@ func main() {
 		}
 	case "webrtc-sv":
 		{
-			_, cert, _ := webrtc.GenerateDTLSCertificate("TestDTLS", time.Now(), time.Now().AddDate(10, 0, 0))
-			processor := webrtc.NewDTLSConnectionProcessor([]tls.Certificate{cert})
+			_, _, _ = webrtc.GenerateDTLSCertificate("TestDTLS", time.Now(), time.Now().AddDate(10, 0, 0))
+			//processor := webrtc.NewDTLSConnectionProcessor([]tls.Certificate{cert})
+			window := webrtc.MakeReplayWindow[uint8](1)
+			fmt.Println(window.ApplyWindowCheck(1))
+			fmt.Println(window.ApplyWindowCheck(2))
+			fmt.Println(window.ApplyWindowCheck(2))
+			fmt.Println(window.ApplyWindowCheck(9))
+			fmt.Println(window.ApplyWindowCheck(2))
+			fmt.Println(window.ApplyWindowCheck(1))
+
 			stunServer, err := webrtc.NewSTUNServer("127.0.0.1:5000", func(conn *udp.ServerConn, data []byte, ended bool) {
 				//Unknown packet
-				tlsConn, _ := processor.ProcessUDPConn(conn.GetOrigin().GetAddress(), conn, data, ended)
+				//tlsConn, _ := processor.ProcessUDPConn(conn.GetOrigin().GetAddress(), conn, data, ended)
 				//buffer := make([]byte, 64)
-				err := tlsConn.GetConn().Handshake()
-				if err != nil {
-					fmt.Println(err.Error())
-				}
+				//err := tlsConn.GetConn().Handshake()
+				//if err != nil {
+				//	fmt.Println(err.Error())
+				//}
 				fmt.Println("No error")
 				//tlsConn.Read(buffer)
 				//fmt.Println(string(buffer))

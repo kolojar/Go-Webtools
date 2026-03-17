@@ -93,7 +93,7 @@ func (conn *Conn) Read(b []byte) (n int, err error) {
 		//Preserve boundaries
 		if conn.unpackedReadBuffer.Len() == 0 {
 			//Unpack next message
-			data, err := database.ParseSliceDB(conn.buffer, database.ParseUint8DB)
+			data, err := database.ParseSliceDB(conn.buffer, database.ReadUint8)
 			if err != nil {
 				return 0, err
 			}

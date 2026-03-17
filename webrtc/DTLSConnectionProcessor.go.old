@@ -57,23 +57,32 @@ func (processor *DTLSConnectionProcessor) ProcessUDPConn(localAddress net.Addr, 
 
 				//Parse all packets
 				packets := make([]DTLSPacket, 0)
+				messageSequence := dtlsConn.originalPacket.FragmentHandshake.MessageSequence
 				for buffer.Len() > 0 {
-					packet, err := dtlsConn.originalPacket.ParseTLSPacket(buffer, dtlsConn.sequenceNumbersPerEpoch.Get(dtlsConn.originalPacket.Epoch))
+					messageSequence++
+					packet, err := dtlsConn.originalPacket.ParseTLSPacket(buffer, dtlsConn.sequenceNumbersPerEpoch.Get(dtlsConn.originalPacket.Epoch), messageSequence)
 					if err != nil {
 						return 0, err
 					}
+					dtlsConn.sequenceNumbersPerEpoch.Set(dtlsConn.originalPacket.Epoch, dtlsConn.sequenceNumbersPerEpoch.Get(dtlsConn.originalPacket.Epoch)+1)
 					packets = append(packets, packet)
 				}
-				dtlsConn.sequenceNumbersPerEpoch.Set(dtlsConn.originalPacket.Epoch, dtlsConn.sequenceNumbersPerEpoch.Get(dtlsConn.originalPacket.Epoch)+1)
+				fmt.Println("Count of DTLS packets:", len(packets))
 
-				//Convert all packets
-				dataToSend := bytes.NewBuffer(make([]byte, 0))
+				//Convert all packets and sand
+				nTotal := 0
+				packetNum := 0
 				for _, packet := range packets {
-					dataToSend.Write(packet.BuildDTLSPacket())
+					dataToSend := packet.BuildDTLSPacket()
+					packetNum++
+					fmt.Println("Sending DTLS:", packetNum, []byte(dataToSend))
+					n, err := conn.Send(dataToSend)
+					if err != nil {
+						return 0, err
+					}
+					nTotal += n
 				}
-
-				//Send
-				return udpConn.Write(dataToSend.Bytes())
+				return nTotal, nil
 			}, func() error {
 				//Close func
 				processor.dtlsConns.Delete(processor.conns.Get(conn))

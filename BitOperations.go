@@ -28,11 +28,18 @@ func SetBitValue(b byte, pos uint8, value bool) byte {
 SetBit sets bit (sets 1) at specific position -> 0 = 128, 7 = 1
 */
 func SetBit(b byte, pos uint8) byte {
+	return SetBitGeneric(b, pos, 8)
+}
+
+/*
+SetBit sets bit (sets 1) at specific position. Bitsize for uint8 is 8 -> 0 = 128, 7 = 1
+*/
+func SetBitGeneric[T uint8 | uint16 | uint32 | uint64](b T, pos uint8, bitSize uint8) T {
 	//Check for overflow
-	if pos > 7 {
+	if pos > bitSize-1 {
 		return b
 	}
-	b |= 1 << (7 - pos)
+	b |= 1 << (bitSize - 1 - pos)
 	return b
 }
 
@@ -40,8 +47,15 @@ func SetBit(b byte, pos uint8) byte {
 ClearBit clears bit (sets 0) at specific position -> 0 = 128, 7 = 1
 */
 func ClearBit(b byte, pos uint8) byte {
+	return ClearBitGeneric(b, pos, 8)
+}
+
+/*
+ClearBitGeneric clears bit (sets 0) at specific position. Bitsize for uint8 is 8 -> 0 = 128, 7 = 1
+*/
+func ClearBitGeneric[T uint8 | uint16 | uint32 | uint64](b T, pos uint8, bitSize uint8) T {
 	//Check for overflow
-	if pos > 7 {
+	if pos > bitSize-1 {
 		return b
 	}
 	b &^= 1 << (7 - pos)
@@ -66,10 +80,18 @@ CheckBit checks if bit is set (1). pos -> 0 = 128, 7 = 1
 */
 func CheckBit(b byte, pos uint8) bool {
 	//Check for overflow
-	if pos > 7 {
+	return CheckBitGenetic(b, pos, 8)
+}
+
+/*
+CheckBitGenetic checks if bit is set (1). pos. Bitsize for uint8 is 8 -> 0 = 128, 7 = 1
+*/
+func CheckBitGenetic[T uint8 | uint16 | uint32 | uint64](b T, pos uint8, bitSize uint8) bool {
+	//Check for overflow
+	if pos > bitSize-1 {
 		return false
 	}
-	return b&byte(1<<(7-pos)) != 0
+	return b&T(1<<(bitSize-1-pos)) != 0
 }
 
 /*
@@ -86,4 +108,56 @@ func XORArrays(a []byte, b []byte) []byte {
 		result[i] = a[i] ^ b[i]
 	}
 	return result
+}
+
+/*
+BitshiftArrayLeft bitshifts array left by n bits (negative does right)
+*/
+func BitshiftArrayLeft(data []byte, bitShift int) {
+	if bitShift < 0 {
+		BitshiftArrayRight(data, -bitShift)
+	} else {
+		//Bitshift left
+		bytes := bitShift / 8
+		if bytes > 0 {
+			//Byteshift left
+			for i := 0; i < len(data)-bytes; i++ {
+				data[i] = data[i+bytes]
+			}
+			for i := len(data) - bytes; i < len(data); i++ {
+				data[i] = 0
+			}
+		}
+		bitShift = bitShift % 8
+		for i := 0; i < len(data)-1; i++ {
+			data[i] = data[i]<<bitShift | data[i+1]>>(8-bitShift)
+		}
+		data[len(data)-1] <<= bitShift
+	}
+}
+
+/*
+BitshiftArrayRight bitshifts array right by n bits (negative does left)
+*/
+func BitshiftArrayRight(data []byte, bits int) {
+	if bits < 0 {
+		BitshiftArrayLeft(data, -bits)
+	} else {
+		//Bitshift right
+		bytes := bits / 8
+		if bytes > 0 {
+			//Byteshift right
+			for i := len(data) - 1; i >= bytes; i-- {
+				data[i] = data[i-bytes]
+			}
+			for i := 0; i < bytes; i++ {
+				data[i] = 0
+			}
+		}
+		bits = bits % 8
+		for i := len(data) - 1; i > 0; i-- {
+			data[i] = data[i]>>bits | data[i-1]<<(8-bits)
+		}
+		data[0] >>= bits
+	}
 }

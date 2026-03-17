@@ -394,20 +394,20 @@ func parseAnyValueToBytesDBValue(reader io.Reader, valType string, objectValue *
 		result, err = ParseDynamicUintBytesDB(reader)
 		result = int64(result.(uint64))
 	case "uint8":
-		result, err = ParseUint8DB(reader)
+		result, err = ReadUint8(reader)
 	case "int8":
 		result, err = ParseBoolDB(reader)
 		result = int8(result.(uint8))
 	case "string":
 		result, err = ParseStringDB(reader)
 	case "int16":
-		result, err = ParseUint16DB(reader)
+		result, err = ReadUint16(reader)
 		result = int16(result.(uint16))
 	case "int32":
 		result, err = ParseDynamicUintBytesDB(reader)
 		result = int32(result.(uint32))
 	case "uint16":
-		result, err = ParseUint16DB(reader)
+		result, err = ReadUint16(reader)
 	case "uint32":
 		result, err = ParseDynamicUintBytesDB(reader)
 	default:

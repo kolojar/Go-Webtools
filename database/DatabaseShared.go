@@ -436,7 +436,7 @@ ParseDynamicUintBytesDB parses to uint64 using dynamic count of bytes
 */
 func ParseDynamicUintBytesDB(reader io.Reader) (uint64, error) {
 	//Read byte size of length
-	size, err := ParseUint8DB(reader)
+	size, err := ReadUint8(reader)
 	if err != nil || size == 0 {
 		return 0, err
 	}
@@ -490,9 +490,9 @@ func ConvertUint16ToBytesDB(writer io.Writer, data uint16) error {
 }
 
 /*
-ParseUint16DB parses bytes from reader to uint16
+ReadUint16 parses bytes from reader to uint16
 */
-func ParseUint16DB(reader io.Reader) (uint16, error) {
+func ReadUint16(reader io.Reader) (uint16, error) {
 	//Read number
 	dataByte := make([]byte, 2)
 	_, err := reader.Read(dataByte)
@@ -536,9 +536,9 @@ func ConvertUint8ToBytesDB(writer io.Writer, data uint8) error {
 }
 
 /*
-ParseUint8DB parses bytes from reader to uint8
+ReadUint8 parses bytes from reader to uint8
 */
-func ParseUint8DB(reader io.Reader) (uint8, error) {
+func ReadUint8(reader io.Reader) (uint8, error) {
 	//Read number
 	dataByte := make([]byte, 1)
 	_, err := reader.Read(dataByte)
@@ -577,9 +577,9 @@ func ConvertUint48ToBytesDB(writer io.Writer, data uint64) error {
 }
 
 /*
-ParseUint48DB parses bytes from reader to uint48 (stored as uint64)
+ReadUint48 parses bytes from reader to uint48 (stored as uint64)
 */
-func ParseUint48DB(reader io.Reader) (uint64, error) {
+func ReadUint48(reader io.Reader) (uint64, error) {
 	//Read number
 	val, err := ParseUintXDB(reader, 48)
 	if err != nil {
