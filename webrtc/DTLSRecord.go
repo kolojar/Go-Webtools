@@ -17,7 +17,7 @@ type DTLSRecord struct {
 	Epoch           uint16
 	SequenceNumber  uint64 //uint48
 	//Length          uint16
-	Fragment any //
+	Fragment any //DTLSHandshake
 }
 
 func UnpackDTLSRecord(reader io.Reader) (record DTLSRecord, isDTLS bool, err error) {
@@ -65,6 +65,13 @@ func UnpackDTLSRecord(reader io.Reader) (record DTLSRecord, isDTLS bool, err err
 
 	//Limit reader for Fragment
 	limitedReader := io.LimitReader(reader, int64(length))
-	_ = limitedReader
-	panic("pass to specific reader based on type")
+
+	//Read
+	if record.ContentType == 22 {
+		//Handshake
+		record.Fragment, err = UnpackDTLSHandshake(limitedReader)
+	} else {
+		panic("content type: " + strconv.Itoa(int(record.ContentType)) + " not implemented")
+	}
+	return record, true, err
 }
