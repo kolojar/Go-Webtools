@@ -557,9 +557,9 @@ func ConvertUint24ToBytesDB(writer io.Writer, data uint32) error {
 }
 
 /*
-ParseUint24DB parses bytes from reader to uint24 (stored as uint32)
+ReadUint24 parses bytes from reader to uint24 (stored as uint32)
 */
-func ParseUint24DB(reader io.Reader) (uint32, error) {
+func ReadUint24(reader io.Reader) (uint32, error) {
 	//Read number
 	val, err := ParseUintXDB(reader, 24)
 	if err != nil {
