@@ -62,7 +62,7 @@ ConvertToBytesDB converts SmartDBString to bytes
 func (limitedString *LimitedString) ConvertToBytesDB(writer io.Writer) error {
 	//Write length
 	val := []byte(limitedString.value)
-	err := ConvertUintXToBytesDB(writer, uint64(len(val)), limitedString.lengthStoreByteSize)
+	err := WriteUintX(writer, uint64(len(val)), limitedString.lengthStoreByteSize)
 	if err != nil {
 		return err
 	}
@@ -77,7 +77,7 @@ ParseBytesDB parses bytes to SmartDBString
 */
 func (limitedString *LimitedString) ParseBytesDB(reader io.Reader) error {
 	//Read length
-	length, err := ParseUintXDB(reader, limitedString.lengthStoreByteSize)
+	length, err := ReadUintXDB(reader, limitedString.lengthStoreByteSize)
 	if err != nil {
 		return err
 	}

@@ -119,7 +119,7 @@ func (conn *Conn) WriteToReadBuffer(b []byte) error {
 	conn.mutex.Lock()
 	defer conn.mutex.Unlock()
 	if conn.preservePacketBoundaries {
-		err := database.ConvertSliceToBytesDB(conn.buffer, b, database.ConvertUint8ToBytesDB)
+		err := database.ConvertSliceToBytesDB(conn.buffer, b, database.AppendUint8)
 		if err != nil {
 			return err
 		}

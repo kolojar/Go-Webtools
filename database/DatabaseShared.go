@@ -385,9 +385,9 @@ func ParseStringDB(reader io.Reader) (string, error) {
 }
 
 /*
-ConvertUintXToBytesDB converts uint64 to X/8 bytes. Parameter size is X = 8 bites = 1 byte = uint8, ...
+WriteUintX converts uint64 to X/8 bytes. Parameter size is X = 8 bites = 1 byte = uint8, ...
 */
-func ConvertUintXToBytesDB(writer io.Writer, data uint64, size uint8) error {
+func WriteUintX(writer io.Writer, data uint64, size uint8) error {
 	//Write number
 	dataByte := make([]byte, 8)
 	binary.BigEndian.PutUint64(dataByte, data)
@@ -396,9 +396,9 @@ func ConvertUintXToBytesDB(writer io.Writer, data uint64, size uint8) error {
 }
 
 /*
-ParseUintXDB parses X/8 bytes from reader to uint64. Parameter size is X = 8 bits = 1 byte = uint8, ... -> max is 64 bits
+ReadUintXDB parses X/8 bytes from reader to uint64. Parameter size is X = 8 bits = 1 byte = uint8, ... -> max is 64 bits
 */
-func ParseUintXDB(reader io.Reader, size uint8) (uint64, error) {
+func ReadUintXDB(reader io.Reader, size uint8) (uint64, error) {
 	//Check if size not over limit
 	if size > 64 {
 		return 0, os.ErrInvalid
@@ -428,13 +428,13 @@ func ConvertDynamicUintToBytesDB(writer io.Writer, data uint64) error {
 	}
 
 	//Write byte size of length
-	err := ConvertUint8ToBytesDB(writer, size)
+	err := AppendUint8(writer, size)
 	if err != nil || size == 0 {
 		return err
 	}
 
 	//Write number
-	return ConvertUintXToBytesDB(writer, data, size)
+	return WriteUintX(writer, data, size)
 }
 
 /*
@@ -448,7 +448,7 @@ func ParseDynamicUintBytesDB(reader io.Reader) (uint64, error) {
 	}
 
 	//Write number
-	return ParseUintXDB(reader, size)
+	return ReadUintXDB(reader, size)
 }
 
 func calculateByteSizeFromInt(value uint) uint8 {
@@ -485,9 +485,9 @@ func ParseUint64DB(reader io.Reader) (uint64, error) {
 }
 
 /*
-ConvertUint16ToBytesDB converts uint16 to bytes
+AppendUint16 converts uint16 to bytes
 */
-func ConvertUint16ToBytesDB(writer io.Writer, data uint16) error {
+func AppendUint16(writer io.Writer, data uint16) error {
 	//Write number
 	dataByte := make([]byte, 2)
 	binary.BigEndian.PutUint16(dataByte, data)
@@ -533,9 +533,9 @@ func ParseUint32DB(reader io.Reader) (uint32, error) {
 }
 
 /*
-ConvertUint8ToBytesDB converts uint8 to bytes
+AppendUint8 converts uint8 to bytes
 */
-func ConvertUint8ToBytesDB(writer io.Writer, data uint8) error {
+func AppendUint8(writer io.Writer, data uint8) error {
 	//Write number
 	_, err := writer.Write([]byte{data})
 	return err
@@ -559,7 +559,7 @@ ConvertUint24ToBytesDB converts 3 bytes (uint24) to bytes
 */
 func ConvertUint24ToBytesDB(writer io.Writer, data uint32) error {
 	//Write number
-	return ConvertUintXToBytesDB(writer, uint64(data), 24)
+	return WriteUintX(writer, uint64(data), 24)
 }
 
 /*
@@ -567,7 +567,7 @@ ReadUint24 parses bytes from reader to uint24 (stored as uint32)
 */
 func ReadUint24(reader io.Reader) (uint32, error) {
 	//Read number
-	val, err := ParseUintXDB(reader, 24)
+	val, err := ReadUintXDB(reader, 24)
 	if err != nil {
 		return 0, nil
 	}
@@ -575,11 +575,11 @@ func ReadUint24(reader io.Reader) (uint32, error) {
 }
 
 /*
-ConvertUint48ToBytesDB converts 6 bytes (uint48) to bytes
+AppendUint48 converts 6 bytes (uint48) to bytes
 */
-func ConvertUint48ToBytesDB(writer io.Writer, data uint64) error {
+func AppendUint48(writer io.Writer, data uint64) error {
 	//Write number
-	return ConvertUintXToBytesDB(writer, uint64(data), 48)
+	return WriteUintX(writer, uint64(data), 48)
 }
 
 /*
@@ -587,7 +587,7 @@ ReadUint48 parses bytes from reader to uint48 (stored as uint64)
 */
 func ReadUint48(reader io.Reader) (uint64, error) {
 	//Read number
-	val, err := ParseUintXDB(reader, 48)
+	val, err := ReadUintXDB(reader, 48)
 	if err != nil {
 		return 0, nil
 	}
@@ -917,7 +917,7 @@ Runs automatic array length check. Length can be validated using validateLengthF
 */
 func ReadByteArray(reader io.Reader, lengthPrefixByteSize uint8, validateLengthFunc func(length uint64) (err error)) (result []byte, err error) {
 	//Read length
-	length, err := ParseUintXDB(reader, lengthPrefixByteSize*8)
+	length, err := ReadUintXDB(reader, lengthPrefixByteSize*8)
 	if err != nil {
 		return nil, err
 	}
@@ -938,6 +938,38 @@ func ReadByteArray(reader io.Reader, lengthPrefixByteSize uint8, validateLengthF
 		return nil, errors.New("invalid data length - wants: " + strconv.FormatUint(uint64(length), 10) + "; got: " + strconv.Itoa(n))
 	}
 	return result, nil
+}
+
+/*
+AppendByteArray write byte array of size that is in prefix. Prefix length (bytes before data) is specified by lengthPrefixByteSize (max is 8).
+Runs automatic array length check. Length can be validated using validateLengthFunc, if nil, no validation is run.
+*/
+func AppendByteArray(writer io.Writer, lengthPrefixByteSize uint8, data []byte, validateLengthFunc func(length uint64) (err error)) (err error) {
+	//Write length
+	length := uint64(len(data))
+	if validateLengthFunc != nil {
+		err = validateLengthFunc(length)
+		if err != nil {
+			return err
+		}
+	}
+	if length > (uint64(lengthPrefixByteSize) * 8 * 8) {
+		return errors.New("length too big - max: " + strconv.FormatUint(uint64(lengthPrefixByteSize)*8*8, 10) + "; got: " + strconv.FormatUint(length, 10))
+	}
+	err = WriteUintX(writer, length, lengthPrefixByteSize*8)
+	if err != nil {
+		return err
+	}
+
+	//Write data
+	n, err := writer.Write(data)
+	if err != nil {
+		return err
+	}
+	if n != int(length) {
+		return errors.New("invalid data length - wants: " + strconv.FormatUint(uint64(length), 10) + "; got: " + strconv.Itoa(n))
+	}
+	return nil
 }
 
 ///*

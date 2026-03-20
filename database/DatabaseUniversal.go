@@ -225,17 +225,17 @@ func convertAnyValueToBytesDBValue(writer io.Writer, k reflect.Kind, v reflect.V
 	case reflect.Int, reflect.Int64:
 		return ConvertDynamicUintToBytesDB(writer, uint64(v.Int()))
 	case reflect.Uint8:
-		return ConvertUint8ToBytesDB(writer, uint8(v.Uint()))
+		return AppendUint8(writer, uint8(v.Uint()))
 	case reflect.Int8:
-		return ConvertUint8ToBytesDB(writer, uint8(v.Int()))
+		return AppendUint8(writer, uint8(v.Int()))
 	case reflect.String:
 		return ConvertStringToBytesDB(writer, v.String())
 	case reflect.Int16:
-		return ConvertUint16ToBytesDB(writer, uint16(v.Int()))
+		return AppendUint16(writer, uint16(v.Int()))
 	case reflect.Int32:
 		return ConvertDynamicUintToBytesDB(writer, uint64(v.Int()))
 	case reflect.Uint16:
-		return ConvertUint16ToBytesDB(writer, uint16(v.Uint()))
+		return AppendUint16(writer, uint16(v.Uint()))
 	case reflect.Uint32:
 		return ConvertDynamicUintToBytesDB(writer, v.Uint())
 	default:

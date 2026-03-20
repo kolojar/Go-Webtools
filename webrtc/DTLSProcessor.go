@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"strconv"
+	"sync"
 	"webtools"
 	"webtools/udp"
 )
@@ -15,6 +16,25 @@ type DTLSProcessor struct {
 	replayWindowCurrent         ReplayWindow[uint64]
 	Logger                      *webtools.ConsoleLogger
 	unknownPacketReadFunc       udp.ServerReadFunc
+	writeMutex                  *sync.Mutex
+	toWritePackets              []DTLSRecord
+	handshakeMessageSequence    uint16
+	sequenceNumber              uint64 //uint48
+}
+
+func (processor DTLSProcessor) ProcessWriteSend(conn *udp.ServerConn) error {
+	//Make data
+	data, err := processor.ProcessWrite()
+	if err != nil {
+		return err
+	}
+	for _, packet := range data {
+		_, err = conn.Send(packet)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 /*
@@ -28,6 +48,9 @@ func NewDTLSProcessor(unknownPacketReadFunc udp.ServerReadFunc, windowSize int, 
 		replayWindowCurrent:         MakeReplayWindow[uint64](windowSize),
 		Logger:                      webtools.NewConsoleLoggerForTraffic("DTLSProcessor", reportTraffic),
 		unknownPacketReadFunc:       unknownPacketReadFunc,
+		toWritePackets:              make([]DTLSRecord, 0),
+		writeMutex:                  &sync.Mutex{},
+		handshakeMessageSequence:    0,
 	}
 }
 
@@ -121,4 +144,89 @@ func (processor *DTLSProcessor) ProcessData(reader io.Reader) (completeRecords [
 		}
 	}
 	return completeRecords, false, nil
+}
+
+func (processor *DTLSProcessor) AddWriteRecord(record DTLSRecord) {
+	processor.writeMutex.Lock()
+	defer processor.writeMutex.Unlock()
+	processor.toWritePackets = append(processor.toWritePackets, record)
+}
+
+func (processor *DTLSProcessor) ProcessWrite() ([][]byte, error) {
+	processor.writeMutex.Lock()
+	defer processor.writeMutex.Unlock()
+	if len(processor.toWritePackets) == 0 {
+		return nil, nil
+	}
+
+	//Make fragments
+	fragmentedRecords := make([]DTLSRecord, 0)
+	for _, record := range processor.toWritePackets {
+		processor.Logger.Log(1, "Processing record with type: "+strconv.FormatUint(uint64(record.ContentType), 10))
+		record.SequenceNumber = processor.sequenceNumber
+		processor.sequenceNumber++
+		if record.ContentType == DTLSRecordContentTypeHandshake {
+			//Handshake - make fragment
+			handshake := record.Fragment.(DTLSHandshake)
+			handshakeBytes, err := handshake.MakeBytes(uint16(processor.handshakeMessageSequence))
+			if err != nil {
+				processor.Logger.Log(3, "Error making DTLSHandshake bytes: "+err.Error())
+				return nil, err
+			}
+
+			//Split into fragments
+			handshakeBytesReader := bytes.NewReader(handshakeBytes)
+			fragmentOffset := uint32(0)
+			fragmentNumber := 0
+			for handshakeBytesReader.Len() > 0 {
+				//Read fragment part
+				fragment := make([]byte, 1000)
+				n, err := handshakeBytesReader.Read(fragment)
+				if err != nil {
+					processor.Logger.Log(3, "Error fragmenting DTLSHandshake bytes: "+err.Error())
+					return nil, err
+				}
+
+				//Make fragment record
+				recordFragment := record
+				recordFragment.Fragment = DTLSHandshakeFragment{
+					HandshakeType:   handshake.HandshakeType,
+					Length:          uint32(len(handshakeBytes)),
+					MessageSequence: processor.handshakeMessageSequence,
+					FragmentOffset:  fragmentOffset,
+					FragmentLength:  uint32(n),
+					FragmentData:    fragment[:n],
+				}
+				fragmentedRecords = append(fragmentedRecords, recordFragment)
+				fragmentNumber++
+				processor.Logger.Log(0, "Fragmented DTLSHandshake: Length="+strconv.Itoa(len(handshakeBytes))+"; MessageSequence="+strconv.FormatUint(uint64(processor.handshakeMessageSequence), 10)+"; FragmentOffset="+strconv.FormatUint(uint64(fragmentOffset), 10)+"; FragmentLength="+strconv.Itoa(n))
+			}
+			processor.handshakeMessageSequence++
+		} else {
+			//Not fragmentable type
+			processor.Logger.Log(2, "Processing nonfragmentable type")
+			fragmentedRecords = append(fragmentedRecords, record)
+		}
+	}
+
+	//Put Fragments into packets
+	resultFragments := make([][]byte, 0)
+	for _, record := range resultFragments {
+		foundFragment := false
+		for i, fragment := range resultFragments {
+			//Packet max size is 1200 bytes -> Specification: https://datatracker.ietf.org/doc/html/rfc6347#section-3.2.3
+			if len(fragment)+len(record) < 1200 {
+				resultFragments[i] = append(resultFragments[i], record...)
+				foundFragment = true
+				break
+			}
+		}
+		if foundFragment {
+			continue
+		}
+
+		//Add new
+		resultFragments = append(resultFragments, record)
+	}
+	return resultFragments, nil
 }

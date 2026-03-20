@@ -1,6 +1,7 @@
 package webrtc
 
 import (
+	"bytes"
 	"encoding/hex"
 	"errors"
 	"io"
@@ -10,10 +11,11 @@ import (
 )
 
 const DTLSHandshakeTypeClientHello = uint8(1)
+const DTLSHandshakeTypeHelloVerifyRequest = uint8(3)
 
 type DTLSHandshakeFragmentProcessor struct {
 	fragments []DTLSHandshakeFragment
-	//Packet max size is 1500 bytes -> Specification: https://datatracker.ietf.org/doc/html/rfc6347#section-3.2.3
+	//Packet max size is 1200 bytes -> Specification: https://datatracker.ietf.org/doc/html/rfc6347#section-3.2.3
 	recievedBytes ReplayWindow[uint32]
 	fragment      []byte
 }
@@ -124,6 +126,39 @@ type DTLSHandshake struct {
 	Body            any
 }
 
+func (handshake *DTLSHandshake) MakeBytes(MessageSequence uint16) (result []byte, err error) {
+	buffer := bytes.NewBuffer(make([]byte, 0))
+
+	//Put HandshakeType
+	err = database.AppendUint8(buffer, handshake.HandshakeType)
+	if err != nil {
+		return nil, err
+	}
+
+	//Put MessageSequence
+	handshake.MessageSequence = MessageSequence
+	err = database.AppendUint16(buffer, handshake.MessageSequence)
+	if err != nil {
+		return nil, err
+	}
+
+	//Convert Body
+	var bodyBytes []byte
+	if handshake.HandshakeType == DTLSHandshakeTypeHelloVerifyRequest {
+		bodyBytes, err = handshake.Body.(DTLSHelloVerifyRequest).MakeBytes()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	//Put Body
+	err = database.AppendByteArray(buffer, 3, bodyBytes, nil)
+	if err != nil {
+		return nil, err
+	}
+	return buffer.Bytes(), nil
+}
+
 /*
 Specification: https://datatracker.ietf.org/doc/html/rfc6347#section-4.2.1
 Specification: https://datatracker.ietf.org/doc/html/rfc5246#section-7.4.1.2
@@ -193,4 +228,30 @@ func UnpackDTLSClientHello(reader io.Reader) (clientHello DTLSClientHello, err e
 		return clientHello, err
 	}
 	return clientHello, nil
+}
+
+/*
+Specification: https://datatracker.ietf.org/doc/html/rfc6347#section-4.2.1
+Type: 3
+*/
+type DTLSHelloVerifyRequest struct {
+	ServerVersion uint16
+	Cookie        []byte
+}
+
+func (request DTLSHelloVerifyRequest) MakeBytes() (result []byte, err error) {
+	buffer := bytes.NewBuffer(make([]byte, 0))
+
+	//Put ServerVersion
+	err = database.AppendUint16(buffer, request.ServerVersion)
+	if err != nil {
+		return nil, err
+	}
+
+	//Put Cookie
+	err = database.AppendByteArray(buffer, 1, request.Cookie, nil)
+	if err != nil {
+		return nil, err
+	}
+	return buffer.Bytes(), nil
 }
