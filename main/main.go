@@ -440,7 +440,7 @@ func main() {
 	case "webrtc-sv":
 		{
 			_, _, _ = webrtc.GenerateDTLSCertificate("TestDTLS", time.Now(), time.Now().AddDate(10, 0, 0))
-			//processor := webrtc.NewDTLSConnectionProcessor([]tls.Certificate{cert})
+			processor := webrtc.NewDTLSProcessor(nil, 64, true)
 			stunServer, err := webrtc.NewSTUNServer("127.0.0.1:5000", func(conn *udp.ServerConn, data []byte, ended bool) {
 				//Unknown packet
 				//tlsConn, _ := processor.ProcessUDPConn(conn.GetOrigin().GetAddress(), conn, data, ended)
@@ -449,9 +449,17 @@ func main() {
 				//if err != nil {
 				//	fmt.Println(err.Error())
 				//}
-				fmt.Println("No error")
+				//fmt.Println("No error")
 				//tlsConn.Read(buffer)
 				//fmt.Println(string(buffer))
+				records, err := processor.ReadData(conn, data, ended)
+				if err != nil {
+					fmt.Println(err.Error())
+					return
+				}
+				for _, r := range records {
+					fmt.Println(r)
+				}
 			}, true)
 			if err != nil {
 				fmt.Println(err.Error())

@@ -64,7 +64,8 @@ func EncodeSTUNPacketAttribute(data STUNPacketDecodedAttribute, transactionID []
 	if data.TransactionID == nil && transactionID == nil {
 		return attribute, errors.New("invalid transaction ID")
 	}
-	if data.Type == STUNPacketAttributeTypeMappedAddress {
+	switch data.Type {
+	case STUNPacketAttributeTypeMappedAddress:
 		//Mapped address
 		//Parse address
 		address := net.ParseIP(data.Data["address"].(string))
@@ -74,11 +75,12 @@ func EncodeSTUNPacketAttribute(data STUNPacketDecodedAttribute, transactionID []
 
 		//Parse family
 		isIPv4 := false
-		if data.Data["family"].(string) == "IPv4" {
+		switch data.Data["family"].(string) {
+		case "IPv4":
 			isIPv4 = true
-		} else if data.Data["family"].(string) == "IPv6" {
+		case "IPv6":
 			isIPv4 = false
-		} else {
+		default:
 			return attribute, errors.New("invalid family address: must be IPv4 or IPv6 - inserted: " + data.Data["family"].(string))
 		}
 
@@ -115,7 +117,7 @@ func EncodeSTUNPacketAttribute(data STUNPacketDecodedAttribute, transactionID []
 				attribute.Data[4+i] = ipv6[i]
 			}
 		}
-	} else if data.Type == STUNPacketAttributeTypeXORMappedAddress {
+	case STUNPacketAttributeTypeXORMappedAddress:
 		//XOR Mapped address
 		//Parse address
 		address := net.ParseIP(data.Data["address"].(string))
@@ -125,11 +127,12 @@ func EncodeSTUNPacketAttribute(data STUNPacketDecodedAttribute, transactionID []
 
 		//Parse family
 		isIPv4 := false
-		if data.Data["family"].(string) == "IPv4" {
+		switch data.Data["family"].(string) {
+		case "IPv4":
 			isIPv4 = true
-		} else if data.Data["family"].(string) == "IPv6" {
+		case "IPv6":
 			isIPv4 = false
-		} else {
+		default:
 			return attribute, errors.New("invalid family address: must be IPv4 or IPv6 - inserted: " + data.Data["family"].(string))
 		}
 

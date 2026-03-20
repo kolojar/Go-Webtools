@@ -25,46 +25,49 @@ type DTLSRecord struct {
 	Fragment any //DTLSHandshake
 }
 
-func UnpackDTLSRecord(reader io.Reader) (record DTLSRecord, hasNonDTLSData bool, err error) {
+func UnpackDTLSRecord(reader io.Reader) (record DTLSRecord, hasNonDTLSData bool, firstEOF bool, err error) {
 	record = DTLSRecord{}
 	//Read ContentType
 	record.ContentType, err = database.ReadUint8(reader)
 	if err != nil {
-		return record, true, err
+		if errors.Is(err, io.EOF) {
+			return record, true, true, err
+		}
+		return record, true, false, err
 	}
 
 	//Check for DTLS
 	if record.ContentType != 20 && record.ContentType != 21 && record.ContentType != DTLSRecordContentTypeHandshake && record.ContentType != 23 {
-		return record, true, errors.New("not a DTLS packet - invalid content type: " + strconv.FormatUint(uint64(record.ContentType), 10))
+		return record, true, false, errors.New("not a DTLS packet - invalid content type: " + strconv.FormatUint(uint64(record.ContentType), 10))
 	}
 
 	//Read Protocol Version
 	record.ProtocolVersion, err = database.ReadUint16(reader)
 	if err != nil {
-		return record, true, err
+		return record, true, false, err
 	}
 
 	//Check for DTLS version
 	if record.ProtocolVersion != DTLSVersion10 && record.ProtocolVersion != DTLSVersion12 {
-		return record, true, errors.New("not a DTLS packet - invalid protocol version: " + strconv.FormatUint(uint64(record.ProtocolVersion), 10))
+		return record, true, false, errors.New("not a DTLS packet - invalid protocol version: " + strconv.FormatUint(uint64(record.ProtocolVersion), 10))
 	}
 
 	//Read Epoch
 	record.Epoch, err = database.ReadUint16(reader)
 	if err != nil {
-		return record, true, err
+		return record, true, false, err
 	}
 
 	//Read Sequence Number
 	record.SequenceNumber, err = database.ReadUint48(reader)
 	if err != nil {
-		return record, true, err
+		return record, true, false, err
 	}
 
 	//Read Length
 	length, err := database.ReadUint16(reader)
 	if err != nil {
-		return record, true, err
+		return record, true, false, err
 	}
 
 	//Limit reader for Fragment
@@ -77,7 +80,7 @@ func UnpackDTLSRecord(reader io.Reader) (record DTLSRecord, hasNonDTLSData bool,
 	} else {
 		panic("content type: " + strconv.Itoa(int(record.ContentType)) + " not implemented")
 	}
-	return record, false, err
+	return record, false, false, err
 }
 
 func UnpackDTLSRecords(reader io.Reader) (records []DTLSRecord, hasNonDTLSData bool, err error) {
@@ -86,8 +89,13 @@ func UnpackDTLSRecords(reader io.Reader) (records []DTLSRecord, hasNonDTLSData b
 	for err == nil {
 		//Read next record
 		var record DTLSRecord
-		record, hasNonDTLSData, err = UnpackDTLSRecord(reader)
+		var firstEOF bool
+		record, hasNonDTLSData, firstEOF, err = UnpackDTLSRecord(reader)
 		if err != nil {
+			if firstEOF && len(records) > 0 {
+				err = nil
+				break
+			}
 			return nil, hasNonDTLSData, err
 		}
 		if hasNonDTLSData {

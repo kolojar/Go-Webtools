@@ -202,7 +202,8 @@ func unpackSDPMessageConnectionInformationLine(value string) (SDPMessageConnecti
 	repeatCount := 1
 
 	//Sort IP types
-	if connectionData.AddressType == "IP4" {
+	switch connectionData.AddressType {
+	case "IP4":
 		//IPv4 - check
 		if !ip.Is4() {
 			return connectionData, errors.New("invalid connectionData-connectionAddress - wants ipv4 and got ipv6")
@@ -231,7 +232,7 @@ func unpackSDPMessageConnectionInformationLine(value string) (SDPMessageConnecti
 				return connectionData, err
 			}
 		}
-	} else if connectionData.AddressType == "IP6" {
+	case "IP6":
 		//IPv6 - check
 		if !ip.Is6() {
 			return connectionData, errors.New("invalid connectionData-connectionAddress - wants ipv6 and got ipv4")
