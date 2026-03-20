@@ -10,6 +10,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"strconv"
 	"time"
 	"webtools"
 	"webtools/encryption"
@@ -395,9 +396,14 @@ func ConvertUintXToBytesDB(writer io.Writer, data uint64, size uint8) error {
 }
 
 /*
-ParseUintXDB parses X/8 bytes from reader to uint64. Parameter size is X = 8 bites = 1 byte = uint8, ...
+ParseUintXDB parses X/8 bytes from reader to uint64. Parameter size is X = 8 bits = 1 byte = uint8, ... -> max is 64 bits
 */
 func ParseUintXDB(reader io.Reader, size uint8) (uint64, error) {
+	//Check if size not over limit
+	if size > 64 {
+		return 0, os.ErrInvalid
+	}
+
 	//Read number
 	dataByte := make([]byte, webtools.CeilDivision(size, 8))
 	_, err := reader.Read(dataByte)
@@ -903,6 +909,35 @@ func ParseSliceDB[V any](reader io.Reader, parseDBFunc func(reader io.Reader) (V
 		data = append(data, val)
 	}
 	return data, nil
+}
+
+/*
+ReadByteArray reads byte array of size that is in prefix. Prefix length (bytes before data) is specified by lengthPrefixByteSize (max is 8).
+Runs automatic array length check. Length can be validated using validateLengthFunc, if nil, no validation is run.
+*/
+func ReadByteArray(reader io.Reader, lengthPrefixByteSize uint8, validateLengthFunc func(length uint64) (err error)) (result []byte, err error) {
+	//Read length
+	length, err := ParseUintXDB(reader, lengthPrefixByteSize*8)
+	if err != nil {
+		return nil, err
+	}
+	if validateLengthFunc != nil {
+		err = validateLengthFunc(length)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	//Read data
+	result = make([]byte, length)
+	n, err := reader.Read(result)
+	if err != nil {
+		return nil, err
+	}
+	if n != int(length) {
+		return nil, errors.New("invalid data length - wants: " + strconv.FormatUint(uint64(length), 10) + "; got: " + strconv.Itoa(n))
+	}
+	return result, nil
 }
 
 ///*

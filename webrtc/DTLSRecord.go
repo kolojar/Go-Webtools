@@ -7,6 +7,9 @@ import (
 	"webtools/database"
 )
 
+const DTLSVersion12 = 0xfefd //1.2
+const DTLSVersion10 = 0xfeff //1.0
+
 const DTLSRecordContentTypeHandshake = uint8(22)
 
 /*
@@ -31,7 +34,7 @@ func UnpackDTLSRecord(reader io.Reader) (record DTLSRecord, hasNonDTLSData bool,
 	}
 
 	//Check for DTLS
-	if record.ContentType != 20 && record.ContentType != 21 && record.ContentType != 22 && record.ContentType != 23 {
+	if record.ContentType != 20 && record.ContentType != 21 && record.ContentType != DTLSRecordContentTypeHandshake && record.ContentType != 23 {
 		return record, true, errors.New("not a DTLS packet - invalid content type: " + strconv.FormatUint(uint64(record.ContentType), 10))
 	}
 
@@ -42,7 +45,7 @@ func UnpackDTLSRecord(reader io.Reader) (record DTLSRecord, hasNonDTLSData bool,
 	}
 
 	//Check for DTLS version
-	if record.ProtocolVersion != 0xfeff && record.ProtocolVersion != 0xfefd {
+	if record.ProtocolVersion != DTLSVersion10 && record.ProtocolVersion != DTLSVersion12 {
 		return record, true, errors.New("not a DTLS packet - invalid protocol version: " + strconv.FormatUint(uint64(record.ProtocolVersion), 10))
 	}
 
