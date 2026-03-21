@@ -44,6 +44,7 @@ func (conn *ServerConn) Close() error {
 	if conn.origin.readFunc != nil {
 		conn.origin.readFunc(conn, nil, true)
 	}
+	conn.origin.OnConnectionClean.Fire(conn, true)
 	return nil
 	//udpConn.Client.Stop()
 }
@@ -57,14 +58,15 @@ type ServerReadFunc func(conn *ServerConn, data []byte, ended bool)
 Server is basic UDP server
 */
 type Server struct {
-	listener      *net.UDPConn
-	readFunc      ServerReadFunc
-	address       *net.UDPAddr
-	Logger        *webtools.ConsoleLogger
-	requestedStop bool
-	isAlive       bool
-	conns         webtools.SafeMap[string, *ServerConn]
-	udpFramer     *Framer
+	listener          *net.UDPConn
+	readFunc          ServerReadFunc
+	address           *net.UDPAddr
+	Logger            *webtools.ConsoleLogger
+	requestedStop     bool
+	isAlive           bool
+	conns             webtools.SafeMap[string, *ServerConn]
+	udpFramer         *Framer
+	OnConnectionClean webtools.Event[*ServerConn]
 }
 
 /*
@@ -92,7 +94,7 @@ func NewServer(address string, readFunc ServerReadFunc, reportTraffic bool) (*Se
 	}
 
 	//Make UDP sv
-	return &Server{address: addressObj, readFunc: readFunc, Logger: webtools.NewConsoleLoggerForTraffic("UDPServer", reportTraffic), conns: webtools.MakeSafeMap[string, *ServerConn]()}, nil
+	return &Server{address: addressObj, readFunc: readFunc, Logger: webtools.NewConsoleLoggerForTraffic("UDPServer", reportTraffic), conns: webtools.MakeSafeMap[string, *ServerConn](), OnConnectionClean: webtools.MakeEvent[*ServerConn]()}, nil
 }
 
 /*
@@ -267,6 +269,7 @@ func (udp *Server) CleanupConnections(forceAll bool) {
 		if v == nil {
 			//Remove non existing connection addresses
 			udp.conns.Delete(k)
+			udp.OnConnectionClean.Fire(v, true)
 			continue
 		}
 		if forceAll {

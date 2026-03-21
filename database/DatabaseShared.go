@@ -555,9 +555,9 @@ func ReadUint8(reader io.Reader) (uint8, error) {
 }
 
 /*
-ConvertUint24ToBytesDB converts 3 bytes (uint24) to bytes
+AppendUint24 converts 3 bytes (uint24) to bytes
 */
-func ConvertUint24ToBytesDB(writer io.Writer, data uint32) error {
+func AppendUint24(writer io.Writer, data uint32) error {
 	//Write number
 	return WriteUintX(writer, uint64(data), 24)
 }
@@ -953,7 +953,7 @@ func AppendByteArray(writer io.Writer, lengthPrefixByteSize uint8, data []byte, 
 			return err
 		}
 	}
-	if length > (uint64(lengthPrefixByteSize) * 8 * 8) {
+	if length > (1 << (uint64(lengthPrefixByteSize) * 8)) {
 		return errors.New("length too big - max: " + strconv.FormatUint(uint64(lengthPrefixByteSize)*8*8, 10) + "; got: " + strconv.FormatUint(length, 10))
 	}
 	err = WriteUintX(writer, length, lengthPrefixByteSize*8)

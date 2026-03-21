@@ -1,6 +1,7 @@
 package webrtc
 
 import (
+	"bytes"
 	"errors"
 	"io"
 	"strconv"
@@ -10,14 +11,16 @@ import (
 const DTLSVersion12 = 0xfefd //1.2
 const DTLSVersion10 = 0xfeff //1.0
 
-const DTLSRecordContentTypeHandshake = uint8(22)
+type DTLSContentType uint8
+
+const HandshakeCType DTLSContentType = 22
 
 /*
 Specification: https://datatracker.ietf.org/doc/html/rfc6347#section-4.1
 Specification: https://datatracker.ietf.org/doc/html/rfc6347#section-4.3.1
 */
 type DTLSRecord struct {
-	ContentType     uint8
+	ContentType     DTLSContentType
 	ProtocolVersion uint16
 	Epoch           uint16
 	SequenceNumber  uint64 //uint48
@@ -28,16 +31,17 @@ type DTLSRecord struct {
 func UnpackDTLSRecord(reader io.Reader) (record DTLSRecord, hasNonDTLSData bool, firstEOF bool, err error) {
 	record = DTLSRecord{}
 	//Read ContentType
-	record.ContentType, err = database.ReadUint8(reader)
+	contentType, err := database.ReadUint8(reader)
 	if err != nil {
 		if errors.Is(err, io.EOF) {
 			return record, true, true, err
 		}
 		return record, true, false, err
 	}
+	record.ContentType = DTLSContentType(contentType)
 
 	//Check for DTLS
-	if record.ContentType != 20 && record.ContentType != 21 && record.ContentType != DTLSRecordContentTypeHandshake && record.ContentType != 23 {
+	if record.ContentType != 20 && record.ContentType != 21 && record.ContentType != HandshakeCType && record.ContentType != 23 {
 		return record, true, false, errors.New("not a DTLS packet - invalid content type: " + strconv.FormatUint(uint64(record.ContentType), 10))
 	}
 
@@ -74,7 +78,7 @@ func UnpackDTLSRecord(reader io.Reader) (record DTLSRecord, hasNonDTLSData bool,
 	limitedReader := io.LimitReader(reader, int64(length))
 
 	//Read
-	if record.ContentType == DTLSRecordContentTypeHandshake {
+	if record.ContentType == HandshakeCType {
 		//Handshake
 		record.Fragment, err = UnpackDTLSHandshakeFragment(limitedReader)
 	} else {
@@ -104,4 +108,47 @@ func UnpackDTLSRecords(reader io.Reader) (records []DTLSRecord, hasNonDTLSData b
 		records = append(records, record)
 	}
 	return records, false, err
+}
+
+func (record DTLSRecord) MakeBytes() (result []byte, err error) {
+	buffer := bytes.NewBuffer(make([]byte, 0))
+
+	//Put ContentType
+	err = database.AppendUint8(buffer, uint8(record.ContentType))
+	if err != nil {
+		return nil, err
+	}
+
+	//Put ProtocolVersion
+	err = database.AppendUint16(buffer, record.ProtocolVersion)
+	if err != nil {
+		return nil, err
+	}
+
+	//Put Epoch
+	err = database.AppendUint16(buffer, record.Epoch)
+	if err != nil {
+		return nil, err
+	}
+
+	//Put SequenceNumber
+	err = database.AppendUint48(buffer, record.SequenceNumber)
+	if err != nil {
+		return nil, err
+	}
+
+	//Put Fragment
+	if record.ContentType == HandshakeCType {
+		fragment, err := record.Fragment.(DTLSHandshakeFragment).MakeBytes()
+		if err != nil {
+			return nil, err
+		}
+		err = database.AppendByteArray(buffer, 2, fragment, nil)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		panic("unknown dtls contentType: " + strconv.FormatUint(uint64(record.ContentType), 10))
+	}
+	return buffer.Bytes(), nil
 }

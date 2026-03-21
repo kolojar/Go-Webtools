@@ -439,8 +439,8 @@ func main() {
 		}
 	case "webrtc-sv":
 		{
-			_, _, _ = webrtc.GenerateDTLSCertificate("TestDTLS", time.Now(), time.Now().AddDate(10, 0, 0))
-			processor, _ := webrtc.NewDTLSServerProcessor(webrtc.DTLSVersion12, nil, 64, true)
+			cert, _ := webrtc.GenerateDTLSCertificate("TestDTLS", time.Now(), time.Now().AddDate(10, 0, 0), true)
+			processor, _ := webrtc.NewDTLSServerProcessor(webrtc.DTLSVersion12, nil, 64, 10, map[*webrtc.DTLSCertificate][]webrtc.DTLSCipherSuite{cert: {webrtc.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256}}, true)
 			stunServer, err := webrtc.NewSTUNServer("127.0.0.1:5000", func(conn *udp.ServerConn, data []byte, ended bool) {
 				//Unknown packet
 				//tlsConn, _ := processor.ProcessUDPConn(conn.GetOrigin().GetAddress(), conn, data, ended)

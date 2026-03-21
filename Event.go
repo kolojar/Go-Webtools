@@ -13,6 +13,13 @@ type Event[EventDataType any] struct {
 }
 
 /*
+MakeEvent creates new event struct
+*/
+func MakeEvent[EventDataType any]() Event[EventDataType] {
+	return Event[EventDataType]{Listeners: MakeSafeMap[string, KeyValuePair[EventListener[EventDataType], bool]]()}
+}
+
+/*
 AddListener add listener for event. Retuns listenerID
 */
 func (event *Event[EventDataType]) AddListener(listener EventListener[EventDataType], callUsingGoRoutine bool) string {
