@@ -223,7 +223,7 @@ type DTLSClientHello struct {
 	SessionID              []byte
 	Cookie                 []byte
 	CipherSuites           []DTLSCipherSuite //Specification: https://datatracker.ietf.org/doc/html/rfc5246#appendix-A.5
-	CompressionMethodsData []byte            //Specification: https://datatracker.ietf.org/doc/html/rfc5246#appendix-A.4.1
+	CompressionMethodsData []uint8           //Specification: https://datatracker.ietf.org/doc/html/rfc5246#appendix-A.4.1
 	ExtensionsData         []byte            //Specification: https://datatracker.ietf.org/doc/html/rfc5246#section-7.4.1.4
 }
 
@@ -415,4 +415,46 @@ func (serverHello DTLSServerHello) MakeBytes() (result []byte, err error) {
 		return nil, err
 	}
 	return buffer.Bytes(), nil
+}
+
+///*
+//Specification: https://datatracker.ietf.org/doc/html/rfc5246#section-7.4.3
+//*/
+//type DTLSServerDHParams struct {
+//	DiffieHellmanPrimeModulus      uint16
+//	DiffieHellmanGenerator         uint16
+//	DiffieHellmanServerPublicValue uint16
+//}
+//
+///*
+//Specification: https://datatracker.ietf.org/doc/html/rfc5246#section-7.4.3
+//*/
+//type DTLSServerKeyExchangeDigitallySignedParams struct {
+//	ClientRandom [32]byte
+//	ServerRandom [32]byte
+//	Params       DTLSServerDHParams
+//	AreUsed      bool
+//}
+//
+///*
+//Specification: https://datatracker.ietf.org/doc/html/rfc5246#section-7.4.3
+//Type: 12
+//*/
+//type DTLSServerKeyExchange struct {
+//	Params       DTLSServerDHParams
+//	SignedParams DTLSServerKeyExchangeDigitallySignedParams
+//}
+
+/*
+Specification: https://datatracker.ietf.org/doc/html/rfc5246#section-7.4.1.4.1
+Specification: https://datatracker.ietf.org/doc/html/rfc4492#section-5.4
+Type: 12
+*/
+type DTLSServerKeyExchange struct {
+	CurveType     uint8
+	CurveName     uint16
+	PublicKey     []byte
+	HashAlgorythm uint8
+	SignAlgorythm uint8
+	Signature     []byte
 }
