@@ -14,15 +14,10 @@ type DTLSHandshakeType uint8
 
 const ClientHelloHType DTLSHandshakeType = 1
 const HelloVerifyRequestHType DTLSHandshakeType = 3
-
-// Supported Algorythms
-type DTLSCipherSuite uint16
-
-const TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384 DTLSCipherSuite = 0xC02C
-const TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256 DTLSCipherSuite = 0xC02B
-const TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256 DTLSCipherSuite = 0xC02F
-
-//const TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256 DTLSCipherSuite = 0xCCA9
+const ServerHelloHType DTLSHandshakeType = 2
+const CertificateHType DTLSHandshakeType = 11
+const ServerKeyExchangeHType DTLSHandshakeType = 12
+const ServerHelloDoneHType DTLSHandshakeType = 14
 
 type DTLSHandshakeFragmentProcessor struct {
 	fragments []DTLSHandshakeFragment
@@ -179,6 +174,14 @@ type DTLSHandshake struct {
 	Body            any
 }
 
+func MakeDTLSHandshake(HandshakeType DTLSHandshakeType, Body any) DTLSHandshake {
+	return DTLSHandshake{
+		HandshakeType:   HandshakeType,
+		MessageSequence: 0, //Set in runtime
+		Body:            Body,
+	}
+}
+
 func (handshake *DTLSHandshake) MakeBodyBytes(MessageSequence uint16) (result []byte, err error) {
 	//buffer := bytes.NewBuffer(make([]byte, 0))
 
@@ -202,6 +205,27 @@ func (handshake *DTLSHandshake) MakeBodyBytes(MessageSequence uint16) (result []
 		if err != nil {
 			return nil, err
 		}
+	} else if handshake.HandshakeType == ServerHelloHType {
+		bodyBytes, err = handshake.Body.(DTLSServerHello).MakeBytes()
+		if err != nil {
+			return nil, err
+		}
+	} else if handshake.HandshakeType == ServerKeyExchangeHType {
+		//FIX TO GLOBAL, NOT ONLY ECDHE
+		bodyBytes, err = handshake.Body.(DTLSServerKeyExchangeECDHE).MakeBytes()
+		if err != nil {
+			return nil, err
+		}
+	} else if handshake.HandshakeType == CertificateHType {
+		bodyBytes, err = handshake.Body.(DTLSCertificateData).MakeBytes()
+		if err != nil {
+			return nil, err
+		}
+	} else if handshake.HandshakeType == ServerHelloDoneHType {
+		//Do nothing
+		bodyBytes = nil
+	} else {
+		panic("unknown handshake type: " + strconv.FormatUint(uint64(handshake.HandshakeType), 10))
 	}
 
 	//Put Body
@@ -210,6 +234,45 @@ func (handshake *DTLSHandshake) MakeBodyBytes(MessageSequence uint16) (result []
 	//	return nil, err
 	//}
 	return bodyBytes, nil
+}
+
+/*
+Specification: https://datatracker.ietf.org/doc/html/rfc5246#section-7.4.1.4
+*/
+type DTLSHelloExtension struct {
+	ExtensionType uint16
+	ExtensionData []byte
+}
+
+func UnpackDTLSHelloExtension(reader io.Reader) (extension DTLSHelloExtension, err error) {
+	extension = DTLSHelloExtension{}
+
+	//Read ExtensionType
+	extension.ExtensionType, err = database.ReadUint16(reader)
+	if err != nil {
+		return extension, err
+	}
+
+	//Read ExtensionData
+	extension.ExtensionData, err = database.ReadByteArray(reader, 2, nil)
+	return extension, err
+}
+
+func (extension DTLSHelloExtension) MakeBytes() (result []byte, err error) {
+	buffer := bytes.NewBuffer(make([]byte, 0))
+
+	//Put ExtensionType
+	err = database.AppendUint16(buffer, extension.ExtensionType)
+	if err != nil {
+		return nil, err
+	}
+
+	//Put ExtensionData
+	err = database.AppendByteArray(buffer, 2, extension.ExtensionData, nil)
+	if err != nil {
+		return nil, err
+	}
+	return buffer.Bytes(), nil
 }
 
 /*
@@ -224,7 +287,7 @@ type DTLSClientHello struct {
 	Cookie                 []byte
 	CipherSuites           []DTLSCipherSuite //Specification: https://datatracker.ietf.org/doc/html/rfc5246#appendix-A.5
 	CompressionMethodsData []uint8           //Specification: https://datatracker.ietf.org/doc/html/rfc5246#appendix-A.4.1
-	ExtensionsData         []byte            //Specification: https://datatracker.ietf.org/doc/html/rfc5246#section-7.4.1.4
+	Extensions             []DTLSHelloExtension
 }
 
 func UnpackDTLSClientHello(reader io.Reader) (clientHello DTLSClientHello, err error) {
@@ -293,10 +356,20 @@ func UnpackDTLSClientHello(reader io.Reader) (clientHello DTLSClientHello, err e
 		return clientHello, err
 	}
 
-	//Read Extensions
-	clientHello.ExtensionsData, err = database.ReadByteArray(reader, 2, nil)
+	//Read ExtensionData
+	extensionData, err := database.ReadByteArray(reader, 2, nil)
 	if err != nil {
 		return clientHello, err
+	}
+	extensionDataBytes := bytes.NewReader(extensionData)
+
+	//Read Extensions
+	for extensionDataBytes.Len() > 0 {
+		extension, err := UnpackDTLSHelloExtension(extensionDataBytes)
+		if err != nil {
+			return clientHello, err
+		}
+		clientHello.Extensions = append(clientHello.Extensions, extension)
 	}
 	return clientHello, nil
 }
@@ -336,9 +409,13 @@ type DTLSCertificateData struct {
 	Certificates [][]byte
 }
 
-func MakeDTLSCertificate(certificates ...[]byte) DTLSCertificateData {
+func MakeDTLSCertificateData(certificates ...*DTLSCertificate) DTLSCertificateData {
+	certificatesData := make([][]byte, 0)
+	for _, v := range certificates {
+		certificatesData = append(certificatesData, v.certificateData)
+	}
 	return DTLSCertificateData{
-		Certificates: certificates,
+		Certificates: certificatesData,
 	}
 }
 
@@ -380,6 +457,7 @@ type DTLSServerHello struct {
 	SessionID         []byte
 	CipherSuite       DTLSCipherSuite
 	CompressionMethod uint8
+	Extensions        []DTLSHelloExtension
 }
 
 func (serverHello DTLSServerHello) MakeBytes() (result []byte, err error) {
@@ -414,6 +492,22 @@ func (serverHello DTLSServerHello) MakeBytes() (result []byte, err error) {
 	if err != nil {
 		return nil, err
 	}
+
+	//Make Extensions
+	extensionBuffer := make([]byte, 0)
+	for _, v := range serverHello.Extensions {
+		extensionBytes, err := v.MakeBytes()
+		if err != nil {
+			return nil, err
+		}
+		extensionBuffer = append(extensionBuffer, extensionBytes...)
+	}
+
+	//Put Extensions
+	err = database.AppendByteArray(buffer, 2, extensionBuffer, nil)
+	if err != nil {
+		return nil, err
+	}
 	return buffer.Bytes(), nil
 }
 
@@ -444,17 +538,3 @@ func (serverHello DTLSServerHello) MakeBytes() (result []byte, err error) {
 //	Params       DTLSServerDHParams
 //	SignedParams DTLSServerKeyExchangeDigitallySignedParams
 //}
-
-/*
-Specification: https://datatracker.ietf.org/doc/html/rfc5246#section-7.4.1.4.1
-Specification: https://datatracker.ietf.org/doc/html/rfc4492#section-5.4
-Type: 12
-*/
-type DTLSServerKeyExchange struct {
-	CurveType     uint8
-	CurveName     uint16
-	PublicKey     []byte
-	HashAlgorythm uint8
-	SignAlgorythm uint8
-	Signature     []byte
-}

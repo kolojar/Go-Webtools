@@ -2,6 +2,7 @@ package webrtc
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"strconv"
 	"time"
@@ -194,13 +195,15 @@ func (processor *DTLSProcessor) ProcessWrite() ([][]byte, error) {
 			handshakeBytesReader := bytes.NewReader(handshakeBytes)
 			fragmentOffset := uint32(0)
 			fragmentNumber := 0
-			for handshakeBytesReader.Len() > 0 {
+			for {
 				//Read fragment part
 				fragment := make([]byte, 1000)
 				n, err := handshakeBytesReader.Read(fragment)
 				if err != nil {
-					processor.Logger.Log(3, "Error fragmenting DTLSHandshake bytes: "+err.Error())
-					return nil, err
+					if !errors.Is(err, io.EOF) {
+						processor.Logger.Log(3, "Error fragmenting DTLSHandshake bytes: "+err.Error())
+						return nil, err
+					}
 				}
 
 				//Make fragment record
@@ -216,6 +219,10 @@ func (processor *DTLSProcessor) ProcessWrite() ([][]byte, error) {
 				fragmentedRecords = append(fragmentedRecords, recordFragment)
 				fragmentNumber++
 				processor.Logger.Log(0, "Fragmented DTLSHandshake: Length="+strconv.Itoa(len(handshakeBytes))+"; MessageSequence="+strconv.FormatUint(uint64(processor.handshakeMessageSequence), 10)+"; FragmentOffset="+strconv.FormatUint(uint64(fragmentOffset), 10)+"; FragmentLength="+strconv.Itoa(n))
+
+				if handshakeBytesReader.Len() == 0 {
+					break
+				}
 			}
 			processor.handshakeMessageSequence++
 		} else {

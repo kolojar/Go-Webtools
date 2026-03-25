@@ -28,6 +28,16 @@ type DTLSRecord struct {
 	Fragment any //DTLSHandshake
 }
 
+func MakeDTLSRecord(ContentType DTLSContentType, ProtocolVersion uint16, Epoch uint16, Fragment any) DTLSRecord {
+	return DTLSRecord{
+		ContentType:     ContentType,
+		ProtocolVersion: ProtocolVersion,
+		Epoch:           Epoch,
+		Fragment:        Fragment,
+		SequenceNumber:  0, //Set in runtime
+	}
+}
+
 func UnpackDTLSRecord(reader io.Reader) (record DTLSRecord, hasNonDTLSData bool, firstEOF bool, err error) {
 	record = DTLSRecord{}
 	//Read ContentType
