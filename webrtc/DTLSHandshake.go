@@ -2,7 +2,6 @@ package webrtc
 
 import (
 	"bytes"
-	"encoding/hex"
 	"errors"
 	"io"
 	"strconv"
@@ -10,6 +9,9 @@ import (
 	"webtools/database"
 )
 
+/*
+Specification: https://datatracker.ietf.org/doc/html/rfc5246#section-7.4
+*/
 type DTLSHandshakeType uint8
 
 const ClientHelloHType DTLSHandshakeType = 1
@@ -18,6 +20,7 @@ const ServerHelloHType DTLSHandshakeType = 2
 const CertificateHType DTLSHandshakeType = 11
 const ServerKeyExchangeHType DTLSHandshakeType = 12
 const ServerHelloDoneHType DTLSHandshakeType = 14
+const ClientKeyExchangeHType DTLSHandshakeType = 16
 
 type DTLSHandshakeFragmentProcessor struct {
 	fragments []DTLSHandshakeFragment
@@ -109,15 +112,6 @@ func UnpackDTLSHandshakeFragment(reader io.Reader) (handshake DTLSHandshakeFragm
 		return handshake, err
 	}
 	handshake.FragmentLength = uint32(len(handshake.FragmentData))
-
-	//Check for remaining data
-	afterData, err := io.ReadAll(reader)
-	if err != nil {
-		return handshake, err
-	}
-	if len(afterData) != 0 {
-		return handshake, errors.New("data after fragment: " + hex.EncodeToString(afterData))
-	}
 	return handshake, nil
 }
 
@@ -538,3 +532,19 @@ func (serverHello DTLSServerHello) MakeBytes() (result []byte, err error) {
 //	Params       DTLSServerDHParams
 //	SignedParams DTLSServerKeyExchangeDigitallySignedParams
 //}
+
+/*
+https://datatracker.ietf.org/doc/html/rfc5246#appendix-A.2
+Type: 20
+*/
+type DTLSChangeCipherSpecification struct {
+	Type uint8
+}
+
+func UnpackDTLSChangeCipherSpecFragment(reader io.Reader) (cipherSpecification DTLSChangeCipherSpecification, err error) {
+	cipherSpecification = DTLSChangeCipherSpecification{}
+
+	//Read Type
+	cipherSpecification.Type, err = database.ReadUint8(reader)
+	return cipherSpecification, err
+}

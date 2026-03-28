@@ -2,6 +2,7 @@ package webrtc
 
 import (
 	"bytes"
+	"encoding/hex"
 	"errors"
 	"io"
 	"strconv"
@@ -11,8 +12,12 @@ import (
 const DTLSVersion12 = 0xfefd //1.2
 const DTLSVersion10 = 0xfeff //1.0
 
+/*
+Specification: https://datatracker.ietf.org/doc/html/rfc5246#section-A.1
+*/
 type DTLSContentType uint8
 
+const ChangeCipherCType DTLSContentType = 20
 const HandshakeCType DTLSContentType = 22
 
 /*
@@ -88,11 +93,24 @@ func UnpackDTLSRecord(reader io.Reader) (record DTLSRecord, hasNonDTLSData bool,
 	limitedReader := io.LimitReader(reader, int64(length))
 
 	//Read
-	if record.ContentType == HandshakeCType {
+	switch record.ContentType {
+	case HandshakeCType:
 		//Handshake
 		record.Fragment, err = UnpackDTLSHandshakeFragment(limitedReader)
-	} else {
+	case ChangeCipherCType:
+		//Change Cipher
+		record.Fragment, err = UnpackDTLSChangeCipherSpecFragment(limitedReader)
+	default:
 		panic("content type: " + strconv.Itoa(int(record.ContentType)) + " not implemented")
+	}
+
+	//Check for remaining data
+	afterData, err := io.ReadAll(limitedReader)
+	if err != nil {
+		return record, false, false, err
+	}
+	if len(afterData) != 0 {
+		return record, false, false, errors.New("data after fragment: " + hex.EncodeToString(afterData))
 	}
 	return record, false, false, err
 }

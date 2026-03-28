@@ -21,6 +21,7 @@ type DTLSServerConn struct {
 	serverRandom        [32]byte
 	cipherSuite         DTLSCipherSuite
 	conn                *udp.ServerConn
+	//clientPublicKey     *ecdh.PublicKey
 }
 
 type DTLSServerProcessor struct {
@@ -142,10 +143,11 @@ func (processor *DTLSServerProcessor) ProcessServer(records []DTLSRecord, conn *
 
 				//Find compatible CipherSuite
 				dtlsConnection.cipherSuite = 0
-				for _, v := range clientHello.CipherSuites {
-					_, _, _, _, err = v.GetSuiteConfig()
+				for i := len(clientHello.CipherSuites) - 1; i > 0; i-- {
+					v := clientHello.CipherSuites[i]
+					_, _, _, _, _, err = v.GetSuiteConfig()
 					if err != nil {
-						dtlsConnection.processor.Logger.Log(2, "Cipher suite error: "+err.Error())
+						dtlsConnection.processor.Logger.Log(2, "Unknown cipher suite: "+strconv.FormatUint(uint64(v), 10))
 					} else {
 						dtlsConnection.cipherSuite = v
 						break
@@ -208,7 +210,15 @@ func (processor *DTLSServerProcessor) ProcessServer(records []DTLSRecord, conn *
 				dtlsConnection.processor.Logger.Log(1, "Sending ServerHelloDone")
 				dtlsConnection.processor.AddWriteRecord(MakeDTLSRecord(HandshakeCType, processor.version, record.Epoch,
 					MakeDTLSHandshake(ServerHelloDoneHType, nil)))
-
+			} else if handshake.HandshakeType == ClientKeyExchangeHType {
+				//Client Key Exchange
+				dtlsConnection.processor.Logger.Log(1, "Got ClientKeyExchange")
+				keyExchange := handshake.Body.(DTLSClientKeyExchangeECDHE)
+				dtlsConnection.clientPublicKey, err = keyExchange.GetPublicKey()
+				if err != nil {
+					dtlsConnection.processor.Logger.Log(3, "Error parsing ClientKeyExchange: "+err.Error())
+					continue
+				}
 			} else {
 				panic("unknown DTLS handshake type: " + strconv.FormatUint(uint64(handshake.HandshakeType), 10))
 			}

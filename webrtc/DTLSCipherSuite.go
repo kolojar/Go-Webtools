@@ -12,6 +12,7 @@ import (
 	"crypto/x509/pkix"
 	"errors"
 	"fmt"
+	"io"
 	"math/big"
 	"strconv"
 	"strings"
@@ -51,6 +52,10 @@ func (curveName DTLSEECCurveName) GetEECCurve() ecdh.Curve {
 
 const ECC_CURVE_NAME_SECP256r1 DTLSEECCurveName = 23
 
+type DTLSEncryptionAlgorithm uint8
+
+const AES_128_GCM DTLSEncryptionAlgorithm = 1
+
 // Supported Hash Algorithms - Specification: https://datatracker.ietf.org/doc/html/rfc5246#section-7.4.1.4.1
 type DTLSHashAlgorithm uint8
 
@@ -75,12 +80,12 @@ type DTLSCipherSuite uint16
 
 const TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256 DTLSCipherSuite = 0xC02B
 
-func (suite DTLSCipherSuite) GetSuiteConfig() (DTLSKeyExchangeMethod, DTLSKeyAuthenticationMethod, DTLSEECCurveName, DTLSHashAlgorithm, error) {
+func (suite DTLSCipherSuite) GetSuiteConfig() (DTLSKeyExchangeMethod, DTLSKeyAuthenticationMethod, DTLSEECCurveName, DTLSEncryptionAlgorithm, DTLSHashAlgorithm, error) {
 	switch suite {
 	case TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256:
-		return ECDHE_EXCHANGE_METHOD, ECDSA_AUTHENTICATION_METHOD, ECC_CURVE_NAME_SECP256r1, SHA256HashAlgorithm, nil
+		return ECDHE_EXCHANGE_METHOD, ECDSA_AUTHENTICATION_METHOD, ECC_CURVE_NAME_SECP256r1, AES_128_GCM, SHA256HashAlgorithm, nil
 	default:
-		return 0, 0, 0, 0, errors.New("invalid cipherSuite: " + strconv.FormatUint(uint64(suite), 10))
+		return 0, 0, 0, 0, 0, errors.New("invalid cipherSuite: " + strconv.FormatUint(uint64(suite), 10))
 	}
 }
 
@@ -99,7 +104,7 @@ Returns fingerprint, certificate, certificateData, error
 func (cipher DTLSCipherSuite) GenerateDTLSCertificate(commonName string, notBefore time.Time, notAfter time.Time) (certificate *DTLSCertificate, err error) {
 	//Get info
 	var privateKey crypto.Signer
-	_, authenticationMethod, _, hashAlgorithm, err := cipher.GetSuiteConfig()
+	_, authenticationMethod, _, _, hashAlgorithm, err := cipher.GetSuiteConfig()
 	if err != nil {
 		return nil, err
 	}
@@ -204,7 +209,7 @@ type DTLSServerKeyExchangeECDHE struct {
 
 func (keyExchange *DTLSServerKeyExchangeECDHE) SetFromCipherSuite(suite DTLSCipherSuite) (err error) {
 	keyExchange.CurveType = ECC_NAMED_CURVE
-	_, _, keyExchange.CurveName, keyExchange.HashAlgorithm, err = suite.GetSuiteConfig()
+	_, _, keyExchange.CurveName, _, keyExchange.HashAlgorithm, err = suite.GetSuiteConfig()
 	return err
 }
 
@@ -289,7 +294,7 @@ func (keyExchange DTLSServerKeyExchangeECDHE) MakeBytes() (result []byte, err er
 }
 
 func (cipher DTLSCipherSuite) GenerateDTLSKeyExchange(conn *DTLSServerConn, serverCertificate *DTLSCertificate) (keyExchange any, err error) {
-	exchangeMethod, _, _, _, err := cipher.GetSuiteConfig()
+	exchangeMethod, _, _, _, _, err := cipher.GetSuiteConfig()
 	if exchangeMethod == ECDHE_EXCHANGE_METHOD {
 		//Make ECDHE
 		keyExchange := DTLSServerKeyExchangeECDHE{}
@@ -308,5 +313,60 @@ func (cipher DTLSCipherSuite) GenerateDTLSKeyExchange(conn *DTLSServerConn, serv
 		return keyExchange, nil
 	} else {
 		panic("unknown method: " + strconv.FormatUint(uint64(exchangeMethod), 10))
+	}
+}
+
+/*
+https://datatracker.ietf.org/doc/html/rfc5246#section-7.4.7
+https://datatracker.ietf.org/doc/html/rfc4492#section-5.7
+Handshake type: 16
+*/
+type DTLSClientKeyExchangeECDHE struct {
+	PublicKeyBytes []byte
+}
+
+func UnpackDTLSClientKeyExchangeECDHE(reader io.Reader) (result DTLSClientKeyExchangeECDHE, err error) {
+	result = DTLSClientKeyExchangeECDHE{}
+
+	//Read PublicKey
+	result.PublicKeyBytes, err = database.ReadByteArray(reader, 1, nil)
+	return result, err
+}
+
+func (keyExchange DTLSClientKeyExchangeECDHE) GetPublicKey(curveName DTLSEECCurveName) (*ecdh.PublicKey, error) {
+	return curveName.GetEECCurve().NewPublicKey(keyExchange.PublicKeyBytes)
+}
+
+func (keyExchange DTLSClientKeyExchangeECDHE) GenerateMasterSecret(dtlsConn *DTLSServerConn) (err error) {
+	//Get info
+	_, _, eecCurveName, _, _, err := dtlsConn.cipherSuite.GetSuiteConfig()
+	if err != nil {
+		return err
+	}
+
+	//Get PublicKey
+	publicKey, err := keyExchange.GetPublicKey(eecCurveName)
+	if err != nil {
+		return err
+	}
+
+	//Make PreMaster Secret
+	preMasterSecret, err := dtlsConn.ephemeralPrivateKey.ECDH(publicKey)
+	if err != nil {
+		return err
+	}
+
+	
+}
+
+func (cipher DTLSCipherSuite) UnpackDTLSClientKeyExchange(reader io.Reader) (result any, err error) {
+	exchangeMethod, _, _, _, _, err := cipher.GetSuiteConfig()
+	if err != nil {
+		return nil, err
+	}
+	if exchangeMethod == ECDHE_EXCHANGE_METHOD {
+		return UnpackDTLSClientKeyExchangeECDHE(reader)
+	} else {
+		panic("unimplemented unpack exchangeMethod: " + strconv.FormatUint(uint64(exchangeMethod), 10))
 	}
 }
