@@ -252,6 +252,9 @@ func HandleWebSocketFrameRead(cl *tcp.ClientUniversal, limit int, logger *webtoo
 		//Sort opcodes
 		if opcode == 8 {
 			//Close / disconnected
+			if readFunc != nil {
+				readFunc(nil, map[string]any{"disconected": true})
+			}
 			return true, nil
 		}
 
@@ -391,7 +394,7 @@ func WriteToWebSocketFrameHandler(cl *tcp.ClientUniversal, data []byte, otherDat
 }
 
 func (sv *WebSocketServer) readFuncLocal(cl *tcp.ClientUniversal, data []byte, status webtools.NetworkStatus, otherData map[string]any) {
-	if status != webtools.ReadDataStatus && status != webtools.DisconnectStatus && status != webtools.ConnectStatus {
+	if status != webtools.ReadDataStatus && status != webtools.ConnectStatus {
 		//Non data requests
 		return
 	}
@@ -400,6 +403,10 @@ func (sv *WebSocketServer) readFuncLocal(cl *tcp.ClientUniversal, data []byte, s
 	var httpConn *WebSocketServerConn = sv.conns.Get(cl)
 	if httpConn == nil {
 		sv.httpServer.Logger.Log(3, "Connection for client connected from: "+cl.GetConn().RemoteAddr().String()+" connected locally to: "+cl.GetConn().LocalAddr().String()+" not found!")
+		return
+	}
+	if status == webtools.DisconnectStatus || otherData["disconected"] == true {
+		sv.conns.Delete(cl)
 		return
 	}
 

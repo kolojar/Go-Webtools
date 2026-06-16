@@ -296,7 +296,7 @@ func TryHandleHTTPFile(w http.ResponseWriter, filePath string, urlPath string, s
 
 	//Send data
 	cType := SortHTTPContentType(filePath, data)
-	fmt.Println(filePath, cType)
+	//fmt.Println(filePath, cType)
 	w.Header().Add("Content-Type", cType)
 	fmt.Fprint(w, string(data))
 	return nil
