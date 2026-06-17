@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -394,7 +395,10 @@ func WriteToWebSocketFrameHandler(cl *tcp.ClientUniversal, data []byte, otherDat
 }
 
 func (sv *WebSocketServer) readFuncLocal(cl *tcp.ClientUniversal, data []byte, status webtools.NetworkStatus, otherData map[string]any) {
-	if status != webtools.ReadDataStatus && status != webtools.ConnectStatus {
+	if otherData["disconected"] == true {
+		status = webtools.DisconnectStatus
+	}
+	if status != webtools.ReadDataStatus && status != webtools.ConnectStatus && status != webtools.DisconnectStatus {
 		//Non data requests
 		return
 	}
@@ -402,20 +406,23 @@ func (sv *WebSocketServer) readFuncLocal(cl *tcp.ClientUniversal, data []byte, s
 	//Get connection
 	var httpConn *WebSocketServerConn = sv.conns.Get(cl)
 	if httpConn == nil {
-		sv.httpServer.Logger.Log(3, "Connection for client connected from: "+cl.GetConn().RemoteAddr().String()+" connected locally to: "+cl.GetConn().LocalAddr().String()+" not found!")
-		return
-	}
-	if status == webtools.DisconnectStatus || otherData["disconected"] == true {
-		sv.conns.Delete(cl)
+		if status != webtools.DisconnectStatus {
+			sv.httpServer.Logger.Log(3, "Connection for client connected from: "+cl.GetConn().RemoteAddr().String()+" connected locally to: "+cl.GetConn().LocalAddr().String()+" not found!")
+		}
 		return
 	}
 
 	//Get read
 	readFunc := sv.websocketURLsAndReadFuncs.Get(httpConn.sourceURL)
 	if status == webtools.ConnectStatus || status == webtools.DisconnectStatus {
+		if status == webtools.DisconnectStatus {
+			fmt.Println("Disconecting: " + cl.GetAddress().String())
+			cl.Stop()
+			httpConn.Close()
+			sv.conns.Delete(cl)
+		}
 		if readFunc != nil {
 			readFunc(httpConn, data, status, httpConn.IsBinary)
-			return
 		}
 	}
 

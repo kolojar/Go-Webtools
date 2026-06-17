@@ -2,6 +2,7 @@ package tcp
 
 import (
 	"encoding/hex"
+	"errors"
 	"net"
 	"strconv"
 	"time"
@@ -279,7 +280,7 @@ func (cl *ClientUniversal) Stop() {
 	// Close
 	cl.Logger.Log(1, "Requested disconnect from: "+cl.address.String())
 	err := cl.conn.Close()
-	if err != nil {
+	if err != nil && !errors.Is(err, net.ErrClosed) {
 		cl.Logger.Log(3, "Error disconnecting from: "+cl.address.String()+" | Error: "+err.Error())
 	}
 }
