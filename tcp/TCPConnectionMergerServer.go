@@ -3,7 +3,8 @@ package tcp
 import (
 	"encoding/json"
 	"strconv"
-	"webtools"
+
+	webtools "github.com/kolojar/Go-Webtools"
 )
 
 /*

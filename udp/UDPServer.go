@@ -6,7 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"webtools"
+
+	webtools "github.com/kolojar/Go-Webtools"
 )
 
 // Cleanup timeout in seconds

@@ -8,7 +8,8 @@ import (
 	"strconv"
 	"sync"
 	"time"
-	"webtools"
+
+	webtools "github.com/kolojar/Go-Webtools"
 )
 
 const framerKeepAliveTimerInSeconds = 15

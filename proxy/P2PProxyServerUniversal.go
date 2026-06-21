@@ -7,10 +7,11 @@ import (
 	"net"
 	"strings"
 	"time"
-	"webtools"
-	"webtools/p2p"
-	"webtools/tcp"
-	"webtools/udp"
+
+	webtools "github.com/kolojar/Go-Webtools"
+	"github.com/kolojar/Go-Webtools/p2p"
+	"github.com/kolojar/Go-Webtools/tcp"
+	"github.com/kolojar/Go-Webtools/udp"
 )
 
 /*

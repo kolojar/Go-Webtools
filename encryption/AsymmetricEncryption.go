@@ -16,7 +16,7 @@ import (
 	"os"
 	"time"
 
-	"webtools"
+	webtools "github.com/kolojar/Go-Webtools"
 )
 
 // timeoutLimitOfSignatureInMinutes tells how long will the signature be valid

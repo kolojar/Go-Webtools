@@ -9,9 +9,10 @@ import (
 	"slices"
 	"strconv"
 	"time"
-	"webtools"
-	"webtools/tcp"
-	"webtools/udp"
+
+	webtools "github.com/kolojar/Go-Webtools"
+	"github.com/kolojar/Go-Webtools/tcp"
+	"github.com/kolojar/Go-Webtools/udp"
 )
 
 // Retry count for punching

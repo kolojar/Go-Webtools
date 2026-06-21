@@ -9,7 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"webtools"
+
+	webtools "github.com/kolojar/Go-Webtools"
 )
 
 /*

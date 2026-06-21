@@ -7,7 +7,8 @@ import (
 	"math/rand/v2"
 	"net"
 	"time"
-	"webtools"
+
+	webtools "github.com/kolojar/Go-Webtools"
 )
 
 /*

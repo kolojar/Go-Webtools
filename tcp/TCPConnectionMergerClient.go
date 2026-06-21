@@ -5,7 +5,8 @@ import (
 	"net"
 	"slices"
 	"strconv"
-	"webtools"
+
+	webtools "github.com/kolojar/Go-Webtools"
 )
 
 /*

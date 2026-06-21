@@ -4,7 +4,8 @@ import (
 	"io"
 	"os"
 	"reflect"
-	"webtools"
+
+	webtools "github.com/kolojar/Go-Webtools"
 )
 
 /*

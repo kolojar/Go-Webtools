@@ -10,7 +10,7 @@ import (
 	"io"
 	"net"
 
-	"webtools"
+	webtools "github.com/kolojar/Go-Webtools"
 )
 
 /*

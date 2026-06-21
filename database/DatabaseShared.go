@@ -11,8 +11,9 @@ import (
 	"io"
 	"os"
 	"time"
-	"webtools"
-	"webtools/encryption"
+
+	webtools "github.com/kolojar/Go-Webtools"
+	"github.com/kolojar/Go-Webtools/encryption"
 )
 
 /*

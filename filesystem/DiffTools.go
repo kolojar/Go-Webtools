@@ -3,7 +3,8 @@ package filesystem
 import (
 	"fmt"
 	"slices"
-	"webtools"
+
+	webtools "github.com/kolojar/Go-Webtools"
 )
 
 //func ChangesInSequence(old []byte, new []byte) []webtools.KeyValuePair[int, FileSystemEventType] {

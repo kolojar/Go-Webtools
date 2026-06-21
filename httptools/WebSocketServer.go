@@ -11,8 +11,9 @@ import (
 	"net/http"
 	"slices"
 	"strings"
-	"webtools"
-	"webtools/tcp"
+
+	webtools "github.com/kolojar/Go-Webtools"
+	"github.com/kolojar/Go-Webtools/tcp"
 )
 
 const webSocketGUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"

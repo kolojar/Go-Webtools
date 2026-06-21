@@ -12,14 +12,15 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"webtools"
-	"webtools/database"
-	"webtools/filesystem"
-	"webtools/httptools"
-	"webtools/p2p"
-	"webtools/proxy"
-	"webtools/tcp"
-	"webtools/udp"
+
+	webtools "github.com/kolojar/Go-Webtools"
+	"github.com/kolojar/Go-Webtools/database"
+	"github.com/kolojar/Go-Webtools/filesystem"
+	"github.com/kolojar/Go-Webtools/httptools"
+	"github.com/kolojar/Go-Webtools/p2p"
+	"github.com/kolojar/Go-Webtools/proxy"
+	"github.com/kolojar/Go-Webtools/tcp"
+	"github.com/kolojar/Go-Webtools/udp"
 )
 
 func main() {

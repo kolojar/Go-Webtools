@@ -3,7 +3,8 @@ package filesystem
 import (
 	"strconv"
 	"time"
-	"webtools"
+
+	webtools "github.com/kolojar/Go-Webtools"
 )
 
 const MOVE_REQUEST_TIMEOUT = 1 //In seconds

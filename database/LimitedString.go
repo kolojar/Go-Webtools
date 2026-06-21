@@ -6,7 +6,7 @@ import (
 	"io"
 	"strconv"
 	"strings"
-	"webtools"
+	"github.com/kolojar/Go-Webtools"
 )
 
 /*

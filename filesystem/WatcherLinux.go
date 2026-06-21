@@ -9,7 +9,7 @@ import (
 	"syscall"
 	"time"
 	"unsafe"
-	"webtools"
+	"github.com/kolojar/Go-Webtools"
 )
 
 type fileSystemWatcherInstance struct {

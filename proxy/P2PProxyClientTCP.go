@@ -2,9 +2,10 @@ package proxy
 
 import (
 	"bytes"
-	"webtools"
-	"webtools/p2p"
-	"webtools/tcp"
+
+	webtools "github.com/kolojar/Go-Webtools"
+	"github.com/kolojar/Go-Webtools/p2p"
+	"github.com/kolojar/Go-Webtools/tcp"
 )
 
 /*

@@ -7,8 +7,7 @@ import (
 	"os"
 	"reflect"
 	"strings"
-
-	"webtools"
+	"github.com/kolojar/Go-Webtools"
 )
 
 /*

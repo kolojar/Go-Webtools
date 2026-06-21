@@ -2,7 +2,8 @@ package udp
 
 import (
 	"net"
-	"webtools"
+
+	webtools "github.com/kolojar/Go-Webtools"
 )
 
 /*

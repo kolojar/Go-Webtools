@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"time"
 
-	"webtools"
+	webtools "github.com/kolojar/Go-Webtools"
 )
 
 /*

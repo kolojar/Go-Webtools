@@ -4,8 +4,9 @@ import (
 	"encoding/base64"
 	"strings"
 	"time"
-	"webtools"
-	tcptools "webtools/tcp"
+
+	webtools "github.com/kolojar/Go-Webtools"
+	"github.com/kolojar/Go-Webtools/tcp"
 )
 
 /*
@@ -70,7 +71,7 @@ type WebSocketClientReadFunc func(client *WebSocketClient, data []byte, status w
 WebSocketClient is WebSocket client struct
 */
 type WebSocketClient struct {
-	tcpClient      *tcptools.ClientUniversal
+	tcpClient      *tcp.ClientUniversal
 	Logger         *webtools.ConsoleLogger
 	readFunc       WebSocketClientReadFunc
 	awaitingReady  bool
@@ -97,18 +98,18 @@ func NewWebSocketClient(address string, readFunc WebSocketClientReadFunc, report
 	var err error
 	var tcpAddress string
 	tcpAddress, cl.pathForHTTP = WebSocketGetAddressAndTarget(address)
-	cl.tcpClient, err = tcptools.NewTCPClientUniversal(tcpAddress, reportTraffic)
+	cl.tcpClient, err = tcp.NewTCPClientUniversal(tcpAddress, reportTraffic)
 	cl.tcpClient.Logger = cl.Logger
 	cl.tcpClient.HandlerFuncs = append(cl.tcpClient.HandlerFuncs,
-		tcptools.ClientUniversalHanderFuncs{
+		tcp.ClientUniversalHanderFuncs{
 			UseCount:               1,
-			ReadHandler:            tcptools.HandleTCPRead,
+			ReadHandler:            tcp.HandleTCPRead,
 			ReadFunc:               cl.readFuncLocalRaw,
-			WriteHandler:           tcptools.WriteToTCPHandler,
+			WriteHandler:           tcp.WriteToTCPHandler,
 			CanOneWriteAfterSwitch: false,
 		})
 	cl.tcpClient.HandlerFuncs = append(cl.tcpClient.HandlerFuncs,
-		tcptools.ClientUniversalHanderFuncs{
+		tcp.ClientUniversalHanderFuncs{
 			UseCount:               -1,
 			ReadHandler:            HandleWebSocketFrameRead,
 			ReadFunc:               cl.readFuncLocalWS,
@@ -175,7 +176,7 @@ func (cl *WebSocketClient) Send(data []byte, opcode uint8) {
 /*
 Local readFunc for local TCP client
 */
-func (cl *WebSocketClient) readFuncLocalRaw(_ *tcptools.ClientUniversal, data []byte, status webtools.NetworkStatus, _ map[string]any) {
+func (cl *WebSocketClient) readFuncLocalRaw(_ *tcp.ClientUniversal, data []byte, status webtools.NetworkStatus, _ map[string]any) {
 	if status == webtools.ReadDataStatus && cl.awaitingReady {
 		//First request
 		if !strings.Contains(string(data), "HTTP/1.1 101 Switching Protocols") {
@@ -205,7 +206,7 @@ func (cl *WebSocketClient) readFuncLocalRaw(_ *tcptools.ClientUniversal, data []
 /*
 Local readFunc for local TCP client with WebSocket frame
 */
-func (cl *WebSocketClient) readFuncLocalWS(_ *tcptools.ClientUniversal, data []byte, status webtools.NetworkStatus, otherData map[string]any) {
+func (cl *WebSocketClient) readFuncLocalWS(_ *tcp.ClientUniversal, data []byte, status webtools.NetworkStatus, otherData map[string]any) {
 	//Get opcode
 	isBinaryRaw := otherData["isBinary"]
 	if isBinaryRaw == nil || isBinaryRaw == "" {

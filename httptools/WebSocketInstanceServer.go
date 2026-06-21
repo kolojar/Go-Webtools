@@ -9,7 +9,8 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"webtools"
+
+	webtools "github.com/kolojar/Go-Webtools"
 )
 
 //go:embed views/WebSocketInstanceServerScript.js

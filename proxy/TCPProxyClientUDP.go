@@ -1,9 +1,9 @@
 package proxy
 
 import (
-	"webtools"
-	"webtools/tcp"
-	"webtools/udp"
+	"github.com/kolojar/Go-Webtools"
+	"github.com/kolojar/Go-Webtools/tcp"
+	"github.com/kolojar/Go-Webtools/udp"
 )
 
 /*
