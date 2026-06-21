@@ -9,6 +9,7 @@
     ```
 - To init this as submodule: ```git submodule add https://github.com/kolojar/Go-Webtools ./Go-WebTools```
 - Run this to update submodules: ```git submodule update --recursive --remote```
+- Update Go module: ```GOPROXY=direct go get github.com/kolojar/Go-Webtools@main```
 
 # TODO
 - [X] TCP Server
