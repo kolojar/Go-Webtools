@@ -8,7 +8,7 @@
     require webtools v0.0.0-00010101000000-000000000000
     ```
 - To init this as submodule: ```git submodule add https://github.com/kolojar/Go-Webtools ./Go-WebTools```
-- Run this to update submodules: ```git submodule update --recursive --remote``
+- Run this to update submodules: ```git submodule update --recursive --remote```
 
 # TODO
 - [X] TCP Server
@@ -50,3 +50,7 @@
 - [ ] Add dynamic cleanups to PROXIES!!!
 - [ ] Fix P2P Punching
 - [ ] Fix P2P Punching at line 258
+
+# Keep in mind
+- This tool is not complete yet
+- Use this tool at your own danger - I am not responsible for any damage produced by this app
