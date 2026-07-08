@@ -57,14 +57,18 @@ type ConfigManagerOption struct {
 /*
 Load loads config manager values from JSON stored at configManager.path
 */
-func (configManager *ConfigManager) Load() error {
-	return configManager.LoadFrom(configManager.path)
+func (configManager *ConfigManager) Load(argStart int) error {
+	return configManager.LoadFrom(argStart, configManager.path)
 }
 
 /*
 Load loads config manager values from JSON stored at path
 */
-func (configManager *ConfigManager) LoadFrom(path string) error {
+func (configManager *ConfigManager) LoadFrom(argStart int, path string) error {
+	if argStart < 0 {
+		argStart = 0
+	}
+
 	//Read file
 	valuesJsonC, err := os.ReadFile(path)
 	if err != nil {
@@ -81,7 +85,7 @@ func (configManager *ConfigManager) LoadFrom(path string) error {
 
 	//Load arguments
 	args := make(map[string]any)
-	for i := 0; i < len(os.Args); i++ {
+	for i := argStart; i < len(os.Args); i++ {
 		if !strings.HasPrefix(os.Args[i], "--") {
 			continue
 		}
