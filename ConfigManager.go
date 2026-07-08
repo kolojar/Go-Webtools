@@ -242,6 +242,14 @@ func (configManager *ConfigManager) RemoveOption(key string) {
 }
 
 /*
+GetPureValue gets value
+*/
+func (configManager *ConfigManager) GetPureValue(key string) any {
+	val := configManager.values.Get(key)
+	return val.value
+}
+
+/*
 GetValue gets value and its settings
 */
 func (configManager *ConfigManager) GetValue(key string) (setInConfigFile bool, setInArgument bool, value any) {
