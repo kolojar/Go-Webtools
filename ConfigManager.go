@@ -85,7 +85,7 @@ func (configManager *ConfigManager) LoadFrom(argStart int, path string) error {
 
 	//Load arguments
 	args := make(map[string]any)
-	for i := argStart; i < len(os.Args); i++ {
+	for i := argStart + 1; i < len(os.Args); i++ {
 		if !strings.HasPrefix(os.Args[i], "--") {
 			continue
 		}
