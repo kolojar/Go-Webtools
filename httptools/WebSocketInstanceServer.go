@@ -72,6 +72,8 @@ type WebSocketInstanceServer struct {
 	htmlCreatorRedirect      *HTMLCreator
 	htmlCreatorRedirectMutex *sync.RWMutex
 	htmlRedirectScript       IHTMLElement
+	noInstanceNeeded         []string
+	noInstanceNeededCache    webtools.SafeMap[string, bool]
 }
 
 /*
@@ -88,6 +90,8 @@ func NewWebSocketInstanceServer(address string, readFunc WebSocketInstanceServer
 		accessFunc:               accessFunc,
 		htmlCreatorRedirectMutex: &sync.RWMutex{},
 		htmlCreatorRedirect:      NewHTMLCreator(true, "en", "New instance", true),
+		noInstanceNeeded:         make([]string, 0),
+		noInstanceNeededCache:    webtools.MakeSafeMap[string, bool](),
 	}
 
 	//Create HTTP WS server
@@ -111,6 +115,21 @@ GetWSServer gets WebSocket server
 */
 func (sv *WebSocketInstanceServer) GetWSServer() *WebSocketServer {
 	return sv.wsServer
+}
+
+/*
+GetNoInstanceNeededURLs gets URLs that do not check for instance (work as pure HTTP server)
+*/
+func (sv *WebSocketInstanceServer) GetNoInstanceNeededURLs() []string {
+	return sv.noInstanceNeeded
+}
+
+/*
+SetNoInstanceNeededURLs sets URLs that do not check for instance (work as pure HTTP server), urls must end with /
+*/
+func (sv *WebSocketInstanceServer) SetNoInstanceNeededURLs(urls []string) {
+	sv.noInstanceNeededCache.Clear()
+	sv.noInstanceNeeded = urls
 }
 
 func (sv *WebSocketInstanceServer) checkCookies(serverIDCookie *http.Cookie, instanceIDCookie *http.Cookie) bool {
@@ -139,7 +158,45 @@ func (sv *WebSocketInstanceServer) createNewInstance(requestedURL string, w http
 	sv.htmlCreatorRedirectMutex.Unlock()
 }
 
+func (sv *WebSocketInstanceServer) checkIfNoInstanceNeeded(path string) bool {
+	//Format path correctly
+	if !strings.HasSuffix(path, "/") {
+		path += "/"
+	}
+
+	//Check if path cached
+	noNeeds, has := sv.noInstanceNeededCache.GetHas(path)
+	if has {
+		return noNeeds
+	}
+
+	//Not cached, check if doesnt need
+	for _, v := range sv.noInstanceNeeded {
+		if strings.HasSuffix(v, "*") {
+			if strings.HasPrefix(path, strings.TrimSuffix(v, "*")) {
+				noNeeds = true
+				break
+			}
+		} else {
+			if v == path {
+				noNeeds = true
+				break
+			}
+		}
+	}
+	sv.noInstanceNeededCache.Set(path, noNeeds)
+	return noNeeds
+}
+
 func (sv *WebSocketInstanceServer) readFuncLocal(conn *WebSocketServerConn, data []byte, status webtools.NetworkStatus, isBinary bool) {
+	//Check if need to validate cookies
+	if sv.checkIfNoInstanceNeeded(conn.sourceURL) {
+		if sv.readFunc != nil {
+			sv.readFunc(nil, conn, data, status, isBinary)
+		}
+		return
+	}
+
 	//Get cookies
 	serverIDCookie := conn.GetCookie("instanceServerUniqueId")
 	instanceIDCookie := conn.GetCookie("instanceServerInstanceId")
@@ -163,6 +220,11 @@ func (sv *WebSocketInstanceServer) readFuncLocal(conn *WebSocketServerConn, data
 }
 
 func (sv *WebSocketInstanceServer) accessFuncLocal(server *Server, w http.ResponseWriter, r *http.Request, params map[string]string) bool {
+	//Check if need to validate cookies
+	if sv.checkIfNoInstanceNeeded(r.URL.Path) {
+		return sv.accessFunc(nil, server, w, r, params)
+	}
+
 	//Get cookies
 	serverIDCookie, err1 := r.Cookie("instanceServerUniqueId")
 	instanceIDCookie, err2 := r.Cookie("instanceServerInstanceId")
