@@ -2,16 +2,29 @@ package webtools
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
+	"strconv"
 	"strings"
 )
 
 type ConfigManager struct {
 	path   string
-	values *SafeMap[string, configManagerValue]
+	values SafeMap[string, configManagerValue]
+}
+
+/*
+NewConfigManager creates new instance of ConfigManager
+*/
+func NewConfigManager(path string) *ConfigManager {
+	return &ConfigManager{
+		path:   path,
+		values: MakeSafeMap[string, configManagerValue](),
+	}
 }
 
 type ConfigManagerValueType uint8
+
 const AnyType ConfigManagerValueType = 0
 const BoolType ConfigManagerValueType = 1
 const IntType ConfigManagerValueType = 2
@@ -67,13 +80,63 @@ func (configManager *ConfigManager) LoadFrom(path string) error {
 	}
 
 	//Load arguments
-	args := make(map[string]string)
+	args := make(map[string]any)
 	for i := 0; i < len(os.Args); i++ {
 		if !strings.HasPrefix(os.Args[i], "--") {
 			continue
 		}
-		if configManager.values.Has(os.Args[i][2:]) {
-			if()
+		optionName := os.Args[i][2:]
+		option, hasOption := configManager.values.GetHas(optionName)
+		hasValueAfter := len(os.Args) > i+1 && !strings.HasPrefix(os.Args[i+1], "--")
+		if hasOption {
+			//Check if configurable
+			if !option.option.ConfigurableViaArgument {
+				if hasValueAfter {
+					i++
+				}
+				continue
+			}
+
+			//Write option to buffer
+			if !hasValueAfter {
+				if option.option.ValueType == BoolType {
+					args[optionName] = true
+				}
+				i++
+			} else {
+				//TODO: DO PARSING LOGIC
+				switch option.option.ValueType {
+				case AnyType:
+					args[optionName] = os.Args[i+1]
+				case BoolType:
+					value, err := strconv.ParseBool(os.Args[i+1])
+					if err != nil {
+						fmt.Println("Option " + optionName + " has invalid value: " + os.Args[i+1] + " - can be false/true")
+						return err
+					}
+					args[optionName] = value
+				case IntType:
+					value, err := strconv.Atoi(os.Args[i+1])
+					if err != nil {
+						fmt.Println("Option " + optionName + " has invalid value: " + os.Args[i+1] + " - can be integer (whole number)")
+						return err
+					}
+					args[optionName] = value
+				case FloatType:
+					value, err := strconv.ParseFloat(os.Args[i+1], 32)
+					if err != nil {
+						fmt.Println("Option " + optionName + " has invalid value: " + os.Args[i+1] + " - can be integer (whole number)")
+						return err
+					}
+					args[optionName] = (float32)(value)
+				case StringType:
+					args[optionName] = os.Args[i+1]
+				default:
+					fmt.Println("Option " + optionName + " has invalid value type: " + strconv.FormatUint((uint64)(option.option.ValueType), 10))
+					return os.ErrInvalid
+				}
+				i += 2
+			}
 		}
 	}
 
@@ -89,9 +152,16 @@ func (configManager *ConfigManager) LoadFrom(path string) error {
 			}
 		}
 		//Parse arguments
-
+		if k.Value.option.ConfigurableViaArgument {
+			v, ok := args[k.Key]
+			if ok {
+				val := configManager.values.Get(k.Key)
+				val.setInArgument = true
+				val.value = v
+				configManager.values.Set(k.Key, val)
+			}
+		}
 	}
-
 	return nil
 }
 
@@ -149,6 +219,55 @@ func (configManager *ConfigManager) SaveAs(path string) error {
 }
 
 /*
+AddOption adds option to configManager
+*/
+func (configManager *ConfigManager) AddOption(key string, option ConfigManagerOption) {
+	configManager.values.Set(key, configManagerValue{
+		option:          option,
+		setInConfigFile: false,
+		setInArgument:   false,
+		value:           nil,
+	})
+}
+
+/*
+RemoveOption removes option
+*/
+func (configManager *ConfigManager) RemoveOption(key string) {
+	configManager.values.Delete(key)
+}
+
+/*
+GetValue gets value and its settings
+*/
+func (configManager *ConfigManager) GetValue(key string) (setInConfigFile bool, setInArgument bool, value any) {
+	val := configManager.values.Get(key)
+	return val.setInConfigFile, val.setInArgument, val.value
+}
+
+/*
+SetValue sets value in configFile (will be written to file if saved)
+*/
+func (configManager *ConfigManager) SetValue(key string, value any) {
+	val := configManager.values.Get(key)
+	val.value = value
+	val.setInConfigFile = true
+	val.setInArgument = false
+	configManager.values.Set(key, val)
+}
+
+/*
+Copy creates copy of configManager
+*/
+func (configManager *ConfigManager) Copy(newPath string) *ConfigManager {
+	result := NewConfigManager(newPath)
+	for _, v := range configManager.values.GetData() {
+		result.values.Set(v.Key, v.Value)
+	}
+	return result
+}
+
+/*
 JSONCToJSON converts JSONC (commented JSON) to JSON. It destroyes all comments
 */
 func JSONCToJSON(jsonc []byte) []byte {
@@ -190,30 +309,4 @@ func JSONCToJSON(jsonc []byte) []byte {
 		}
 	}
 	return result
-}
-
-func (configManager *ConfigManager) AddOption(key string, option ConfigManagerOption) {
-	configManager.values.Set(key, configManagerValue{
-		option:          option,
-		setInConfigFile: false,
-		setInArgument:   false,
-		value:           nil,
-	})
-}
-
-func (configManager *ConfigManager) RemoveOption(key string) {
-	configManager.values.Delete(key)
-}
-
-func (configManager *ConfigManager) GetValue(key string) (setInConfigFile bool, setInArgument bool, value any) {
-	val := configManager.values.Get(key)
-	return val.setInConfigFile, val.setInArgument, val.value
-}
-
-func (configManager *ConfigManager) SetValue(key string, value any) {
-	val := configManager.values.Get(key)
-	val.value = value
-	val.setInConfigFile = true
-	val.setInArgument = false
-	configManager.values.Set(key, val)
 }
