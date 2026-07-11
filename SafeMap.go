@@ -38,17 +38,14 @@ type SafeMap[K comparable, V any] struct {
 	mutex *sync.RWMutex
 }
 
-// Has checks if value is in map
-func (m SafeMap[K, V]) Has(key K) bool {
-	m.mutex.RLock()
-	defer m.mutex.RUnlock()
-	_, ok := m.m[key]
-	return ok
-}
-
 // MakeSafeMap creates new Safe Map
 func MakeSafeMap[K comparable, V any]() SafeMap[K, V] {
 	return SafeMap[K, V]{m: map[K]V{}, mutex: &sync.RWMutex{}}
+}
+
+// IsNill checks if map is nil
+func (m *SafeMap[K, V]) IsNil() bool {
+	return m == nil || m.m == nil
 }
 
 // Get gets safely value from map
@@ -56,6 +53,14 @@ func (m *SafeMap[K, V]) Get(key K) V {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 	return m.m[key]
+}
+
+// Has checks if value is in map
+func (m *SafeMap[K, V]) Has(key K) bool {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+	_, ok := m.m[key]
+	return ok
 }
 
 // GetHas gets safely value from map and returns if value is in map

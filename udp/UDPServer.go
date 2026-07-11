@@ -57,14 +57,14 @@ type ServerReadFunc func(conn *ServerConn, data []byte, ended bool)
 Server is basic UDP server
 */
 type Server struct {
-	listener      *net.UDPConn
-	readFunc      ServerReadFunc
-	address       *net.UDPAddr
-	Logger        *webtools.ConsoleLogger
-	requestedStop bool
-	isAlive       bool
-	conns         webtools.SafeMap[string, *ServerConn]
-	udpFramer     *Framer
+	listener            *net.UDPConn
+	readFunc            ServerReadFunc
+	address             *net.UDPAddr
+	Logger              *webtools.ConsoleLogger
+	requestedStop       bool
+	isAlive             bool
+	conns               webtools.SafeMap[string, *ServerConn]
+	OnConnectionCleanup webtools.Event1[*ServerConn]
 }
 
 /*
@@ -96,13 +96,6 @@ func NewServer(address string, readFunc ServerReadFunc, reportTraffic bool) (*Se
 }
 
 /*
-SetupFraming setups UDP framer for server
-*/
-func (udp *Server) SetupFraming(framer *Framer) {
-	udp.udpFramer = framer
-}
-
-/*
 Start starts UDP Server, locks execution thread
 */
 func (udp *Server) Start() {
@@ -128,9 +121,7 @@ func (udp *Server) Start() {
 	for !udp.requestedStop {
 		//Handle read and connection accept
 		//udp.Client.startRead()
-		handleUDPRead(udp.listener, udp.Logger, func(addrFrom *net.UDPAddr, data []byte, ended bool) {
-			processDataForUDP(addrFrom, data, ended, udp.readFuncLocal, udp.Logger, udp.udpFramer, true, udp.listener)
-		})
+		handleUDPRead(udp.listener, udp.Logger, udp.readFuncLocal)
 	}
 	udp.isAlive = false
 }
@@ -198,8 +189,8 @@ func (udp *Server) readFuncLocal(addr *net.UDPAddr, data []byte, ended bool) {
 WriteToClient writes to Client
 */
 func (udp *Server) WriteToClient(conn *ServerConn, data []byte) {
-	//writeToUDP(true, conn.origin.listener, conn.Address, data, udp.Logger)
-	processSendForUDP(true, udp.listener, conn.Address, data, udp.Logger, udp.udpFramer)
+	writeToUDP(true, conn.origin.listener, conn.Address, data, udp.Logger)
+	//processSendForUDP(true, udp.listener, conn.Address, data, udp.Logger, udp.udpFramer)
 	//udp.WriteToClient(conn, data)
 }
 
@@ -237,9 +228,6 @@ func writeToUDP(isServer bool, listener *net.UDPConn, addr *net.UDPAddr, data []
 Stop stops UDP server
 */
 func (udp *Server) Stop() {
-	if udp.udpFramer != nil {
-		udp.udpFramer.StopKeepAlive()
-	}
 	if !udp.isAlive {
 		return
 	}
@@ -269,11 +257,13 @@ func (udp *Server) CleanupConnections(forceAll bool) {
 		}
 		if forceAll {
 			//Forced
+			udp.OnConnectionCleanup.CallEvent(v)
 			v.Close()
 			continue
 		}
 		if time.Since(v.lastSeen).Seconds() >= cleanupTimeout {
 			//Remove not used connection
+			udp.OnConnectionCleanup.CallEvent(v)
 			v.Close()
 			continue
 		}

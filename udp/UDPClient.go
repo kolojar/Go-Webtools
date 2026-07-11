@@ -15,12 +15,11 @@ type ClientReadFunc func(client *Client, sourceAddress *net.UDPAddr, data []byte
 Client is basic UDP Client
 */
 type Client struct {
-	readFunc  ClientReadFunc
-	Logger    *webtools.ConsoleLogger
-	Conn      *net.UDPConn
-	address   *net.UDPAddr
-	isAlive   bool
-	udpFramer *Framer
+	readFunc ClientReadFunc
+	Logger   *webtools.ConsoleLogger
+	Conn     *net.UDPConn
+	address  *net.UDPAddr
+	isAlive  bool
 }
 
 /*
@@ -28,13 +27,6 @@ IsAlive gets if client is alive
 */
 func (cl *Client) IsAlive() bool {
 	return cl.isAlive
-}
-
-/*
-SetupFraming setups UDP framer for client
-*/
-func (cl *Client) SetupFraming(framer *Framer) {
-	cl.udpFramer = framer
 }
 
 /*
@@ -71,9 +63,7 @@ func (cl *Client) Connect() error {
 		//Handle read
 		var ok = true
 		for ok {
-			ok = handleUDPRead(cl.Conn, cl.Logger, func(addrFrom *net.UDPAddr, data []byte, ended bool) {
-				processDataForUDP(addrFrom, data, ended, cl.readFuncLocal, cl.Logger, cl.udpFramer, false, cl.Conn)
-			})
+			ok = handleUDPRead(cl.Conn, cl.Logger, cl.readFuncLocal)
 		}
 		cl.isAlive = false
 		cl.readFuncLocal(nil, nil, true)
@@ -100,16 +90,13 @@ func (cl *Client) readFuncLocal(addrFrom *net.UDPAddr, data []byte, ended bool) 
 Send sends data to server
 */
 func (cl *Client) Send(data []byte) {
-	processSendForUDP(false, cl.Conn, cl.address, data, cl.Logger, cl.udpFramer)
+	writeToUDP(false, cl.Conn, cl.address, data, cl.Logger)
 }
 
 /*
 Stop stops TCP client
 */
 func (cl *Client) Stop() {
-	if cl.udpFramer != nil {
-		cl.udpFramer.StopKeepAlive()
-	}
 	if cl.Conn == nil || !cl.isAlive {
 		//Invalid connection
 		return
