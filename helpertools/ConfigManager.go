@@ -1,4 +1,4 @@
-package webtools
+package helpertools
 
 import (
 	"encoding/json"
@@ -6,11 +6,13 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	webtools "github.com/kolojar/Go-Webtools"
 )
 
 type ConfigManager struct {
 	path   string
-	values SafeMap[string, configManagerValue]
+	values webtools.SafeMap[string, configManagerValue]
 }
 
 /*
@@ -19,7 +21,7 @@ NewConfigManager creates new instance of ConfigManager
 func NewConfigManager(path string) *ConfigManager {
 	return &ConfigManager{
 		path:   path,
-		values: MakeSafeMap[string, configManagerValue](),
+		values: webtools.MakeSafeMap[string, configManagerValue](),
 	}
 }
 

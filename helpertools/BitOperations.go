@@ -1,4 +1,5 @@
-package webtools
+// helpertools package provides some other nonspecific tools for generic usage
+package helpertools
 
 /*
 SetBitValueArray sets bit to value at specific position in array - position in array = pos/8, position in bit = pos%8 -> 0 = 128, 7 = 1
@@ -29,6 +30,13 @@ SetBit sets bit (sets 1) at specific position -> 0 = 128, 7 = 1
 */
 func SetBit(b byte, pos uint8) byte {
 	return SetBitGeneric(b, pos, 8)
+}
+
+/*
+SetBitUint64 sets bit (sets 1) at specific position -> 0 = 2^63, 63 = 1
+*/
+func SetBitUint64(b uint64, pos uint8) uint64 {
+	return SetBitGeneric(b, pos, 64)
 }
 
 /*
@@ -79,8 +87,14 @@ func CheckBitArray(b []byte, pos uint64) bool {
 CheckBit checks if bit is set (1). pos -> 0 = 128, 7 = 1
 */
 func CheckBit(b byte, pos uint8) bool {
-	//Check for overflow
 	return CheckBitGenetic(b, pos, 8)
+}
+
+/*
+CheckBit checks if bit is set (1). pos -> 0 = 2^63, 63 = 1
+*/
+func CheckBitUint64(b uint64, pos uint8) bool {
+	return CheckBitGenetic(b, pos, 64)
 }
 
 /*
