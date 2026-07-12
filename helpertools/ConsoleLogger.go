@@ -1,7 +1,7 @@
 /*
 Package webtools provides generic tools for working with subpackages. The main thing of this package are the subpackages
 */
-package webtools
+package helpertools
 
 import (
 	"bufio"

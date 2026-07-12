@@ -39,14 +39,14 @@ Framer adds basic checking for resending packages and ordering them same as TCP
 */
 type Framer struct {
 	config             *FramerConfig
-	gotResponce        webtools.SafeMap[string, bool]
-	readData           webtools.SafeMap[string, time.Time]
+	gotResponce        helpertools.SafeMap[string, bool]
+	readData           helpertools.SafeMap[string, time.Time]
 	orderList          []webtools.FourValuePair[string, uint64, *net.UDPAddr, []byte]
 	orderListMutex     *sync.RWMutex
 	onReadFunc         FramerReadFunc
 	onFailSendFunc     FramerReadFunc
 	isKeepAliveRunning bool
-	keepAliveConns     webtools.SafeMap[*net.UDPAddr, *net.UDPConn]
+	keepAliveConns     helpertools.SafeMap[*net.UDPAddr, *net.UDPConn]
 }
 
 /*
@@ -75,11 +75,11 @@ func NewUDPFramerSimpleFromConfig(config *FramerConfig, failSendFunc FramerReadF
 		onReadFunc:         nil,
 		onFailSendFunc:     failSendFunc,
 		config:             config,
-		gotResponce:        webtools.MakeSafeMap[string, bool](),
-		readData:           webtools.MakeSafeMap[string, time.Time](),
+		gotResponce:        helpertools.MakeSafeMap[string, bool](),
+		readData:           helpertools.MakeSafeMap[string, time.Time](),
 		orderList:          make([]webtools.FourValuePair[string, uint64, *net.UDPAddr, []byte], 0),
 		orderListMutex:     &sync.RWMutex{},
-		keepAliveConns:     webtools.MakeSafeMap[*net.UDPAddr, *net.UDPConn](),
+		keepAliveConns:     helpertools.MakeSafeMap[*net.UDPAddr, *net.UDPConn](),
 		isKeepAliveRunning: config.UseKeepAlive,
 	}
 }
@@ -88,7 +88,7 @@ func NewUDPFramerSimpleFromConfig(config *FramerConfig, failSendFunc FramerReadF
 Resolve resolves UDP frames
 Returns ACK frame
 */
-func (framer *Framer) Resolve(address *net.UDPAddr, data []byte, logger *webtools.ConsoleLogger) []byte {
+func (framer *Framer) Resolve(address *net.UDPAddr, data []byte, logger *helpertools.ConsoleLogger) []byte {
 	//Invalid frame
 	if len(data) == 0 {
 		return nil
@@ -255,7 +255,7 @@ func (framer *Framer) ExportAllOrdered() {
 /*
 CleanupData removes old not used UDP read data
 */
-func (framer *Framer) CleanupData(logger *webtools.ConsoleLogger, forceAll bool) {
+func (framer *Framer) CleanupData(logger *helpertools.ConsoleLogger, forceAll bool) {
 	oldCount := framer.readData.Len()
 	if forceAll {
 		//Forced
@@ -279,7 +279,7 @@ func (framer *Framer) CleanupData(logger *webtools.ConsoleLogger, forceAll bool)
 /*
 Processes all data incoming to this function and results are returned in readFunc
 */
-func processDataForUDP(address *net.UDPAddr, data []byte, ended bool, readFunc FramerReadFunc, logger *webtools.ConsoleLogger, framer *Framer, isServer bool, listener *net.UDPConn) {
+func processDataForUDP(address *net.UDPAddr, data []byte, ended bool, readFunc FramerReadFunc, logger *helpertools.ConsoleLogger, framer *Framer, isServer bool, listener *net.UDPConn) {
 	if framer == nil {
 		//No framing
 		if readFunc != nil {
@@ -307,7 +307,7 @@ func processDataForUDP(address *net.UDPAddr, data []byte, ended bool, readFunc F
 /*
 SendFrame sends data frame for UDP frame protocol, blocks execution thread
 */
-func (framer *Framer) SendFrame(isServer bool, listener *net.UDPConn, addr *net.UDPAddr, id string, sequenceNum uint, data []byte, logger *webtools.ConsoleLogger) {
+func (framer *Framer) SendFrame(isServer bool, listener *net.UDPConn, addr *net.UDPAddr, id string, sequenceNum uint, data []byte, logger *helpertools.ConsoleLogger) {
 	framer.AddListenerToKeepAlive(isServer, listener, addr, logger)
 	var resend = true
 	for resend {
@@ -358,13 +358,13 @@ func (framer *Framer) SendFrame(isServer bool, listener *net.UDPConn, addr *net.
 	}
 }
 
-func processSendForUDP(isServer bool, listener *net.UDPConn, addr *net.UDPAddr, data []byte, logger *webtools.ConsoleLogger, framer *Framer) {
+func processSendForUDP(isServer bool, listener *net.UDPConn, addr *net.UDPAddr, data []byte, logger *helpertools.ConsoleLogger, framer *Framer) {
 	if framer == nil {
 		//No framing
 		writeToUDP(isServer, listener, addr, data, logger)
 	} else {
 		//Framing
-		go framer.SendFrame(isServer, listener, addr, webtools.GenerateRandomID(), 1, data, logger)
+		go framer.SendFrame(isServer, listener, addr, helpertools.GenerateRandomID(), 1, data, logger)
 
 	}
 }
@@ -372,7 +372,7 @@ func processSendForUDP(isServer bool, listener *net.UDPConn, addr *net.UDPAddr, 
 /*
 AddListenerToKeepAlive adds listener to keep alive, listeners used in framer are added automatically on first use
 */
-func (framer *Framer) AddListenerToKeepAlive(isServer bool, listener *net.UDPConn, addr *net.UDPAddr, logger *webtools.ConsoleLogger) {
+func (framer *Framer) AddListenerToKeepAlive(isServer bool, listener *net.UDPConn, addr *net.UDPAddr, logger *helpertools.ConsoleLogger) {
 	if framer.keepAliveConns.Has(addr) {
 		return
 	}

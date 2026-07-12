@@ -1,8 +1,10 @@
-package webtools
+package proxy
 
 import (
 	"encoding/hex"
 	"strconv"
+
+	"github.com/kolojar/Go-Webtools/helpertools"
 )
 
 /*
@@ -54,7 +56,7 @@ func PackWebtoolsFrame(operation uint8, id []byte, data []byte) []byte {
 /*
 UnpackWebtoolsFrame unpacks webtools frame, operation 0 means error
 */
-func UnpackWebtoolsFrame(frame []byte, logger *ConsoleLogger) []UnpackedWebtoolsFrame {
+func UnpackWebtoolsFrame(frame []byte, logger *helpertools.ConsoleLogger) []UnpackedWebtoolsFrame {
 	//Invalid frame
 	if len(frame) == 0 {
 		return nil

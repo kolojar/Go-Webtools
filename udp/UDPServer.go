@@ -8,6 +8,7 @@ import (
 	"time"
 
 	webtools "github.com/kolojar/Go-Webtools"
+	"github.com/kolojar/Go-Webtools/helpertools"
 )
 
 // Cleanup timeout in seconds
@@ -43,6 +44,11 @@ func (conn *ServerConn) Send(data []byte) {
 	conn.origin.WriteToClient(conn, data)
 }
 
+// GetLogger gets logger of server
+func (conn *ServerConn) GetLogger() *helpertools.ConsoleLogger {
+	return conn.origin.Logger
+}
+
 /*
 Close closes connection to client
 */
@@ -67,11 +73,11 @@ type Server struct {
 	listener            *net.UDPConn
 	readFunc            ServerReadFunc
 	address             *net.UDPAddr
-	Logger              *webtools.ConsoleLogger
+	Logger              *helpertools.ConsoleLogger
 	requestedStop       bool
 	isAlive             bool
-	conns               webtools.SafeMap[string, *ServerConn]
-	OnConnectionCleanup webtools.Event1[*ServerConn]
+	conns               helpertools.SafeMap[string, *ServerConn]
+	OnConnectionCleanup helpertools.Event1[*ServerConn]
 }
 
 /*
@@ -99,7 +105,7 @@ func NewServer(address string, readFunc ServerReadFunc, reportTraffic bool) (*Se
 	}
 
 	//Make UDP sv
-	return &Server{address: addressObj, readFunc: readFunc, Logger: webtools.NewConsoleLoggerForTraffic("UDPServer", reportTraffic), conns: webtools.MakeSafeMap[string, *ServerConn]()}, nil
+	return &Server{address: addressObj, readFunc: readFunc, Logger: helpertools.NewConsoleLoggerForTraffic("UDPServer", reportTraffic), conns: helpertools.MakeSafeMap[string, *ServerConn]()}, nil
 }
 
 /*
@@ -136,7 +142,7 @@ func (udp *Server) Start() {
 /*
 Handles UDP Read
 */
-func handleUDPRead(listener *net.UDPConn, logger *webtools.ConsoleLogger, readFunc func(*net.UDPAddr, []byte, bool)) bool {
+func handleUDPRead(listener *net.UDPConn, logger *helpertools.ConsoleLogger, readFunc func(*net.UDPAddr, []byte, bool)) bool {
 	buffer := make([]byte, webtools.BufferSize)
 	//Get connection and data
 	n, addr, err := listener.ReadFromUDP(buffer)
@@ -204,7 +210,7 @@ func (udp *Server) WriteToClient(conn *ServerConn, data []byte) {
 /*
 Handles UDP Write
 */
-func writeToUDP(isServer bool, listener *net.UDPConn, addr *net.UDPAddr, data []byte, logger *webtools.ConsoleLogger) {
+func writeToUDP(isServer bool, listener *net.UDPConn, addr *net.UDPAddr, data []byte, logger *helpertools.ConsoleLogger) {
 	if addr == nil {
 		logger.Log(1, "Invalid connecting, cancelling write.")
 		return

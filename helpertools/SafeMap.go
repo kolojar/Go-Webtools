@@ -1,4 +1,4 @@
-package webtools
+package helpertools
 
 import "sync"
 
@@ -146,4 +146,18 @@ func (m *SafeMap[K, V]) SetMutex(mutex *sync.RWMutex) bool {
 // GetMutex gets Mutex
 func (m *SafeMap[K, V]) GetMutex() *sync.RWMutex {
 	return m.mutex
+}
+
+// Range iterates trought map keys and values without creating slice
+func (m *SafeMap[K, V]) Range(rangeFunc func(key K, value V) (doBreak bool)) {
+	if rangeFunc == nil {
+		return
+	}
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+	for k, v := range m.m {
+		if rangeFunc(k, v) {
+			break
+		}
+	}
 }

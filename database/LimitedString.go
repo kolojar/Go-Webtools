@@ -6,7 +6,8 @@ import (
 	"io"
 	"strconv"
 	"strings"
-	"github.com/kolojar/Go-Webtools"
+
+	"github.com/kolojar/Go-Webtools/helpertools"
 )
 
 /*
@@ -101,7 +102,7 @@ func (limitedString *LimitedString) CanParseDBToAny() bool {
 
 func (limitedString *LimitedString) InteractiveRepairDB() (bool, error) {
 	//Read length
-	data, err := webtools.ReadLineFromConsole("Enter LimitedString lengthStoreByteSize: ")
+	data, err := helpertools.ReadLineFromConsole("Enter LimitedString lengthStoreByteSize: ")
 	if err != nil {
 		fmt.Println("input err:", err)
 		return false, err

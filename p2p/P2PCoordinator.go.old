@@ -32,11 +32,11 @@ const P2P_CMD_CONNECT_DONE = "connectionDone"
 
 type P2PCoordinator struct {
 	udpServer          *udpTools.UDPServer
-	peersToConns       webtools.SafeMap[string, webtools.KeyValuePair[*udpTools.UDPServerConn, int]]
-	pendingConnections webtools.SafeMap[string, webtools.FiveValuePair[bool, string, bool, string, bool]]
+	peersToConns       helpertools.SafeMap[string, webtools.KeyValuePair[*udpTools.UDPServerConn, int]]
+	pendingConnections helpertools.SafeMap[string, webtools.FiveValuePair[bool, string, bool, string, bool]]
 	allowRelay         bool
-	//peerToId           webtools.SafeMap[*udpTools.UDPServerConn, string]
-	idToPeer webtools.SafeMap[string, *udpTools.UDPServerConn]
+	//peerToId           helpertools.SafeMap[*udpTools.UDPServerConn, string]
+	idToPeer helpertools.SafeMap[string, *udpTools.UDPServerConn]
 }
 
 /*
@@ -44,7 +44,7 @@ Creates new UDP P2P Server but does not starts it
 5
 */
 func NewP2PCoordinator(address string, allowRelay bool, reportTraffic bool) (*P2PCoordinator, error) {
-	p2p := &P2PCoordinator{peersToConns: webtools.MakeSafeMap[string, webtools.KeyValuePair[*udpTools.UDPServerConn, int]](), pendingConnections: webtools.MakeSafeMap[string, webtools.FiveValuePair[bool, string, bool, string, bool]](), idToPeer: webtools.MakeSafeMap[string, *udpTools.UDPServerConn](), allowRelay: allowRelay}
+	p2p := &P2PCoordinator{peersToConns: helpertools.MakeSafeMap[string, webtools.KeyValuePair[*udpTools.UDPServerConn, int]](), pendingConnections: helpertools.MakeSafeMap[string, webtools.FiveValuePair[bool, string, bool, string, bool]](), idToPeer: helpertools.MakeSafeMap[string, *udpTools.UDPServerConn](), allowRelay: allowRelay}
 	var err error
 	p2p.udpServer, err = udpTools.NewUDPServer(address, p2p.readFuncLocal, reportTraffic)
 	p2p.udpServer.Logger.Prefix = "P2P - " + p2p.udpServer.Logger.Prefix
@@ -73,7 +73,7 @@ func (p2p *P2PCoordinator) readFuncLocal(conn *udpTools.UDPServerConn, data []by
 			}
 
 			//No conn find, create new id
-			id := "p2p-" + webtools.GenerateRandomId()
+			id := "p2p-" + helpertools.GenerateRandomID()
 			p2p.peersToConns.Set(id, webtools.KeyValuePair[*udpTools.UDPServerConn, int]{Key: conn, Value: int(port)})
 			p2p.idToPeer.Set(id, conn)
 			p2p.udpServer.Logger.Log(1, "New peer from: "+conn.Address.String()+" with id: "+id)
@@ -101,7 +101,7 @@ func (p2p *P2PCoordinator) readFuncLocal(conn *udpTools.UDPServerConn, data []by
 
 			//Get start time
 			tStart := time.Now().Add(time.Second * P2P_TIMEOUT_START)
-			connId := webtools.GenerateRandomId()
+			connId := helpertools.GenerateRandomID()
 
 			//Send start message
 			p2p.udpServer.Logger.Log(1, "Started creating connection with id: "+connId+" between: "+args["id"]+" at IP: "+conn.Address.String()+" and: "+args["targetId"]+" at IP: "+target.Key.Address.String())

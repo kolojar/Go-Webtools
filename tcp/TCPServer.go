@@ -6,6 +6,7 @@ import (
 	"time"
 
 	webtools "github.com/kolojar/Go-Webtools"
+	"github.com/kolojar/Go-Webtools/helpertools"
 )
 
 /*
@@ -65,10 +66,10 @@ type Server struct {
 	listener           *net.TCPListener
 	readFunc           ServerReadFunc
 	address            *net.TCPAddr
-	Logger             *webtools.ConsoleLogger
+	Logger             *helpertools.ConsoleLogger
 	requestedStop      bool
 	isAlive            bool
-	conns              webtools.SafeMap[*ClientSimple, *ServerConn]
+	conns              helpertools.SafeMap[*ClientSimple, *ServerConn]
 	framed             bool
 	useEncryption      bool
 	encryptionPassword []byte
@@ -104,7 +105,7 @@ func NewServer(address string, readFunc ServerReadFunc, reportTraffic bool, fram
 	if err != nil {
 		return nil, err
 	}
-	return &Server{address: addressObj, readFunc: readFunc, Logger: webtools.NewConsoleLoggerForTraffic("TCPServer", reportTraffic), conns: webtools.MakeSafeMap[*ClientSimple, *ServerConn](), framed: framed}, nil
+	return &Server{address: addressObj, readFunc: readFunc, Logger: helpertools.NewConsoleLoggerForTraffic("TCPServer", reportTraffic), conns: helpertools.MakeSafeMap[*ClientSimple, *ServerConn](), framed: framed}, nil
 }
 
 /*
@@ -153,7 +154,7 @@ func (sv *Server) Start() {
 		}
 
 		// Handle connection
-		cl := NewClientSimpleFromConnection(conn, webtools.FormatByBool(sv.framed, 0, -1), false, sv.readFuncLocal, false)
+		cl := NewClientSimpleFromConnection(conn, helpertools.FormatByBool(sv.framed, 0, -1), false, sv.readFuncLocal, false)
 		cl.SetLogger(sv.Logger)
 		cl.SetupEncryption(sv.useEncryption, sv.encryptionPassword)
 		cl.Connect()

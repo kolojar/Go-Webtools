@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	webtools "github.com/kolojar/Go-Webtools"
+	"github.com/kolojar/Go-Webtools/helpertools"
 	"github.com/kolojar/Go-Webtools/tcp"
 )
 
@@ -73,7 +74,7 @@ func (httpConn *WebSocketServerConn) GetCookie(name string) *http.Cookie {
 Send sends data to client, it is set by first recieved packed, can be changed using IsBinary property
 */
 func (httpConn *WebSocketServerConn) Send(data []byte) {
-	httpConn.Client.Send(data, map[string]any{"opcode": webtools.FormatByBool[uint8](httpConn.IsBinary, 2, 1)})
+	httpConn.Client.Send(data, map[string]any{"opcode": helpertools.FormatByBool[uint8](httpConn.IsBinary, 2, 1)})
 }
 
 /*
@@ -109,9 +110,9 @@ WebSocketServer is HTTP WebSocket server for JavaScript with standards
 */
 type WebSocketServer struct {
 	httpServer                *Server
-	conns                     webtools.SafeMap[*tcp.ClientUniversal, *WebSocketServerConn]
+	conns                     helpertools.SafeMap[*tcp.ClientUniversal, *WebSocketServerConn]
 	onAccessFunc              AccessFunc
-	websocketURLsAndReadFuncs webtools.SafeMap[string, WebSocketServerReadFunc]
+	websocketURLsAndReadFuncs helpertools.SafeMap[string, WebSocketServerReadFunc]
 	reportTraffic             bool
 }
 
@@ -132,7 +133,7 @@ func (sv *WebSocketServer) GetAddress() string {
 /*
 GetLogger gets logger
 */
-func (sv *WebSocketServer) GetLogger() *webtools.ConsoleLogger {
+func (sv *WebSocketServer) GetLogger() *helpertools.ConsoleLogger {
 	return sv.httpServer.Logger
 }
 
@@ -141,9 +142,9 @@ NewWebSocketServer creates new HTTP WebSocket Server but does not starts it
 This readFunc is asociated with "/websocket" url
 */
 func NewWebSocketServer(address string, readFunc WebSocketServerReadFunc, onAccessFunc AccessFunc, rootPath string, startWebBrowser bool, reportHTTPTraffic bool, reportWebSocketTraffic bool) *WebSocketServer {
-	wsURLAndFuncs := webtools.MakeSafeMap[string, WebSocketServerReadFunc]()
+	wsURLAndFuncs := helpertools.MakeSafeMap[string, WebSocketServerReadFunc]()
 	wsURLAndFuncs.Set("/websocket", readFunc)
-	sv := &WebSocketServer{reportTraffic: reportWebSocketTraffic, conns: webtools.MakeSafeMap[*tcp.ClientUniversal, *WebSocketServerConn](), onAccessFunc: onAccessFunc, websocketURLsAndReadFuncs: wsURLAndFuncs}
+	sv := &WebSocketServer{reportTraffic: reportWebSocketTraffic, conns: helpertools.MakeSafeMap[*tcp.ClientUniversal, *WebSocketServerConn](), onAccessFunc: onAccessFunc, websocketURLsAndReadFuncs: wsURLAndFuncs}
 	sv.httpServer = NewServer(address, sv.handleHTTPAccess, rootPath, startWebBrowser, reportHTTPTraffic)
 	sv.httpServer.Logger.Prefix = "HTTP-WSServer"
 	return sv
@@ -239,7 +240,7 @@ func (sv *WebSocketServer) handleHTTPAccess(_ *Server, w http.ResponseWriter, r 
 /*
 HandleWebSocketFrameRead handles reading of WebSocket frame, is used in TCPClientUniversal
 */
-func HandleWebSocketFrameRead(cl *tcp.ClientUniversal, limit int, logger *webtools.ConsoleLogger, readFunc tcp.ClientUniversalOnReadFuncIntenal) (bool, error) {
+func HandleWebSocketFrameRead(cl *tcp.ClientUniversal, limit int, logger *helpertools.ConsoleLogger, readFunc tcp.ClientUniversalOnReadFuncIntenal) (bool, error) {
 	for i := 0; i < limit || limit < 0; i++ {
 		//Read header of frame
 		header := make([]byte, 2)
@@ -349,7 +350,7 @@ Sources: https://en.wikipedia.org/wiki/WebSocket#Opcodes
 Some fixes applied from ChatGPT (big payloads)
 OpCode must be in range form 0 to 16 (from Wikipedia) in hex format
 */
-func PackWebSocketFrame(payload []byte, opcode uint8, logger *webtools.ConsoleLogger) []byte {
+func PackWebSocketFrame(payload []byte, opcode uint8, logger *helpertools.ConsoleLogger) []byte {
 	//Check opcode size
 	if opcode >= 16 {
 		logger.Log(3, "Opcode must be in range from 0 to 15 (less than 16), ignoring...")
@@ -443,7 +444,7 @@ func (sv *WebSocketServer) readFuncLocal(cl *tcp.ClientUniversal, data []byte, s
 
 	// Check type
 	if isBinary != httpConn.IsBinary {
-		sv.httpServer.Logger.Log(2, "Connection from: "+cl.GetConn().RemoteAddr().String()+" connected locally to: "+cl.GetConn().LocalAddr().String()+" has got data that are marked as "+webtools.FormatByBool(isBinary, "binary", "text")+" but this connection is marked as "+webtools.FormatByBool(httpConn.IsBinary, "binary", "text")+". Consilider changing properties of websocketConnection.")
+		sv.httpServer.Logger.Log(2, "Connection from: "+cl.GetConn().RemoteAddr().String()+" connected locally to: "+cl.GetConn().LocalAddr().String()+" has got data that are marked as "+helpertools.FormatByBool(isBinary, "binary", "text")+" but this connection is marked as "+helpertools.FormatByBool(httpConn.IsBinary, "binary", "text")+". Consilider changing properties of websocketConnection.")
 	}
 
 	//Process read

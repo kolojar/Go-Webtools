@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	webtools "github.com/kolojar/Go-Webtools"
+	"github.com/kolojar/Go-Webtools/helpertools"
 )
 
 /*
@@ -19,7 +19,7 @@ Client is primitive HTTP client
 type Client struct {
 	client  *http.Client
 	address string
-	Logger  *webtools.ConsoleLogger
+	Logger  *helpertools.ConsoleLogger
 }
 
 /*
@@ -29,7 +29,7 @@ func NewClient(address string, timeout int64, reportTraffic bool) (*Client, erro
 	if !strings.HasPrefix(address, "http://") && !strings.HasPrefix(address, "https://") {
 		return nil, errors.New("invalid url format, must start with http:// or https://")
 	}
-	return &Client{client: &http.Client{Timeout: time.Duration(timeout) * time.Second}, address: address, Logger: webtools.NewConsoleLoggerForTraffic("HTTPClient", reportTraffic)}, nil
+	return &Client{client: &http.Client{Timeout: time.Duration(timeout) * time.Second}, address: address, Logger: helpertools.NewConsoleLoggerForTraffic("HTTPClient", reportTraffic)}, nil
 }
 
 /*

@@ -4,6 +4,7 @@ import (
 	"net"
 
 	webtools "github.com/kolojar/Go-Webtools"
+	"github.com/kolojar/Go-Webtools/helpertools"
 	"github.com/kolojar/Go-Webtools/tcp"
 	"github.com/kolojar/Go-Webtools/udp"
 )
@@ -12,8 +13,8 @@ import (
 TCPProxyServerUDP is server for proxied UDP traffic over TCP
 */
 type TCPProxyServerUDP struct {
-	idToClient       webtools.SafeMap[string, *TCPProxyServerUDPConn]
-	clientToID       webtools.SafeMap[*udp.Client, string]
+	idToClient       helpertools.SafeMap[string, *TCPProxyServerUDPConn]
+	clientToID       helpertools.SafeMap[*udp.Client, string]
 	tcpServer        *tcp.Server
 	tcpServerAddress string
 	reportTrafic     bool
@@ -33,7 +34,7 @@ type TCPProxyServerUDPConn struct {
 SendToTCP creates frame and sends it to TCP
 */
 func (cl *TCPProxyServerUDPConn) SendToTCP(operation uint8, data []byte) {
-	cl.source.Send(webtools.PackWebtoolsFrame(operation, cl.id, data))
+	cl.source.Send(PackWebtoolsFrame(operation, cl.id, data))
 }
 
 /*
@@ -53,7 +54,7 @@ func (cl *TCPProxyServerUDPConn) Close(isInitiator bool) {
 	cl.udpClient.Stop()
 	cl.origin.idToClient.Delete(string(cl.id))
 	if isInitiator {
-		cl.SendToTCP(webtools.FrameTypeClose, nil)
+		cl.SendToTCP(FrameTypeClose, nil)
 	}
 	cl.origin.clientToID.Delete(cl.udpClient)
 }
@@ -62,7 +63,7 @@ func (cl *TCPProxyServerUDPConn) Close(isInitiator bool) {
 NewTCPProxyServerUDP creates new TCP Proxy Server for UDP but does not starts it
 */
 func NewTCPProxyServerUDP(tcpProxyAddress string, udpServerAddress string, reportTraffic bool) (*TCPProxyServerUDP, error) {
-	sv := &TCPProxyServerUDP{tcpServerAddress: udpServerAddress, clientToID: webtools.MakeSafeMap[*udp.Client, string](), idToClient: webtools.MakeSafeMap[string, *TCPProxyServerUDPConn](), reportTrafic: reportTraffic}
+	sv := &TCPProxyServerUDP{tcpServerAddress: udpServerAddress, clientToID: helpertools.MakeSafeMap[*udp.Client, string](), idToClient: helpertools.MakeSafeMap[string, *TCPProxyServerUDPConn](), reportTrafic: reportTraffic}
 	var err error
 	sv.tcpServer, err = tcp.NewServer(tcpProxyAddress, sv.handleTCPReadFunc, reportTraffic, true)
 	if err != nil {
@@ -90,16 +91,16 @@ func (sv *TCPProxyServerUDP) handleTCPReadFunc(conn *tcp.ServerConn, frame []byt
 	}
 
 	//Unpack frame
-	for _, frame := range webtools.UnpackWebtoolsFrame(frame, conn.Client.GetLogger()) {
+	for _, frame := range UnpackWebtoolsFrame(frame, conn.Client.GetLogger()) {
 		if frame.Operation == 0 {
 			return
 		}
 
 		//Sort connections
 		if sv.idToClient.Get(string(frame.ID)) == nil {
-			if frame.Operation == webtools.FrameTypeConnect {
+			if frame.Operation == FrameTypeConnect {
 				//Create new connection
-				frame.ID = []byte(webtools.GenerateRandomID())
+				frame.ID = []byte(helpertools.GenerateRandomID())
 				cl, err := udp.NewClient(sv.tcpServerAddress, sv.handleUDPReadFunc, sv.reportTrafic)
 				cl.Logger.Prefix = "TCPProxyServerUDP - " + cl.Logger.Prefix
 				if err != nil {
@@ -109,7 +110,7 @@ func (sv *TCPProxyServerUDP) handleTCPReadFunc(conn *tcp.ServerConn, frame []byt
 				cl.Connect()
 				sv.idToClient.Set(string(frame.ID), &TCPProxyServerUDPConn{udpClient: cl, id: frame.ID, source: conn, origin: sv})
 				sv.clientToID.Set(cl, string(frame.ID))
-				sv.idToClient.Get(string(frame.ID)).SendToTCP(webtools.FrameTypeConnect, frame.Data)
+				sv.idToClient.Get(string(frame.ID)).SendToTCP(FrameTypeConnect, frame.Data)
 				return
 			}
 			conn.Client.GetLogger().Log(3, "Could not find connection to id: "+string(frame.ID))
@@ -123,12 +124,12 @@ func (sv *TCPProxyServerUDP) handleTCPReadFunc(conn *tcp.ServerConn, frame []byt
 
 		//Sort operations
 		switch frame.Operation {
-		case webtools.FrameTypeClose:
+		case FrameTypeClose:
 			{
 				//Close connection
 				cl.Close(false)
 			}
-		case webtools.FrameTypeData:
+		case FrameTypeData:
 			{
 				//Send to UDP
 				cl.SendToUDP(frame.Data)
@@ -153,7 +154,7 @@ func (sv *TCPProxyServerUDP) handleUDPReadFunc(udp *udp.Client, _ *net.UDPAddr, 
 	}
 
 	//Send to client
-	cl.SendToTCP(webtools.FrameTypeData, data)
+	cl.SendToTCP(FrameTypeData, data)
 }
 
 /*

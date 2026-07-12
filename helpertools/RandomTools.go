@@ -1,21 +1,13 @@
-package webtools
+package helpertools
 
 import (
 	"fmt"
 	"math/rand/v2"
 	"strconv"
 	"time"
+
+	webtools "github.com/kolojar/Go-Webtools"
 )
-
-/*
-AlphabetLetters are all English alphabet letters
-*/
-const AlphabetLetters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-
-/*
-NumberLetters are all number characters
-*/
-const NumberLetters = "0123456789"
 
 /*
 GenerateRandomID generates random Id based on random and current time
@@ -28,7 +20,7 @@ func GenerateRandomID() string {
 GenerateRandomString generates random string
 */
 func GenerateRandomString(lenght int) string {
-	letters := NumberLetters + AlphabetLetters
+	letters := webtools.NumberLetters + webtools.AlphabetLetters
 	result := ""
 	for i := 0; i < lenght; i++ {
 		result += string(letters[rand.IntN(len(letters))])
@@ -37,22 +29,9 @@ func GenerateRandomString(lenght int) string {
 }
 
 /*
-RemoveElement removes element from slice
-*/
-func RemoveElement[T comparable](array []T, item T) []T {
-	result := make([]T, 0)
-	for i := 0; i < len(array); i++ {
-		if array[i] != item {
-			result = append(result, array[i])
-		}
-	}
-	return result
-}
-
-/*
 CeilDivision divides number a by b and threats it as ceiled value
 */
-func CeilDivision[T int | int8 | int16 | int32 | int64 | uint | uint8 | uint16 | uint32 | uint64](a, b T) T {
+func CeilDivision[T ~int | ~int8 | ~int16 | ~int32 | ~int64 | ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64](a, b T) T {
 	return (a + b - 1) / b
 }
 
@@ -98,7 +77,7 @@ func InsertElementAtIndex[T any](slice []T, index int, element T) []T {
 /*
 IntAbs gets absolute value from any int value
 */
-func IntAbs[T int | int8 | int16 | int32 | int64](x T) T {
+func IntAbs[T ~int | ~int8 | ~int16 | ~int32 | ~int64](x T) T {
 	if x < 0 {
 		return -x
 	}

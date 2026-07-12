@@ -1,4 +1,4 @@
-package webtools
+package helpertools
 
 import (
 	"slices"
@@ -69,7 +69,7 @@ func (s *SafeSlice[V]) RemoveAt(index int) {
 func (s *SafeSlice[V]) Remove(deleteFunction func(v V) bool) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	s.s = slices.DeleteFunc(s.s,deleteFunction)
+	s.s = slices.DeleteFunc(s.s, deleteFunction)
 }
 
 // SetAt sets value safely at slice
@@ -158,4 +158,15 @@ func (s *SafeSliceComparable[V]) Remove(value V) {
 	s.Slice.mutex.Lock()
 	defer s.Slice.mutex.Unlock()
 	s.Slice.s = RemoveElement(s.Slice.s, value)
+}
+
+// RemoveElement removes element from slice
+func RemoveElement[T comparable](array []T, item T) []T {
+	result := make([]T, 0)
+	for i := 0; i < len(array); i++ {
+		if array[i] != item {
+			result = append(result, array[i])
+		}
+	}
+	return result
 }

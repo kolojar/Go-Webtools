@@ -9,7 +9,8 @@ import (
 	"syscall"
 	"time"
 	"unsafe"
-	"webtools"
+
+	"github.com/kolojar/Go-Webtools/helpertools"
 )
 
 type fileSystemWatcherInstance struct {
@@ -19,8 +20,8 @@ type fileSystemWatcherInstance struct {
 	isRunning  bool
 	stopped    bool
 	handle     syscall.Handle
-	pathsInFS  webtools.SafeMap[string, bool]
-	//subDirectoriesWatchers webtools.SafeMap[string, *fileSystemWatcherInstance]
+	pathsInFS  helpertools.SafeMap[string, bool]
+	//subDirectoriesWatchers helpertools.SafeMap[string, *fileSystemWatcherInstance]
 }
 
 func newFileSystemWatcherInstance(path string, parent *FileSystemWatcher, recursive bool) *fileSystemWatcherInstance {
@@ -28,7 +29,7 @@ func newFileSystemWatcherInstance(path string, parent *FileSystemWatcher, recurs
 		path += "/"
 	}
 	path = strings.ReplaceAll(path, "/", `\`)
-	return &fileSystemWatcherInstance{isRunning: false, mainParent: parent, path: path, recursive: recursive, pathsInFS: webtools.MakeSafeMap[string, bool]()}
+	return &fileSystemWatcherInstance{isRunning: false, mainParent: parent, path: path, recursive: recursive, pathsInFS: helpertools.MakeSafeMap[string, bool]()}
 }
 
 // WARNING: CONTAINS UNSAFE POINTER CALLING

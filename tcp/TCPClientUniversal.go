@@ -9,6 +9,7 @@ import (
 
 	webtools "github.com/kolojar/Go-Webtools"
 	"github.com/kolojar/Go-Webtools/encryption"
+	"github.com/kolojar/Go-Webtools/helpertools"
 )
 
 /*
@@ -17,7 +18,7 @@ Return true on connection close and error
 Please use limit as count of read connections, when limit is equal to count of read connections, finish read and exit read func, do not end connection! If some read error occures, return true, TCP Client will handle closing of connection
 Do not forget to use logging. 0 = Traffic, 1 = Generic info, 2 = Warnings = Connect / Disconnect / Others..., 3 = Errors
 */
-type ClientUniversalReadHandlerFunc func(cl *ClientUniversal, limit int, logger *webtools.ConsoleLogger, readFunc ClientUniversalOnReadFuncIntenal) (bool, error)
+type ClientUniversalReadHandlerFunc func(cl *ClientUniversal, limit int, logger *helpertools.ConsoleLogger, readFunc ClientUniversalOnReadFuncIntenal) (bool, error)
 
 /*
 ClientUniversalOnReadFunc is used for calling event on read
@@ -51,7 +52,7 @@ type ClientUniversalHanderFuncs struct {
 ClientUniversal is completly universal TCP client, for example usage see tcp.ClientSimple
 */
 type ClientUniversal struct {
-	Logger  *webtools.ConsoleLogger
+	Logger  *helpertools.ConsoleLogger
 	conn    *net.TCPConn
 	address *net.TCPAddr
 	isAlive bool
@@ -99,7 +100,7 @@ func NewTCPClientUniversal(address string, reportTraffic bool) (*ClientUniversal
 	}
 
 	// Make client
-	return &ClientUniversal{address: addressObj, Logger: webtools.NewConsoleLoggerForTraffic("TCPClientUniversal", reportTraffic), HandlerFuncs: make([]ClientUniversalHanderFuncs, 0), isPreparedWithConnection: false}, nil
+	return &ClientUniversal{address: addressObj, Logger: helpertools.NewConsoleLoggerForTraffic("TCPClientUniversal", reportTraffic), HandlerFuncs: make([]ClientUniversalHanderFuncs, 0), isPreparedWithConnection: false}, nil
 }
 
 /*
@@ -108,7 +109,7 @@ To set up read and write mechanisms, append items to HandlerFuncs
 */
 func NewTCPClientUniversalFromConnection(conn *net.TCPConn, reportTraffic bool) *ClientUniversal {
 	// Make client
-	return &ClientUniversal{conn: conn, address: conn.RemoteAddr().(*net.TCPAddr), Logger: webtools.NewConsoleLoggerForTraffic("TCPClientUniversal", reportTraffic), HandlerFuncs: make([]ClientUniversalHanderFuncs, 0), isPreparedWithConnection: true}
+	return &ClientUniversal{conn: conn, address: conn.RemoteAddr().(*net.TCPAddr), Logger: helpertools.NewConsoleLoggerForTraffic("TCPClientUniversal", reportTraffic), HandlerFuncs: make([]ClientUniversalHanderFuncs, 0), isPreparedWithConnection: true}
 }
 
 /*
@@ -200,7 +201,7 @@ func (cl *ClientUniversal) readNextFunc() {
 func (cl *ClientUniversal) localReadFunc(data []byte, otherData map[string]any) {
 	if cl.useEncryption {
 		// Decrypt
-		cl.Logger.Log(0, "Reading enrypted from: "+cl.conn.RemoteAddr().String()+" connected locally to: "+cl.conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data)+" | Other data: "+webtools.MapToString(otherData))
+		cl.Logger.Log(0, "Reading enrypted from: "+cl.conn.RemoteAddr().String()+" connected locally to: "+cl.conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data)+" | Other data: "+helpertools.MapToString(otherData))
 		var err error
 		data, err = encryption.DecryptSymmetric([]byte(cl.encryptionPassword), data)
 		if err != nil {
@@ -210,7 +211,7 @@ func (cl *ClientUniversal) localReadFunc(data []byte, otherData map[string]any) 
 	}
 
 	// Read
-	cl.Logger.Log(0, "Reading from: "+cl.conn.RemoteAddr().String()+" connected locally to: "+cl.conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data)+" | Other data: "+webtools.MapToString(otherData))
+	cl.Logger.Log(0, "Reading from: "+cl.conn.RemoteAddr().String()+" connected locally to: "+cl.conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data)+" | Other data: "+helpertools.MapToString(otherData))
 	if cl.currentHandlers.ReadFunc != nil {
 		cl.currentHandlers.ReadFunc(cl, data, webtools.ReadDataStatus, otherData)
 	}
@@ -238,7 +239,7 @@ func (cl *ClientUniversal) Send(data []byte, otherData map[string]any) {
 
 	// Write
 	if cl.currentHandlers.WriteHandler != nil {
-		cl.Logger.Log(0, "Writing to: "+cl.conn.RemoteAddr().String()+" connected locally to: "+cl.conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data)+" | Other data: "+webtools.MapToString(otherData))
+		cl.Logger.Log(0, "Writing to: "+cl.conn.RemoteAddr().String()+" connected locally to: "+cl.conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data)+" | Other data: "+helpertools.MapToString(otherData))
 		if cl.useEncryption {
 			// Encrypt
 			var err error
@@ -247,7 +248,7 @@ func (cl *ClientUniversal) Send(data []byte, otherData map[string]any) {
 				cl.Logger.Log(3, "Error encrypting: "+err.Error())
 				return
 			}
-			cl.Logger.Log(0, "Writing enrypted from: "+cl.conn.RemoteAddr().String()+" connected locally to: "+cl.conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data)+" | Other data: "+webtools.MapToString(otherData))
+			cl.Logger.Log(0, "Writing enrypted from: "+cl.conn.RemoteAddr().String()+" connected locally to: "+cl.conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data)+" | Other data: "+helpertools.MapToString(otherData))
 		}
 
 		// Write

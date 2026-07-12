@@ -3,7 +3,7 @@ package udp
 import (
 	"net"
 
-	webtools "github.com/kolojar/Go-Webtools"
+	"github.com/kolojar/Go-Webtools/helpertools"
 )
 
 /*
@@ -16,7 +16,7 @@ Client is basic UDP Client
 */
 type Client struct {
 	readFunc ClientReadFunc
-	Logger   *webtools.ConsoleLogger
+	Logger   *helpertools.ConsoleLogger
 	Conn     *net.UDPConn
 	address  *net.UDPAddr
 	isAlive  bool
@@ -27,6 +27,10 @@ IsAlive gets if client is alive
 */
 func (cl *Client) IsAlive() bool {
 	return cl.isAlive
+}
+
+func (cl *Client) GetAddress() *net.UDPAddr {
+	return cl.address
 }
 
 /*
@@ -40,7 +44,7 @@ func NewClient(address string, readFunc ClientReadFunc, reportTraffic bool) (*Cl
 	}
 
 	//Make client
-	return &Client{address: addressObj, Logger: webtools.NewConsoleLoggerForTraffic("UDPClient", reportTraffic), readFunc: readFunc}, nil
+	return &Client{address: addressObj, Logger: helpertools.NewConsoleLoggerForTraffic("UDPClient", reportTraffic), readFunc: readFunc}, nil
 }
 
 /*
@@ -108,4 +112,14 @@ func (cl *Client) Stop() {
 	if err != nil {
 		cl.Logger.Log(3, "Error disconnecting from: "+cl.address.String()+" | Error: "+err.Error())
 	}
+}
+
+// Close is alias for Stop
+func (cl *Client) Close() {
+	cl.Stop()
+}
+
+// GetLogger gets logger of client
+func (cl *Client) GetLogger() *helpertools.ConsoleLogger {
+	return cl.Logger
 }

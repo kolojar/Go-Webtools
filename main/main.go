@@ -16,6 +16,7 @@ import (
 	webtools "github.com/kolojar/Go-Webtools"
 	"github.com/kolojar/Go-Webtools/database"
 	"github.com/kolojar/Go-Webtools/filesystem"
+	"github.com/kolojar/Go-Webtools/helpertools"
 	"github.com/kolojar/Go-Webtools/httptools"
 	"github.com/kolojar/Go-Webtools/p2p"
 	"github.com/kolojar/Go-Webtools/proxy"
@@ -206,7 +207,7 @@ func main() {
 			cl, _ := p2p.NewP2PClient("127.0.0.1:1234", 5678, p2pReadFunc, true)
 			cl.SetupUPnP(upnp)
 			cl.ConnectToCoordinator()
-			webtools.ReadLineFromConsole("Wait")
+			helpertools.ReadLineFromConsole("Wait")
 		}
 	case "p2pcl2":
 		{
@@ -214,20 +215,20 @@ func main() {
 			cl, _ := p2p.NewP2PClient("127.0.0.1:1234", 5679, p2pReadFunc2, true)
 			cl.SetupUPnP(upnp)
 			cl.ConnectToCoordinator()
-			data, _ := webtools.ReadLineFromConsole("Enter target id: ")
+			data, _ := helpertools.ReadLineFromConsole("Enter target id: ")
 			cl.ConnectToPeer([]byte(strings.ReplaceAll(string(data), "\n", "")))
 			cl.Send([]byte(strings.ReplaceAll(string(data), "\n", "")), []byte("Hello"))
-			webtools.ReadLineFromConsole("wait")
+			helpertools.ReadLineFromConsole("wait")
 		}
 	case "p2pcl3":
 		{
 			cl, _ := p2p.NewP2PClient("127.0.0.1:1234", 5677, p2pReadFunc2, true)
 			cl.SetupUPnP(upnp)
 			cl.ConnectToCoordinator()
-			data, _ := webtools.ReadLineFromConsole("Enter target id: ")
+			data, _ := helpertools.ReadLineFromConsole("Enter target id: ")
 			cl.ConnectToPeer([]byte(strings.ReplaceAll(string(data), "\n", "")))
 			cl.Send([]byte(strings.ReplaceAll(string(data), "\n", "")), []byte("Hello"))
-			webtools.ReadLineFromConsole("wait")
+			helpertools.ReadLineFromConsole("wait")
 		}
 	case "upnp":
 		{
@@ -261,7 +262,7 @@ func main() {
 		}
 	case "p2ppcu":
 		{
-			data, _ := webtools.ReadLineFromConsole("Enter target id: ")
+			data, _ := helpertools.ReadLineFromConsole("Enter target id: ")
 			proxy, _ := proxy.NewP2PProxyClientUDP("127.0.0.1:1234", 5679, []byte(strings.ReplaceAll(string(data), "\n", "")), "127.0.0.1:17777", true)
 			proxy.Connect()
 			for {
@@ -295,7 +296,7 @@ func main() {
 		}
 	case "p2ppc":
 		{
-			data, _ := webtools.ReadLineFromConsole("Enter target id: ")
+			data, _ := helpertools.ReadLineFromConsole("Enter target id: ")
 			proxy, _ := proxy.NewP2PProxyClientUniversal("127.0.0.1:1234", 5679, []byte(strings.ReplaceAll(string(data), "\n", "")),
 				map[string]string{"u7777": "127.0.0.1:17777", "t7777": "127.0.0.1:17777", "t8888": "127.0.0.1:18888"}, false)
 			proxy.SetupFramingP2PClient(framer)
@@ -401,8 +402,8 @@ func main() {
 			new := []rune("cbabac")
 			//old := "ABCBDAB"
 			//new := "BDCABA"
-			//old := []rune(webtools.GenerateRandomString(10))
-			//new := []rune(webtools.GenerateRandomString(10))
+			//old := []rune(helpertools.GenerateRandomString(10))
+			//new := []rune(helpertools.GenerateRandomString(10))
 			//old := []rune("A" + strings.Repeat("CD", 50000) + "C")
 			//new := []rune("B" + strings.Repeat("DC", 50000) + "C")
 			//old := []rune("Češi jsou nejlepší")
@@ -457,11 +458,11 @@ func filesystemEvent(path string, operation filesystem.FileSystemEventType, isDi
 	//fmt.Println(path, operation, isDir, newPath)
 }
 
-func p2pReadFunc(client *p2p.Client, sourceID []byte, data []byte, _ bool, _ *webtools.ConsoleLogger) {
+func p2pReadFunc(client *p2p.Client, sourceID []byte, data []byte, _ bool, _ *helpertools.ConsoleLogger) {
 	client.Send(sourceID, data)
 }
 
-func p2pReadFunc2(_ *p2p.Client, _ []byte, data []byte, _ bool, _ *webtools.ConsoleLogger) {
+func p2pReadFunc2(_ *p2p.Client, _ []byte, data []byte, _ bool, _ *helpertools.ConsoleLogger) {
 	fmt.Println(string(data))
 }
 

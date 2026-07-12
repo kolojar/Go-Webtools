@@ -9,12 +9,13 @@ import (
 	"syscall"
 	"time"
 	"unsafe"
-	"github.com/kolojar/Go-Webtools"
+
+	"github.com/kolojar/Go-Webtools/helpertools"
 )
 
 type fileSystemWatcherInstance struct {
 	inotifyBase            int
-	subDirectoriesWatchers webtools.SafeMap[string, *fileSystemWatcherInstance]
+	subDirectoriesWatchers helpertools.SafeMap[string, *fileSystemWatcherInstance]
 	mainParent             *FileSystemWatcher
 	isRunning              bool
 	stopped                bool
@@ -27,7 +28,7 @@ func newFileSystemWatcherInstance(path string, parent *FileSystemWatcher, recurs
 	if !strings.HasSuffix(path, "/") {
 		path += "/"
 	}
-	return &fileSystemWatcherInstance{isRunning: false, mainParent: parent, subDirectoriesWatchers: webtools.MakeSafeMap[string, *fileSystemWatcherInstance](), path: path, recursive: recursive}
+	return &fileSystemWatcherInstance{isRunning: false, mainParent: parent, subDirectoriesWatchers: helpertools.MakeSafeMap[string, *fileSystemWatcherInstance](), path: path, recursive: recursive}
 }
 
 // WARNING: CONTAINS UNSAFE POINTER CALLING

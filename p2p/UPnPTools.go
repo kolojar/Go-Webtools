@@ -14,6 +14,7 @@ import (
 	"time"
 
 	webtools "github.com/kolojar/Go-Webtools"
+	"github.com/kolojar/Go-Webtools/helpertools"
 )
 
 /*
@@ -58,9 +59,9 @@ UPnPServiceManager is manager for UPnP and getting public IP from router
 */
 type UPnPServiceManager struct {
 	controlURLs []string
-	Logger      *webtools.ConsoleLogger
+	Logger      *helpertools.ConsoleLogger
 	localIP     string
-	mappedUrls  webtools.SafeMap[int, string] //In format externalPort, protocol
+	mappedUrls  helpertools.SafeMap[int, string] //In format externalPort, protocol
 }
 
 /*
@@ -71,7 +72,7 @@ func NewUPnPServiceManager(localIP string) *UPnPServiceManager {
 	return &UPnPServiceManager{
 		controlURLs: make([]string, 0),
 		Logger:      webtools.NewConsoleLogger("UPnP", 0),
-		mappedUrls:  webtools.MakeSafeMap[int, string](),
+		mappedUrls:  helpertools.MakeSafeMap[int, string](),
 		localIP:     localIP,
 	}
 }

@@ -1,4 +1,4 @@
-package webtools
+package helpertools
 
 // Event is base generic Event struct, uses Lazy construction
 type Event struct {

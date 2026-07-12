@@ -7,7 +7,8 @@ import (
 	"os"
 	"reflect"
 	"strings"
-	"github.com/kolojar/Go-Webtools"
+
+	"github.com/kolojar/Go-Webtools/helpertools"
 )
 
 /*
@@ -76,7 +77,7 @@ type DBField struct {
 	IsStruct       bool
 }
 
-var dbFieldSchemas map[reflect.Type]webtools.KeyValuePair[DBField, string] = map[reflect.Type]webtools.KeyValuePair[DBField, string]{}
+var dbFieldSchemas map[reflect.Type]helpertools.KeyValuePair[DBField, string] = map[reflect.Type]helpertools.KeyValuePair[DBField, string]{}
 
 func buildDBSchemaField(t reflect.Type, name string, index int) DBField {
 	tElem := t
@@ -211,7 +212,7 @@ func BuildDBSchema(t reflect.Type) (DBField, string) {
 		schema.Fields = append(schema.Fields, fieldDB)
 	}
 	schemaString := BuildDBSchemaString(schema)
-	dbFieldSchemas[t] = webtools.KeyValuePair[DBField, string]{Key: schema, Value: schemaString}
+	dbFieldSchemas[t] = helpertools.KeyValuePair[DBField, string]{Key: schema, Value: schemaString}
 	return schema, schemaString
 }
 

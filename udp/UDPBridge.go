@@ -8,7 +8,7 @@ import (
 	"net"
 	"time"
 
-	webtools "github.com/kolojar/Go-Webtools"
+	"github.com/kolojar/Go-Webtools/helpertools"
 )
 
 /*
@@ -17,8 +17,8 @@ Bridge copies data from one port to other in UDP protocol
 type Bridge struct {
 	udpSourceServerAdress     string
 	udpServer                 *Server
-	connetionUDPLocalToRemote webtools.SafeMap[*Client, *ServerConn]
-	connetionUDPRemoteToLocal webtools.SafeMap[*ServerConn, *Client]
+	connetionUDPLocalToRemote helpertools.SafeMap[*Client, *ServerConn]
+	connetionUDPRemoteToLocal helpertools.SafeMap[*ServerConn, *Client]
 	reportTraffic             bool
 }
 
@@ -81,7 +81,7 @@ func (br *Bridge) readFuncUDPRemote(conn *ServerConn, data []byte, ended bool) {
 NewBridge creates new instance of UDP Bridge but does not start it
 */
 func NewBridge(udpSourceServerAdress string, udpNewVirtualAddress string, reportTraffic bool) (*Bridge, error) {
-	udpBridge := &Bridge{udpSourceServerAdress: udpSourceServerAdress, connetionUDPLocalToRemote: webtools.MakeSafeMap[*Client, *ServerConn](), connetionUDPRemoteToLocal: webtools.MakeSafeMap[*ServerConn, *Client](), reportTraffic: reportTraffic}
+	udpBridge := &Bridge{udpSourceServerAdress: udpSourceServerAdress, connetionUDPLocalToRemote: helpertools.MakeSafeMap[*Client, *ServerConn](), connetionUDPRemoteToLocal: helpertools.MakeSafeMap[*ServerConn, *Client](), reportTraffic: reportTraffic}
 	udpServer, err := NewServer(udpNewVirtualAddress, udpBridge.readFuncUDPRemote, reportTraffic)
 	if err != nil {
 		return nil, err
