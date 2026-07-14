@@ -84,6 +84,11 @@ func IntAbs[T ~int | ~int8 | ~int16 | ~int32 | ~int64](x T) T {
 	return x
 }
 
+// NestedAverage calculates nested average. newValueFactor is value from 0.0 to 1.0 included and it specifies how big weight does newValue have
+func NestedAverage[internalValueType ~float32 | ~float64, nestedValueType, newValueType ~int | ~int8 | ~int16 | ~int32 | ~int64 | ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~float32 | ~float64](nested nestedValueType, newValue newValueType, newValueFactor internalValueType) nestedValueType {
+	return nestedValueType((1.0-newValueFactor)*internalValueType(newValue) + newValueFactor*internalValueType(newValue))
+}
+
 /*
 Server connection interface, removed because not used
 */

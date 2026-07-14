@@ -132,11 +132,16 @@ func (stabilizer *connectionStabilizer[T]) processRead(conn T, framedData []byte
 		{
 			//Data frame - no checking applied = pass to read func
 			if stabilizer.readFunc != nil {
-				stabilizer.readFunc(conn, framedData[1:])
+				if len(framedData) > 1 {
+					stabilizer.readFunc(conn, framedData[1:])
+				} else {
+					stabilizer.readFunc(conn, []byte{})
+				}
 			}
 			break
 		}
 	}
+	case
 }
 
 // processWrite is internal function for handeling writes
