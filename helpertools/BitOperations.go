@@ -1,6 +1,8 @@
 // helpertools package provides some other nonspecific tools for generic usage
 package helpertools
 
+import "encoding/binary"
+
 /*
 SetBitValueArray sets bit to value at specific position in array - position in array = pos/8, position in bit = pos%8 -> 0 = 128, 7 = 1
 */
@@ -174,4 +176,36 @@ func BitshiftArrayRight(data []byte, bits int) {
 		}
 		data[0] >>= bits
 	}
+}
+
+// AppendGenericLitteEndian appends encoded LittleEndian to b slice. Return number of written bytes
+func AppendGenericLitteEndian[valueType ~uint8 | ~uint16 | ~uint32 | ~uint64](b []byte, value valueType) (result []byte, addedBytes uint8) {
+	switch any(value).(type) {
+	case uint8:
+		b = append(b, byte(value))
+		return b, 1
+	case uint16:
+		return binary.LittleEndian.AppendUint16(b, uint16(value)), 2
+	case uint32:
+		return binary.LittleEndian.AppendUint32(b, uint32(value)), 4
+	case uint64:
+
+		return binary.LittleEndian.AppendUint64(b, uint64(value)), 8
+	}
+	return b, 0
+}
+
+// ParseGenericLitteEndian reads bytes from b and parses them using LittleEndian. Returns value and count of read bytes
+func ParseGenericLitteEndian[valueType ~uint8 | ~uint16 | ~uint32 | ~uint64](b []byte) (value valueType, readBytes uint8) {
+	switch any(value).(type) {
+	case uint8:
+		return valueType(b[0]), 1
+	case uint16:
+		return valueType(binary.LittleEndian.Uint16(b[0:2])), 2
+	case uint32:
+		return valueType(binary.LittleEndian.Uint32(b[0:4])), 4
+	case uint64:
+		return valueType(binary.LittleEndian.Uint64(b[0:8])), 8
+	}
+	return 0, 0
 }

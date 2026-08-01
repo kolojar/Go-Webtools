@@ -39,8 +39,12 @@ type SafeMap[K comparable, V any] struct {
 }
 
 // MakeSafeMap creates new Safe Map
-func MakeSafeMap[K comparable, V any]() SafeMap[K, V] {
-	return SafeMap[K, V]{m: map[K]V{}, mutex: &sync.RWMutex{}}
+func MakeSafeMap[K comparable, V any](size ...int) SafeMap[K, V] {
+	capacity := 0
+	if len(size) > 0 {
+		capacity = size[0]
+	}
+	return SafeMap[K, V]{m: make(map[K]V, capacity), mutex: &sync.RWMutex{}}
 }
 
 // IsNill checks if map is nil

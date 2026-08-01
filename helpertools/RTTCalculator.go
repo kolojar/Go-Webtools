@@ -1,6 +1,7 @@
 package helpertools
 
 import (
+	"sync"
 	"time"
 )
 
@@ -12,6 +13,7 @@ const rttCalculatorNestedAverageBeta = float64(0.25)
 
 // RTTCalculator is struct for calculating RTT
 type RTTCalculator struct {
+	mutex       *sync.RWMutex
 	rtt         time.Duration
 	rttJitter   time.Duration //Also called rttVariance
 	isFirst     bool
@@ -19,8 +21,25 @@ type RTTCalculator struct {
 	minimumRTO  time.Duration
 }
 
+// NewRTTCalculator creates new RTT calculator
+func NewRTTCalculator(minimumRTO time.Duration, fallbackRTO time.Duration) *RTTCalculator {
+	return &RTTCalculator{
+		rtt:         time.Duration(0),
+		rttJitter:   time.Duration(0),
+		isFirst:     true,
+		fallbackRTO: fallbackRTO,
+		minimumRTO:  minimumRTO,
+		mutex:       &sync.RWMutex{},
+	}
+}
+
 // ForceSetRTT forcefully sets internal RTT counter to duration
 func (rtt *RTTCalculator) ForceSetRTT(duration time.Duration) {
+	//Lock mutex
+	rtt.mutex.Lock()
+	defer rtt.mutex.Unlock()
+
+	//Set value
 	if rtt.isFirst {
 		rtt.isFirst = false
 	}
@@ -30,6 +49,10 @@ func (rtt *RTTCalculator) ForceSetRTT(duration time.Duration) {
 
 // CalculateRTT calculates average of rtt and of duration using nested average equation
 func (rtt *RTTCalculator) CalculateRTT(duration time.Duration) {
+	//Lock mutex
+	rtt.mutex.Lock()
+	defer rtt.mutex.Unlock()
+
 	//Handle isFirst duration
 	if rtt.isFirst {
 		rtt.ForceSetRTT(duration)
@@ -44,7 +67,7 @@ func (rtt *RTTCalculator) CalculateRTT(duration time.Duration) {
 		diff = float64(rtt.rtt - duration)
 	}
 
-	//Calculate average RTO
+	//Calculate average jitter
 	//rtt.rttJitter = time.Duration((1.0-rttCalculatorNestedAverageBeta)*float64(rtt.rttJitter) + rttCalculatorNestedAverageBeta*diff)
 	rtt.rttJitter = NestedAverage(rtt.rttJitter, diff, rttCalculatorNestedAverageBeta)
 
@@ -55,6 +78,11 @@ func (rtt *RTTCalculator) CalculateRTT(duration time.Duration) {
 
 // GetRTT gets RTT value
 func (rtt *RTTCalculator) GetRTT() time.Duration {
+	//Lock mutex
+	rtt.mutex.RLock()
+	defer rtt.mutex.RUnlock()
+
+	//Read value
 	if rtt.isFirst {
 		return 0
 	}
@@ -62,6 +90,10 @@ func (rtt *RTTCalculator) GetRTT() time.Duration {
 }
 
 func (rtt *RTTCalculator) GetRTO() time.Duration {
+	//Lock mutex
+	rtt.mutex.RLock()
+	defer rtt.mutex.RUnlock()
+
 	//Handle RTO before any RTT
 	if rtt.isFirst {
 		return rtt.fallbackRTO
