@@ -11,7 +11,7 @@ import (
 // Sometimes it is called BitMask
 type ReplayWindow[checkedValueType ~uint8 | ~uint16 | ~uint32 | ~uint64] struct {
 	// window is uint64 holder of data (64 bits = 64 values)
-	window uint64
+	window []
 	// maxForwardJump is value that takes care of maximum value that can be forwarded.
 	//
 	// If maxForwardJump is 64, it can jump only to value 63 or smaller
@@ -19,14 +19,14 @@ type ReplayWindow[checkedValueType ~uint8 | ~uint16 | ~uint32 | ~uint64] struct 
 	// rightEdge is current highest value in window
 	rightEdge checkedValueType
 	// mutex is for locking and provides support on goroutines
-	mutex *sync.RWMutex
+	mutex sync.Mutex
 	// isFirstValue sets if first value is being set
 	isFirstValue bool
 }
 
-// MakeReplayWindow initializes ReplayWindow.
-func MakeReplayWindow[checkedValueType ~uint8 | ~uint16 | ~uint32 | ~uint64]() ReplayWindow[checkedValueType] {
-	return ReplayWindow[checkedValueType]{window: 0, rightEdge: 0, mutex: &sync.RWMutex{}, isFirstValue: true, maxForwardJump: (checkedValueType(0) - 1) >> 1}
+// NewReplayWindow initializes ReplayWindow
+func NewReplayWindow[checkedValueType ~uint8 | ~uint16 | ~uint32 | ~uint64]() *ReplayWindow[checkedValueType] {
+	return &ReplayWindow[checkedValueType]{window: 0, rightEdge: 0, mutex: sync.Mutex{}, isFirstValue: true, maxForwardJump: (checkedValueType(0) - 1) >> 1}
 }
 
 // ApplyWindowCheck checks if number is in window and if it was already set or not.
@@ -96,6 +96,10 @@ func (window *ReplayWindow[checkedValueType]) ApplyWindowCheck(number checkedVal
 
 // CheckValue only checks, if value is in window and if is set to active
 func (window *ReplayWindow[checkedValueType]) CheckValue(value checkedValueType) bool {
+	//Lock mutex
+	window.mutex.Lock()
+	defer window.mutex.Unlock()
+
 	//Check if in range
 	location := window.rightEdge - value
 	if location >= 64 {
@@ -127,16 +131,16 @@ func (window *ReplayWindow[checkedValueType]) SetWindowDataBytes(b []byte) {
 
 // GetWindowData gets window data and rightEdge
 func (window *ReplayWindow[checkedValueType]) GetWindowData() (windowBytes uint64, rightEdge checkedValueType) {
-	window.mutex.RLock()
-	defer window.mutex.RUnlock()
+	window.mutex.Lock()
+	defer window.mutex.Unlock()
 	return window.window, window.rightEdge
 }
 
 // GetWindowDataBytes gets window data nd rightEdge in binary format
 func (window *ReplayWindow[checkedValueType]) GetWindowDataBytes() []byte {
 	//Lock mutex
-	window.mutex.RLock()
-	defer window.mutex.RUnlock()
+	window.mutex.Lock()
+	defer window.mutex.Unlock()
 
 	//Write window data
 	result := make([]byte, 0)

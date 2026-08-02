@@ -13,23 +13,28 @@ const rttCalculatorNestedAverageBeta = float64(0.25)
 
 // RTTCalculator is struct for calculating RTT
 type RTTCalculator struct {
-	mutex       *sync.RWMutex
+	mutex       sync.Mutex
 	rtt         time.Duration
 	rttJitter   time.Duration //Also called rttVariance
 	isFirst     bool
-	fallbackRTO time.Duration
-	minimumRTO  time.Duration
+	fallbackRTT time.Duration
+	minimumRTT  time.Duration
+	maximumRTT  time.Duration
 }
 
 // NewRTTCalculator creates new RTT calculator
-func NewRTTCalculator(minimumRTO time.Duration, fallbackRTO time.Duration) *RTTCalculator {
+func NewRTTCalculator(minimumRTT time.Duration, maximumRTT time.Duration, fallbackRTT time.Duration) *RTTCalculator {
+	if minimumRTT > maximumRTT {
+		panic("Minimum RTT must be smaller then maximum RTT.")
+	}
 	return &RTTCalculator{
 		rtt:         time.Duration(0),
 		rttJitter:   time.Duration(0),
 		isFirst:     true,
-		fallbackRTO: fallbackRTO,
-		minimumRTO:  minimumRTO,
-		mutex:       &sync.RWMutex{},
+		fallbackRTT: fallbackRTT,
+		minimumRTT:  minimumRTT,
+		maximumRTT:  maximumRTT,
+		mutex:       sync.Mutex{},
 	}
 }
 
@@ -78,31 +83,34 @@ func (rtt *RTTCalculator) CalculateRTT(duration time.Duration) {
 
 // GetRTT gets RTT value
 func (rtt *RTTCalculator) GetRTT() time.Duration {
+	result, _ := rtt.GetRTTAndJitter()
+	return result
+}
+
+// GetRTTAndJitter gets RTT value and Jitter
+func (rtt *RTTCalculator) GetRTTAndJitter() (rttValue time.Duration, rttJitterValue time.Duration) {
 	//Lock mutex
-	rtt.mutex.RLock()
-	defer rtt.mutex.RUnlock()
+	rtt.mutex.Lock()
+	defer rtt.mutex.Unlock()
 
 	//Read value
 	if rtt.isFirst {
-		return 0
+		return rtt.fallbackRTT, rtt.fallbackRTT / 2
 	}
-	return rtt.rtt
+	if rtt.rtt < rtt.minimumRTT {
+		return rtt.minimumRTT, rtt.minimumRTT / 2
+	}
+	if rtt.rtt > rtt.maximumRTT {
+		return rtt.maximumRTT, rtt.maximumRTT / 2
+	}
+	return rtt.rtt, rtt.rttJitter
 }
 
+// GetRTO calculates RTO
 func (rtt *RTTCalculator) GetRTO() time.Duration {
-	//Lock mutex
-	rtt.mutex.RLock()
-	defer rtt.mutex.RUnlock()
-
-	//Handle RTO before any RTT
-	if rtt.isFirst {
-		return rtt.fallbackRTO
-	}
+	//Get value
+	rttValue, jitter := rtt.GetRTTAndJitter()
 
 	//Calculate RTO
-	rto := rtt.rtt + 4*rtt.rttJitter
-	if rto < rtt.minimumRTO {
-		return rtt.minimumRTO
-	}
-	return rto
+	return rttValue + 4*jitter
 }

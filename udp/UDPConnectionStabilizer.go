@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"net"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -45,14 +46,25 @@ const stableDataFrame stableFrameType = 4
 // stableDataWithResendFrame is data frame code with checking for delivery
 const stableDataWithResendFrame stableFrameType = 5
 
-// stableDataWithOrderFrame is data frame code with checking for order of packets
-const stableDataWithOrderFrame stableFrameType = 6
+// stableDataWithOrderInstantFrame is data frame code with checking for order of packets, instantly drops out of order packets.
+// Example: If packet 2 arrives before packet 1, it processes packet 2 and packet 1 gets dropped.
+//
+// For more stable see stableDataWithOrderTimeoutFrame
+const stableDataWithOrderInstantFrame stableFrameType = 6
 
-// stableDataWithResendOrderFrame is data frame code with checking for order of packets and for delivery
-const stableDataWithResendOrderFrame stableFrameType = 7
+// stableDataWithOrderFrame is data frame code with checking for order of packets, drops out of order packets after timeout.
+// Example: When packet 2 arrieves, it waits timeout (if there are packets before that have not arrived) before processing the packet 2 and dropping all older packets.
+//
+// For instant processing see: stableDataWithOrderInstantFrame.
+//
+// Note: Timeout is set via setting in connection stabilizer
+const stableDataWithOrderTimeoutFrame stableFrameType = 7
 
-// stableMissingPacketsFrame is information frame with list of packet numbers that need be resended
-const stableMissingPacketsFrame stableFrameType = 8
+// stableDataWithOrderResendFrame is data frame code with checking for order of packets and for delivery. It works like TCP.
+//
+// Warning: This type can introduce big latency or infinite waiting for packets, if they get lost. Packets are waiting for strict order.
+// Example: If packet 2 arrives before packet 1, it waits until packet 1 is recieved
+const stableDataWithOrderResendFrame stableFrameType = 8
 
 // ConnectionStabilizerSettings are settings used in connectionStabilizer
 type ConnectionStabilizerSettings struct {
@@ -72,43 +84,39 @@ type ConnectionStabilizerSettings struct {
 
 	// OrderDelayMiliseconds sets how long does stabilizer wait for other packets to arrive before ordering them and passing them to read function.
 	//
-	// Warning: This setting introduces latency.
+	// Only affects: stableDataWithOrderTimeoutFrame.
+	//
+	// Warning: This setting introduces latency
 	OrderDelay time.Duration
 
-	// OrderDelayProcessDelayedPackets sets if delayed packets, that should be delivered before the OrderDelayMiliseconds, shoud be passed to read function.
+	// DefaultSendFrameType sets type for Send() function.
 	//
-	// Warning: This setting can introduce data loss but can eliminate wrong order of packets.
-	OrderDelayProcessDelayedPackets bool
+	// Warning: Do not set 0, stablePingFrame, stablePongFrame or stableDataRecievedFrame = application will fallback to stableDataFrame
+	DefaultSendFrameType stableFrameType
 
-	// WaitForAllPackets sets if stabilizer respects and waits like TCP for precise order of packets before passing them to read function.
+	// FallbackRTT is duration for RTT when IT cant be calculated yet
 	//
-	// Difference between OrderDelayMiliseconds: WaitForAllPackets waits infinite time until required packet is recieved, OrderDelayMiliseconds some time and then continues.
+	// Recommendation: Set this to 100 ms
+	FallbackRTT time.Duration
+
+	// MinimumRTT is minimum duration for RTT
 	//
-	// Warning: This setting can introduce latency or in worst scenario infinite waitng.
+	// Recommendation: Set this to 10 ms
+	MinimumRTT time.Duration
+
+	// MinimumRTO is maximum duration for RTT
 	//
-	// Note: This setting overwrites OrderDelayMiliseconds, OrderDelayProcessDelayedPackets and ResendRetries
-	WaitForAllPackets bool
-
-	// DefaultSendUseResend sets if Send() function should use resend
-	DefaultSendUseResend bool
-
-	// DefaultSendUseOrder sets if Send() functions should use preserve order
-	DefaultSendUseOrder bool
-
-	// FallbackRTO is duration for RTO (time needed for 1 packet to be send and recieved with some bonus time) when RTO cant be calculated yet
-	FallbackRTO time.Duration
-
-	// MinimumRTO is minimum duration for RTO
-	MinimumRTO time.Duration
+	// Recommendation: Set this to 1500 ms
+	MaximumRTT time.Duration
 
 	// CountOfRecievedPacketsForACK sets after how many recieved packets is an ACK packet send when there was not any ACK-Compatible packet send. Set to 0 to disable.
 	//
-	// Recomendation: Set this to 16
+	// Recommendation: Set this to 16
 	CountOfRecievedPacketsForACK uint32
 
 	// TimeBetweenACKPackets is maximum duration between two ACK-Compatible packets. Also used as timeout for delayed ACK.
 	//
-	// Recomendation: Set this to 10 ms
+	// Recommendation: Set this to 10 ms
 	TimeBetweenACKPackets time.Duration
 }
 
@@ -129,32 +137,37 @@ func newConnectionStabilizer[T UniversalConn](settings *ConnectionStabilizerSett
 }
 
 type connectionStabilizerConn struct {
-	// sendedPacketsACKsWindow is used for lookup if packets need to be resended
-	sendedPacketsACKsWindow helpertools.ReplayWindow[uint32]
-	// incomingPacketsWindow is used for checking if packet with sequence number already got recieved or not
-	incomingPacketsWindow helpertools.ReplayWindow[uint32]
 	// sendPacketResendNumber is sequence number for resend prevention and request
 	sendPacketResendNumber atomic.Uint32
-	// sendPacketOrderNumber is sequence number for ordering of packets
-	sendPacketOrderNumber atomic.Uint32
 	// missingPingPackets is counter of missing and send packets
 	missingPingPackets atomic.Uint32
-	// rttCalculator is rtt calculator for transmition timing
-	rttCalculator *helpertools.RTTCalculator
 	// countOfPacketsSinceLastACK counts recieved packets since last ACK-Compatible packet
 	countOfPacketsSinceLastACK atomic.Uint32
 	// lastACKTimestampUnixNano is timestamp of last send ACK-Compatible packet in UNIX Nano
 	lastACKTimestampUnixNano atomic.Int64
+	// sendPacketOrderNumberSimple is sequence number for ordering of packets (for types stableDataWithOrderInstantFrame and stableDataWithOrderTimeoutFrame)
+	sendPacketOrderNumberSimple uint32
+	// sendPacketOrderNumberPrecise is sequence number for ordering of packets (for type stableDataWithOrderResendFrame)
+	sendPacketOrderNumberPrecise uint32
+
+	// sendedPacketsACKsWindow is used for lookup if packets need to be resended
+	sendedPacketsACKsWindow helpertools.ReplayWindow[uint32]
+	// incomingPacketsWindow is used for checking if packet with sequence number already got recieved or not
+	incomingPacketsWindow helpertools.ReplayWindow[uint32]
+	// rttCalculator is rtt calculator for transmition timing
+	rttCalculator helpertools.RTTCalculator
+	sendPacketOrderSimpleMutex sync.Mutex
 }
 
 func newConnectionStabilizerConn(settings *ConnectionStabilizerSettings) *connectionStabilizerConn {
 	conn := &connectionStabilizerConn{
-		sendedPacketsACKsWindow: helpertools.MakeReplayWindow[uint32](),
-		incomingPacketsWindow:   helpertools.MakeReplayWindow[uint32](),
-		rttCalculator:           helpertools.NewRTTCalculator(settings.MinimumRTO, settings.FallbackRTO),
+		sendedPacketsACKsWindow: *helpertools.NewReplayWindow[uint32](),
+		incomingPacketsWindow:   *helpertools.NewReplayWindow[uint32](),
+		rttCalculator:           *helpertools.NewRTTCalculator(settings.MinimumRTT, settings.MaximumRTT, settings.FallbackRTT),
 	}
 	conn.sendPacketResendNumber.Store(0)
-	conn.sendPacketOrderNumber.Store(0)
+	conn.sendPacketOrderNumberSimple.Store(0)
+	conn.sendPacketOrderNumberPrecise.Store(0)
 	conn.missingPingPackets.Store(0)
 	conn.countOfPacketsSinceLastACK.Store(0)
 	conn.lastACKTimestampUnixNano.Store(time.Now().UnixNano())
@@ -173,11 +186,9 @@ func (stabilizer *connectionStabilizer[T]) processRead(conn T, framedData []byte
 	framedData = framedData[1:]
 
 	//Read ACK settings
-	if stabilizer.settings.ResendRetries != 0 {
-		if frameType != stableDataFrame {
-			//Valid ACK-compatible packet
-			framedData = framedData[stabilizer.conns.Get(conn).sendedPacketsACKsWindow.JoinWindowDataBytes(framedData):]
-		}
+	if frameType != stableDataFrame && frameType != stableDataWithOrderInstantFrame && frameType != stableDataWithOrderTimeoutFrame {
+		//Valid ACK-compatible packet
+		framedData = framedData[stabilizer.conns.Get(conn).sendedPacketsACKsWindow.JoinWindowDataBytes(framedData):]
 	}
 
 	//Sort types
@@ -253,7 +264,7 @@ func (stabilizer *connectionStabilizer[T]) processWrite(conn T, frameType stable
 	var sConn *connectionStabilizerConn
 
 	//Write ACK is possible
-	if frameType != stableDataFrame {
+	if frameType != stableDataFrame && frameType != stableDataWithOrderInstantFrame && frameType != stableDataWithOrderTimeoutFrame {
 		sConn = stabilizer.conns.Get(conn)
 		sConn.countOfPacketsSinceLastACK.Store(0)
 		sConn.lastACKTimestampUnixNano.Store(time.Now().UnixNano())
@@ -298,10 +309,13 @@ func (stabilizer *connectionStabilizer[T]) processWrite(conn T, frameType stable
 		return
 	} else if frameType == stableDataWithResendFrame {
 		//Data frame with resend function - add sequence number and data and pass to writer function
-		sequenceNumber := sConn.sendPacketResendNumber.Add(1)
+		sequenceNumber := sConn.sendPacketResendNumber.Add(1)-1
 		buffer.Write(binary.LittleEndian.AppendUint32([]byte{}, sequenceNumber))
 		buffer.Write(data)
 		go stabilizer.resendWrite(conn, sConn, sequenceNumber, buffer.Bytes())
+	} else if frameType == stableDataWithOrderInstantFrame || frameType == stableDataWithOrderTimeoutFrame {
+		//Data frame with order function (instant / timeout) - add order number and data and send
+		orderNumber := sConn.
 	}
 
 }
