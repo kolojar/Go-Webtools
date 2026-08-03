@@ -43,173 +43,86 @@ func GetBitShiftSize[T ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~int8 | ~int16 | ~
 }
 
 /*
-SetBit sets bit (sets 1) at specific position -> 0 = 128 (MSB), 7 = 1 (LSB)
+SetBit sets bit (sets 1) at specific position -> for uint8: 0 = 128 (MSB), 7 = 1 (LSB)
 */
-func SetBit(b byte, pos uint8) byte {
-	if pos > 7 {
+func SetBit[valueType ~uint8 | ~uint16 | ~uint32 | ~uint64](b valueType, pos uint8) valueType {
+	if pos >= GetBitSize[valueType]() {
 		return b
 	}
-	return b | (uint8(1) << (7 - pos))
+	return b | (valueType(1) << (GetBitSize[valueType]() - 1 - pos))
 }
 
 /*
-SetBitUint16 sets bit (sets 1) at specific position -> 0 = 2^15 (MSB), 15 = 1 (LSB)
+ClearBit clears bit (sets 0) at specific position -> for uint8: 0 = 128 (MSB), 7 = 1 (LSB)
 */
-func SetBitUint16(b uint16, pos uint8) uint16 {
-	if pos > 15 {
+func ClearBit[valueType ~uint8 | ~uint16 | ~uint32 | ~uint64](b valueType, pos uint8) valueType {
+	if pos >= GetBitSize[valueType]() {
 		return b
 	}
-	return b | (uint16(1) << (15 - pos))
+	return b &^ (valueType(1) << (GetBitSize[valueType]() - 1 - pos))
 }
 
 /*
-SetBitUint32 sets bit (sets 1) at specific position -> 0 = 2^31 (MSB), 31 = 1 (LSB)
+CheckBit checks if bit is set (1) at specific position -> for uint8: 0 = 128 (MSB), 7 = 1 (LSB)
 */
-func SetBitUint32(b uint32, pos uint8) uint32 {
-	if pos > 31 {
-		return b
-	}
-	return b | (uint32(1) << (31 - pos))
-}
-
-/*
-SetBitUint64 sets bit (sets 1) at specific position -> 0 = 2^63 (MSB), 63 = 1 (LSB)
-*/
-func SetBitUint64(b uint64, pos uint8) uint64 {
-	if pos > 63 {
-		return b
-	}
-	return b | (uint64(1) << (63 - pos))
-}
-
-/*
-ClearBit clears bit (sets 0) at specific position -> 0 = 128 (MSB), 7 = 1 (LSB)
-*/
-func ClearBit(b byte, pos uint8) byte {
-	if pos > 7 {
-		return b
-	}
-	return b &^ (uint8(1) << (7 - pos))
-}
-
-/*
-ClearBitUint16 clears bit (sets 0) at specific position -> 0 = 2^15 (MSB), 15 = 1 (LSB)
-*/
-func ClearBitUint16(b uint16, pos uint8) uint16 {
-	if pos > 15 {
-		return b
-	}
-	return b &^ (uint16(1) << (15 - pos))
-}
-
-/*
-ClearBitUint32 clears bit (sets 0) at specific position -> 0 = 2^31 (MSB), 31 = 1 (LSB)
-*/
-func ClearBitUint32(b uint32, pos uint8) uint32 {
-	if pos > 31 {
-		return b
-	}
-	return b &^ (uint32(1) << (31 - pos))
-}
-
-/*
-ClearBitUint64 clears bit (sets 0) at specific position -> 0 = 2^63 (MSB), 63 = 1 (LSB)
-*/
-func ClearBitUint64(b uint64, pos uint8) uint64 {
-	if pos > 63 {
-		return b
-	}
-	return b &^ (uint64(1) << (63 - pos))
-}
-
-/*
-CheckBit checks if bit is set (1). pos -> 0 = 128 (MSB), 7 = 1 (LSB)
-*/
-func CheckBit(b byte, pos uint8) bool {
-	if pos > 7 {
+func CheckBit[valueType ~uint8 | ~uint16 | ~uint32 | ~uint64](b valueType, pos uint8) bool {
+	if pos >= GetBitSize[valueType]() {
 		return false
 	}
-	return b&(uint8(1)<<(7-pos)) != 0
+	return b&(valueType(1)<<(GetBitSize[valueType]()-1-pos)) != 0
 }
 
 /*
-CheckBitUint16 checks if bit is set (1). pos -> 0 = 2^15 (MSB), 15 = 1 (LSB)
+SetBitArray sets bit (set 1) at specific position in array - position in array = pos/8, position in bit = pos%8 -> for uint8: 0 = 128 (MSB), 7 = 1 (LSB)
 */
-func CheckBitUint16(b uint16, pos uint8) bool {
-	if pos > 15 {
-		return false
-	}
-	return b&(uint16(1)<<(15-pos)) != 0
-}
-
-/*
-CheckBitUint32 checks if bit is set (1). pos -> 0 = 2^31 (MSB), 31 = 1 (LSB)
-*/
-func CheckBitUint32(b uint32, pos uint8) bool {
-	if pos > 31 {
-		return false
-	}
-	return b&(uint32(1)<<(31-pos)) != 0
-}
-
-/*
-CheckBitUint64 checks if bit is set (1). pos -> 0 = 2^63 (MSB), 63 = 1 (LSB)
-*/
-func CheckBitUint64(b uint64, pos uint8) bool {
-	if pos > 63 {
-		return false
-	}
-	return b&(uint64(1)<<(63-pos)) != 0
-}
-
-/*
-SetBitArray sets bit (set 1) at specific position in array - position in array = pos/8, position in bit = pos%8 -> 0 = 128 (MSB), 7 = 1 (LSB)
-*/
-func SetBitArray(b []byte, pos uint64) []byte {
+func SetBitArray[valueType ~uint8 | ~uint16 | ~uint32 | ~uint64](b []valueType, pos uint64) []valueType {
 	//Check for overflow
-	byteIndex := pos >> 3
+	byteIndex := pos >> uint64(GetBitShiftSize[valueType]())
 	if byteIndex >= uint64(len(b)) {
 		return b
 	}
 
 	//Set bit
-	b[byteIndex] |= (uint8(1) << (7 - pos&7))
+	mask := uint64(GetBitSize[valueType]()) - 1
+	b[byteIndex] |= (valueType(1) << (mask - (pos & mask)))
 	return b
 }
 
 /*
-ClearBitArray clears bit (set 0) at specific position in array - position in array = pos/8, position in bit = pos%8 -> 0 = 128 (MSB), 7 = 1 (LSB)
+ClearBitArray clears bit (set 0) at specific position in array - position in array = pos/8, position in bit = pos%8 -> for uint8: 0 = 128 (MSB), 7 = 1 (LSB)
 */
-func ClearBitArray(b []byte, pos uint64) []byte {
+func ClearBitArray[valueType ~uint8 | ~uint16 | ~uint32 | ~uint64](b []valueType, pos uint64) []valueType {
 	//Check for overflow
-	byteIndex := pos >> 3
+	byteIndex := pos >> uint64(GetBitShiftSize[valueType]())
 	if byteIndex >= uint64(len(b)) {
 		return b
 	}
 
 	//Clear bit
-	b[byteIndex] &^= (uint8(1) << (7 - pos&7))
+	mask := uint64(GetBitSize[valueType]()) - 1
+	b[byteIndex] &^= (valueType(1) << (mask - (pos & mask)))
 	return b
 }
 
 /*
-CheckBitArray checks bit (1) at specific position in array - position in array = pos/8, position in bit = pos%8 -> 0 = 128, 7 = 1
+CheckBitArray checks bit (1) at specific position in array - position in array = pos/8, position in bit = pos%8 -> for uint8: 0 = 128 (MSB), 7 = 1 (LSB)
 */
-func CheckBitArray(b []byte, pos uint64) bool {
+func CheckBitArray[valueType ~uint8 | ~uint16 | ~uint32 | ~uint64](b []valueType, pos uint64) bool {
 	//Check for overflow
-	byteIndex := pos >> 3
+	byteIndex := pos >> uint64(GetBitShiftSize[valueType]())
 	if byteIndex >= uint64(len(b)) {
 		return false
 	}
 
 	//Select byte
-	return b[byteIndex]&(uint8(1)<<(7-pos&7)) != 0
+	mask := uint64(GetBitSize[valueType]()) - 1
+	return b[byteIndex]&(valueType(1)<<(mask-(pos&mask))) != 0
 }
 
 /*
 XORArrays applies XOR operation to whole arrays -> target[i] ^= source[i].
 */
-func XORArrays(target []byte, source []byte) {
+func XORArrays[valueType ~uint8 | ~uint16 | ~uint32 | ~uint64](target []valueType, source []valueType) {
 	n := len(source)
 	if n > len(target) {
 		n = len(target)
@@ -224,149 +137,9 @@ func XORArrays(target []byte, source []byte) {
 /*
 BitshiftArrayLeft bitshifts array left by n bits (negative does right)
 */
-func BitshiftArrayLeft(data []byte, bitShift int) {
+func BitshiftArrayLeft[valueType ~uint8 | ~uint16 | ~uint32 | ~uint64](data []valueType, bitShift int) {
 	if bitShift < 0 {
 		BitshiftArrayRight(data, -bitShift)
-	} else if bitShift == 0 {
-		return
-	} else {
-		//Bitshift left
-		bytes := bitShift >> 3
-		if bytes >= len(data) {
-			for i := range data {
-				data[i] = 0
-			}
-			return
-		} else if bytes > 0 {
-			//Byteshift left
-			for i := 0; i < len(data)-bytes; i++ {
-				data[i] = data[i+bytes]
-			}
-			for i := len(data) - bytes; i < len(data); i++ {
-				data[i] = 0
-			}
-		}
-		bitShift &= 7
-		if bitShift > 0 {
-			for i := 0; i < len(data)-1; i++ {
-				data[i] = data[i]<<bitShift | data[i+1]>>(8-bitShift)
-			}
-			data[len(data)-1] <<= bitShift
-		}
-	}
-}
-
-/*
-BitshiftArrayRight bitshifts array right by n bits (negative does left)
-*/
-func BitshiftArrayRight(data []byte, bitShift int) {
-	if bitShift < 0 {
-		BitshiftArrayLeft(data, -bitShift)
-	} else if bitShift == 0 {
-		return
-	} else {
-		//Bitshift right
-		bytes := bitShift >> 3
-		if bytes >= len(data) {
-			for i := range data {
-				data[i] = 0
-			}
-			return
-		} else if bytes > 0 {
-			//Byteshift right
-			for i := len(data) - 1; i >= bytes; i-- {
-				data[i] = data[i-bytes]
-			}
-			for i := 0; i < bytes; i++ {
-				data[i] = 0
-			}
-		}
-		bitShift &= 7
-		if bitShift > 0 {
-			for i := len(data) - 1; i > 0; i-- {
-				data[i] = data[i]>>bitShift | data[i-1]<<(8-bitShift)
-			}
-			data[0] >>= bitShift
-		}
-	}
-}
-
-/*
-BitshiftUint64ArrayLeft bitshifts array left by n bits (negative does right)
-*/
-func BitshiftUint64ArrayLeft(data []uint64, bitShift int) {
-	if bitShift < 0 {
-		BitshiftUint64ArrayRight(data, -bitShift)
-	} else if bitShift == 0 {
-		return
-	} else {
-		//Bitshift left
-		bytes := bitShift >> 6
-		if bytes >= len(data) {
-			for i := range data {
-				data[i] = 0
-			}
-			return
-		} else if bytes > 0 {
-			//Byteshift left
-			for i := 0; i < len(data)-bytes; i++ {
-				data[i] = data[i+bytes]
-			}
-			for i := len(data) - bytes; i < len(data); i++ {
-				data[i] = 0
-			}
-		}
-		bitShift &= 63
-		if bitShift > 0 {
-			for i := 0; i < len(data)-1; i++ {
-				data[i] = data[i]<<bitShift | data[i+1]>>(64-bitShift)
-			}
-			data[len(data)-1] <<= bitShift
-		}
-	}
-}
-
-/*
-BitshiftUint64ArrayRight bitshifts array right by n bits (negative does left)
-*/
-func BitshiftUint64ArrayRight(data []uint64, bitShift int) {
-	if bitShift < 0 {
-		BitshiftUint64ArrayLeft(data, -bitShift)
-	} else if bitShift == 0 {
-		return
-	} else {
-		//Bitshift right
-		bytes := bitShift >> 6
-		if bytes >= len(data) {
-			for i := range data {
-				data[i] = 0
-			}
-			return
-		} else if bytes > 0 {
-			//Byteshift right
-			for i := len(data) - 1; i >= bytes; i-- {
-				data[i] = data[i-bytes]
-			}
-			for i := 0; i < bytes; i++ {
-				data[i] = 0
-			}
-		}
-		bitShift &= 63
-		if bitShift > 0 {
-			for i := len(data) - 1; i > 0; i-- {
-				data[i] = data[i]>>bitShift | data[i-1]<<(64-bitShift)
-			}
-			data[0] >>= bitShift
-		}
-	}
-}
-
-/*
-BitshiftGenericUintArrayLeft bitshifts array left by n bits (negative does right)
-*/
-func BitshiftGenericUintArrayLeft[valueType ~uint8 | ~uint16 | ~uint32 | ~uint64](data []valueType, bitShift int) {
-	if bitShift < 0 {
-		BitshiftGenericUintArrayRight(data, -bitShift)
 	} else if bitShift == 0 {
 		return
 	} else {
@@ -400,9 +173,9 @@ func BitshiftGenericUintArrayLeft[valueType ~uint8 | ~uint16 | ~uint32 | ~uint64
 /*
 BitshiftUint64ArrayRight bitshifts array right by n bits (negative does left)
 */
-func BitshiftGenericUintArrayRight[valueType ~uint8 | ~uint16 | ~uint32 | ~uint64](data []valueType, bitShift int) {
+func BitshiftArrayRight[valueType ~uint8 | ~uint16 | ~uint32 | ~uint64](data []valueType, bitShift int) {
 	if bitShift < 0 {
-		BitshiftGenericUintArrayLeft(data, -bitShift)
+		BitshiftArrayLeft(data, -bitShift)
 	} else if bitShift == 0 {
 		return
 	} else {
