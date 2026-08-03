@@ -9,9 +9,9 @@ import (
 // Handles history of 64 numbers = if rightEdge is 128, it will allow to pass all numbers to 65 (inclueded).
 //
 // Sometimes it is called BitMask
-type ReplayWindow[checkedValueType ~uint8 | ~uint16 | ~uint32 | ~uint64] struct {
+type ReplayWindow[checkedValueType ~uint8 | ~uint16 | ~uint32 | ~uint64, windowHolderType ~uint8 | ~uint16 | ~uint32 | ~uint64] struct {
 	// window is uint64 holder of data (64 bits = 64 values)
-	window []
+	window []windowHolderType
 	// maxForwardJump is value that takes care of maximum value that can be forwarded.
 	//
 	// If maxForwardJump is 64, it can jump only to value 63 or smaller
@@ -24,9 +24,9 @@ type ReplayWindow[checkedValueType ~uint8 | ~uint16 | ~uint32 | ~uint64] struct 
 	isFirstValue bool
 }
 
-// NewReplayWindow initializes ReplayWindow
-func NewReplayWindow[checkedValueType ~uint8 | ~uint16 | ~uint32 | ~uint64]() *ReplayWindow[checkedValueType] {
-	return &ReplayWindow[checkedValueType]{window: 0, rightEdge: 0, mutex: sync.Mutex{}, isFirstValue: true, maxForwardJump: (checkedValueType(0) - 1) >> 1}
+// NewReplayWindow initializes ReplayWindow. windowWordCount is count of windowHolderType (total window size = windowWordCount * countOfBytes(windowHolderType) * 8)
+func NewReplayWindow[checkedValueType ~uint8 | ~uint16 | ~uint32 | ~uint64, windowHolderType ~uint8 | ~uint16 | ~uint32 | ~uint64](windowWordCount uint) *ReplayWindow[checkedValueType, windowHolderType] {
+	return &ReplayWindow[checkedValueType, windowHolderType]{window: make([]windowHolderType, windowWordCount), rightEdge: 0, mutex: sync.Mutex{}, isFirstValue: true, maxForwardJump: (checkedValueType(0) - 1) >> 1}
 }
 
 // ApplyWindowCheck checks if number is in window and if it was already set or not.
@@ -36,7 +36,7 @@ func NewReplayWindow[checkedValueType ~uint8 | ~uint16 | ~uint32 | ~uint64]() *R
 // Returns False if value is out of range of window.
 //
 // Returns False if value is already set in window.
-func (window *ReplayWindow[checkedValueType]) ApplyWindowCheck(number checkedValueType) bool {
+func (window *ReplayWindow[checkedValueType, windowHolderType]) ApplyWindowCheck(number checkedValueType) bool {
 	//Lock mutex
 	window.mutex.Lock()
 	defer window.mutex.Unlock()
@@ -46,17 +46,18 @@ func (window *ReplayWindow[checkedValueType]) ApplyWindowCheck(number checkedVal
 		//Set rightEdge to number (first value ignores maxForwardJump)
 		window.rightEdge = number
 
-		//Set window to 1 to set first bit to 1 and make sure that all other bits are 0
-		window.window = 1
+		//Set window to 1 to set first bit to 1
+		window.window[len(window.window)-1] = 1
 		window.isFirstValue = false
 		return true
 	}
 
 	//Calculate forward jump (example if overflows: uint8(1) - uint8(254) = 3)
 	forwardJump := number - window.rightEdge
+	windowSizeBits := checkedValueType(len(window.window) << GetBitShiftSize[windowHolderType]())
 	if forwardJump > 0 && forwardJump < window.maxForwardJump {
 		//Valid forward jump
-		if forwardJump >= 64 {
+		if forwardJump >= windowSizeBits {
 			//Overflow window
 			window.rightEdge = number
 			window.window = 1
