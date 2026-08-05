@@ -1,7 +1,7 @@
 # Structures of packets
 ## Replay window (helper structure)
-- 8 byte ACK window (status of last 64 packets - if were recieved or not) as uint64 in LittleEndian
 - 4 byte ACK right edge as uint32 in LittleEndian
+- 8 byte ACK window (status of last 64 packets - if were recieved or not) as uint64 in LittleEndian
 
 ## Ping (1) / Pong (2)
 - 1 byte Control sequence
@@ -10,7 +10,9 @@
 
 ## Data recieved (ACK) frame (3)
 - 1 byte Control sequence
-- 12 byte Replay window
+- 4 byte ACK right edge as uint32 in LittleEndian
+- 1 byte ACK window size (up to 32)
+- up to 256 byte ACK window (status of last 2048 packets - if were recieved or not) as 32x uint64 in LittleEndian
 
 ## Data frame (4)
 - 1 byte Control sequence

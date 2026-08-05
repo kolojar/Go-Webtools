@@ -3,6 +3,7 @@ package helpertools
 
 import (
 	"encoding/binary"
+	"math/bits"
 	"unsafe"
 )
 
@@ -135,11 +136,26 @@ func XORArrays[valueType ~uint8 | ~uint16 | ~uint32 | ~uint64](target []valueTyp
 }
 
 /*
-BitshiftArrayLeft bitshifts array left by n bits (negative does right)
+ORArrays applies OR operation to whole arrays -> target[i] |= source[i].
 */
-func BitshiftArrayLeft[valueType ~uint8 | ~uint16 | ~uint32 | ~uint64](data []valueType, bitShift int) {
+func ORArrays[valueType ~uint8 | ~uint16 | ~uint32 | ~uint64](target []valueType, source []valueType) {
+	n := len(source)
+	if n > len(target) {
+		n = len(target)
+	}
+
+	//Do OR
+	for i := range n {
+		target[i] |= source[i]
+	}
+}
+
+/*
+BitShiftArrayLeft bitshifts array left by n bits (negative does right) <<
+*/
+func BitShiftArrayLeft[valueType ~uint8 | ~uint16 | ~uint32 | ~uint64](data []valueType, bitShift int) {
 	if bitShift < 0 {
-		BitshiftArrayRight(data, -bitShift)
+		BitShiftArrayRight(data, -bitShift)
 	} else if bitShift == 0 {
 		return
 	} else {
@@ -171,11 +187,11 @@ func BitshiftArrayLeft[valueType ~uint8 | ~uint16 | ~uint32 | ~uint64](data []va
 }
 
 /*
-BitshiftUint64ArrayRight bitshifts array right by n bits (negative does left)
+BitshiftUint64ArrayRight bitshifts array right by n bits (negative does left) >>
 */
-func BitshiftArrayRight[valueType ~uint8 | ~uint16 | ~uint32 | ~uint64](data []valueType, bitShift int) {
+func BitShiftArrayRight[valueType ~uint8 | ~uint16 | ~uint32 | ~uint64](data []valueType, bitShift int) {
 	if bitShift < 0 {
-		BitshiftArrayLeft(data, -bitShift)
+		BitShiftArrayLeft(data, -bitShift)
 	} else if bitShift == 0 {
 		return
 	} else {
@@ -210,8 +226,7 @@ func BitshiftArrayRight[valueType ~uint8 | ~uint16 | ~uint32 | ~uint64](data []v
 func AppendGenericLitteEndian[valueType ~uint8 | ~uint16 | ~uint32 | ~uint64](b []byte, value valueType) (result []byte, addedBytes uint8) {
 	switch any(value).(type) {
 	case uint8:
-		b = append(b, byte(value))
-		return b, 1
+		return append(b, byte(value)), 1
 	case uint16:
 		return binary.LittleEndian.AppendUint16(b, uint16(value)), 2
 	case uint32:
@@ -235,4 +250,20 @@ func ParseGenericLitteEndian[valueType ~uint8 | ~uint16 | ~uint32 | ~uint64](b [
 		return valueType(binary.LittleEndian.Uint64(b[0:8])), 8
 	}
 	return 0, 0
+}
+
+// CalculateCountOfUsedBytesOfNumber calculates count of used bytes for value
+func CalculateCountOfUsedBytesOfNumber[valueType ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uint | ~int8 | ~int16 | ~int32 | ~int64 | ~int](value valueType) uint8 {
+	if value == 0 {
+		return 1
+	}
+
+	//Handle negative numbers
+	uValue := uint64(value)
+	if value < 0 {
+		uValue = uint64(-int64(value))
+	}
+
+	//Ceil division
+	return (uint8(bits.Len64(uint64(uValue))) + 7) >> 3
 }

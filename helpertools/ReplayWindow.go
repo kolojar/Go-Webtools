@@ -1,7 +1,7 @@
 package helpertools
 
 import (
-	"encoding/binary"
+	"errors"
 	"sync"
 )
 
@@ -25,8 +25,16 @@ type ReplayWindow[checkedValueType ~uint8 | ~uint16 | ~uint32 | ~uint64, windowH
 }
 
 // NewReplayWindow initializes ReplayWindow. windowWordCount is count of windowHolderType (total window size = windowWordCount * countOfBytes(windowHolderType) * 8)
-func NewReplayWindow[checkedValueType ~uint8 | ~uint16 | ~uint32 | ~uint64, windowHolderType ~uint8 | ~uint16 | ~uint32 | ~uint64](windowWordCount uint) *ReplayWindow[checkedValueType, windowHolderType] {
-	return &ReplayWindow[checkedValueType, windowHolderType]{window: make([]windowHolderType, windowWordCount), rightEdge: 0, mutex: sync.Mutex{}, isFirstValue: true, maxForwardJump: (checkedValueType(0) - 1) >> 1}
+func NewReplayWindow[checkedValueType ~uint8 | ~uint16 | ~uint32 | ~uint64, windowHolderType ~uint8 | ~uint16 | ~uint32 | ~uint64](windowWordCount uint8) (*ReplayWindow[checkedValueType, windowHolderType], error) {
+	if GetByteSize[windowHolderType]() <= 2 && uint16(GetBitSize[windowHolderType]()*windowWordCount) > uint16(checkedValueType(checkedValueType(0)-1)) {
+		return nil, errors.New("window too big for checkedValueType")
+	}
+	return &ReplayWindow[checkedValueType, windowHolderType]{window: make([]windowHolderType, windowWordCount), rightEdge: 0, mutex: sync.Mutex{}, isFirstValue: true, maxForwardJump: (checkedValueType(0) - 1) >> 1}, nil
+}
+
+// GetWindowBitSize retuns bit count of window
+func (window *ReplayWindow[checkedValueType, windowHolderType]) GetWindowBitSize() checkedValueType {
+	return checkedValueType(len(window.window) << GetBitShiftSize[windowHolderType]())
 }
 
 // ApplyWindowCheck checks if number is in window and if it was already set or not.
@@ -47,6 +55,9 @@ func (window *ReplayWindow[checkedValueType, windowHolderType]) ApplyWindowCheck
 		window.rightEdge = number
 
 		//Set window to 1 to set first bit to 1
+		for i := range len(window.window) {
+			window.window[i] = 0
+		}
 		window.window[len(window.window)-1] = 1
 		window.isFirstValue = false
 		return true
@@ -54,24 +65,27 @@ func (window *ReplayWindow[checkedValueType, windowHolderType]) ApplyWindowCheck
 
 	//Calculate forward jump (example if overflows: uint8(1) - uint8(254) = 3)
 	forwardJump := number - window.rightEdge
-	windowSizeBits := checkedValueType(len(window.window) << GetBitShiftSize[windowHolderType]())
+	windowSizeBits := window.GetWindowBitSize()
 	if forwardJump > 0 && forwardJump < window.maxForwardJump {
 		//Valid forward jump
 		if forwardJump >= windowSizeBits {
 			//Overflow window
 			window.rightEdge = number
-			window.window = 1
+			for i := range len(window.window) {
+				window.window[i] = 0
+			}
+			window.window[len(window.window)-1] = 1
 			return true
 		}
 
-		//Shift window by maxForwardJump
-		window.window <<= forwardJump
+		//Shift window by forwardJump
+		BitShiftArrayLeft(window.window, int(forwardJump))
 
 		//Set rightEdge to new value
 		window.rightEdge = number
 
 		//Set window last bit to 1
-		window.window |= 1
+		window.window[len(window.window)-1] |= 1
 		return true
 	}
 
@@ -82,73 +96,112 @@ func (window *ReplayWindow[checkedValueType, windowHolderType]) ApplyWindowCheck
 
 	//Calculate older value
 	olderValue := window.rightEdge - number
-	if olderValue >= 64 {
+	if olderValue >= windowSizeBits {
 		//Out of range
 		return false
 	}
 
 	//Check bit
-	if CheckBitUint64(window.window, uint8(olderValue)) {
+	if CheckBitArray(window.window, uint64(olderValue)) {
 		return false
 	}
-	window.window = SetBitUint64(window.window, uint8(olderValue))
+	window.window = SetBitArray(window.window, uint64(olderValue))
 	return true
 }
 
 // CheckValue only checks, if value is in window and if is set to active
-func (window *ReplayWindow[checkedValueType]) CheckValue(value checkedValueType) bool {
+func (window *ReplayWindow[checkedValueType, windowHolderType]) CheckValue(value checkedValueType) bool {
 	//Lock mutex
 	window.mutex.Lock()
 	defer window.mutex.Unlock()
 
 	//Check if in range
 	location := window.rightEdge - value
-	if location >= 64 {
+	if location >= window.GetWindowBitSize() {
 		//Out of range
 		return false
 	}
-	if window.rightEdge < value {
-		//Out of range
-		return false
-	}
-	return CheckBitUint64(window.window, uint8(location))
+
+	return CheckBitArray(window.window, uint64(location))
 }
 
 // SetWindowData sets window data to specified values
-func (window *ReplayWindow[checkedValueType]) SetWindowData(windowBytes uint64, rightEdge checkedValueType) {
+func (window *ReplayWindow[checkedValueType, windowHolderType]) SetWindowData(windowBytes []windowHolderType, rightEdge checkedValueType) error {
+	//Check window sizes
+	if len(window.window) != len(windowBytes) {
+		return errors.New("window sizes does not match")
+	}
+
+	//Lock mutex
 	window.mutex.Lock()
 	defer window.mutex.Unlock()
-	window.window = windowBytes
+
+	//Write data
+	copy(window.window, windowBytes)
 	window.rightEdge = rightEdge
 	window.isFirstValue = false
+	return nil
 }
 
-// SetWindowDataBytes sets window data and rightEdge to specified values in binary format
-func (window *ReplayWindow[checkedValueType]) SetWindowDataBytes(b []byte) {
-	windowBytes := binary.LittleEndian.Uint64(b[0:8])
-	rightEdge, _ := ParseGenericLitteEndian[checkedValueType](b[8:])
-	window.SetWindowData(windowBytes, rightEdge)
+// SetWindowDataBytes sets rightEdge and window data to specified values in binary format.
+//
+// Argument wordCount sets how many words should be read from b. Set wordCount to 0 for automatic.
+func (window *ReplayWindow[checkedValueType, windowHolderType]) SetWindowDataBytes(b []byte, wordCount uint8) {
+	//Lock mutex
+	window.mutex.Lock()
+	defer window.mutex.Unlock()
+
+	//Parse rightEdge
+	var readBytes uint8
+	window.rightEdge, readBytes = ParseGenericLitteEndian[checkedValueType](b)
+
+	//Read size
+	if wordCount == 0 {
+		wordCount = uint8(b[readBytes])
+		readBytes++
+	}
+	b = b[readBytes:]
+
+	//Read data
+	for i := range min(wordCount, uint8(len(window.window))) {
+		window.window[uint8(len(window.window))-1-i], readBytes = ParseGenericLitteEndian[windowHolderType](b)
+		b = b[readBytes:]
+	}
 }
 
 // GetWindowData gets window data and rightEdge
-func (window *ReplayWindow[checkedValueType]) GetWindowData() (windowBytes uint64, rightEdge checkedValueType) {
+func (window *ReplayWindow[checkedValueType, windowHolderType]) GetWindowData() (windowBytes []windowHolderType, rightEdge checkedValueType) {
 	window.mutex.Lock()
 	defer window.mutex.Unlock()
 	return window.window, window.rightEdge
 }
 
-// GetWindowDataBytes gets window data nd rightEdge in binary format
-func (window *ReplayWindow[checkedValueType]) GetWindowDataBytes() []byte {
+// GetWindowDataBytes gets rightEdge and window data in binary format.
+//
+// Use limit to limit word count. Set to 0 for no limit. Limit is counted from right edge.
+//
+// Argument writeSize sets if function writes count of words written to byte array.
+func (window *ReplayWindow[checkedValueType, windowHolderType]) GetWindowDataBytes(limit uint8, writeSize bool) []byte {
 	//Lock mutex
 	window.mutex.Lock()
 	defer window.mutex.Unlock()
 
-	//Write window data
-	result := make([]byte, 0)
-	binary.LittleEndian.AppendUint64(result, window.window)
-
 	//Write window right edge
+	result := make([]byte, 0)
 	result, _ = AppendGenericLitteEndian(result, window.rightEdge)
+
+	//Write size
+	if limit == 0 || limit > uint8(len(window.window)) {
+		limit = uint8(len(window.window))
+	}
+	if writeSize {
+		result = append(result, limit)
+	}
+
+	//Write window data
+	for i := range limit {
+		result, _ = AppendGenericLitteEndian(result, window.window[uint8(len(window.window))-1-i])
+	}
 	return result
 }
 
@@ -159,41 +212,68 @@ func (window *ReplayWindow[checkedValueType]) GetWindowDataBytes() []byte {
 // If distance is smaller than 64 and new rightEdge is bigger than internal, internal window is shifted and joined using OR with new one.
 //
 // If distance is smaller than 64 and new rightEdge is smaller then internal, new window is shifted and joined using OR with old one.
-func (window *ReplayWindow[checkedValueType]) JoinWindowData(windowBytes uint64, rightEdge checkedValueType) {
+//
+// Note: When joining, algorithm goes from end (when windowBytes are shorter than window, 0 is set)
+func (window *ReplayWindow[checkedValueType, windowHolderType]) JoinWindowData(windowBytes []windowHolderType, rightEdge checkedValueType) {
 	//Lock mutex
 	window.mutex.Lock()
 	defer window.mutex.Unlock()
 	window.isFirstValue = false
 
-	//Calculate distance of edges
-	distance := rightEdge - window.rightEdge
-	if rightEdge > window.rightEdge {
-		//Moving forward
-		if distance < 64 {
-			//Shift current window
-			window.window <<= distance
-			window.window |= windowBytes
+	//Calculate forward jump (example if overflows: uint8(1) - uint8(254) = 3)
+	forwardJump := rightEdge - window.rightEdge
+	windowSizeBits := window.GetWindowBitSize()
+	if forwardJump > 0 && forwardJump < window.maxForwardJump {
+		//Valid forward jump
+		if forwardJump >= windowSizeBits {
+			//Overflow window
 			window.rightEdge = rightEdge
+			clear(window.window)
+			for i := 0; i < min(len(window.window), len(windowBytes)); i++ {
+				window.window[len(window.window)-1-i] = windowBytes[len(windowBytes)-1-i]
+			}
 			return
 		}
 
-		//Distance bigger = overwrite
-		window.window = windowBytes
+		//Shift window by forwardJump
+		BitShiftArrayLeft(window.window, int(forwardJump))
+
+		//Set rightEdge to new value
 		window.rightEdge = rightEdge
+
+		//Join windows
+		for i := 0; i < min(len(window.window), len(windowBytes)); i++ {
+			window.window[len(window.window)-1-i] |= windowBytes[len(windowBytes)-1-i]
+		}
 		return
 	}
 
-	//New edge is smaller
-	if distance > 63 {
-		//Windows does not overlap
+	//Check if value is same
+	if forwardJump == 0 {
+		return
+	}
+
+	//Calculate older value
+	olderValue := window.rightEdge - rightEdge
+	if olderValue >= windowSizeBits {
+		//Out of range
 		return
 	}
 
 	//Move new window
-	window.window |= windowBytes << distance
+	temp := make([]windowHolderType, len(windowBytes))
+	copy(temp, windowBytes)
+	BitShiftArrayLeft(temp, int(olderValue))
+
+	//OR Arrays
+	for i := 0; i < min(len(window.window), len(temp)); i++ {
+		window.window[len(window.window)-1-i] |= temp[len(temp)-1-i]
+	}
 }
 
 // JoinWindowData tries to join windowBytes with current window bytes using bitwise OR encoded in binary format.
+//
+// Argument wordCount sets how many words should be read from b. Set wordCount to 0 for automatic.
 //
 // If distance of rightEdges is bigger than 64 and new rightEdge is bigger than internal, data of internal window is overwriten.
 //
@@ -202,27 +282,44 @@ func (window *ReplayWindow[checkedValueType]) JoinWindowData(windowBytes uint64,
 // If distance is smaller than 64 and new rightEdge is smaller then internal, new window is shifted and joined using OR with old one.
 //
 // Returns number of read bytes
-func (window *ReplayWindow[checkedValueType]) JoinWindowDataBytes(b []byte) uint8 {
-	windowBytes := binary.LittleEndian.Uint64(b[0:8])
-	rightEdge, bytesRead := ParseGenericLitteEndian[checkedValueType](b[8:])
+func (window *ReplayWindow[checkedValueType, windowHolderType]) JoinWindowDataBytes(b []byte, wordCount uint8) int {
+	//Parse rightEdge
+	rightEdge, readBytes := ParseGenericLitteEndian[checkedValueType](b)
+
+	//Read size
+	if wordCount == 0 {
+		wordCount = uint8(b[readBytes])
+		readBytes++
+	}
+	b = b[readBytes:]
+
+	//Read data
+	windowBytes := make([]windowHolderType, min(wordCount, uint8(len(window.window))))
+	for i := range len(windowBytes) {
+		windowBytes[len(windowBytes)-1-i], readBytes = ParseGenericLitteEndian[windowHolderType](b)
+		b = b[readBytes:]
+	}
+
+	//Perform join
 	window.JoinWindowData(windowBytes, rightEdge)
-	return 8 + bytesRead
+	return int(readBytes) + len(windowBytes)*int(GetByteSize[windowHolderType]())
 }
 
 // IterateReplayWindowBits goes through every bit and if bit activnes matches isSet it is send to f function callback
-func IterateReplayWindowBits[checkedValueType ~uint8 | ~uint16 | ~uint32 | ~uint64](window uint64, rightEdge checkedValueType, f func(value checkedValueType), isSet bool) {
+func IterateReplayWindowBits[checkedValueType ~uint8 | ~uint16 | ~uint32 | ~uint64, windowHolderType ~uint8 | ~uint16 | ~uint32 | ~uint64](window []windowHolderType, rightEdge checkedValueType, f func(value checkedValueType), isSet bool) {
 	//Process all values of windows
-	for i := range uint8(64) {
-		if CheckBitUint64(window, i) == isSet {
+	size := uint64(GetBitSize[windowHolderType]()) * uint64(len(window))
+	for i := range size {
+		if CheckBitArray(window, i) == isSet {
 			//Bit matches isSet
-			f(rightEdge - checkedValueType((uint8(63) - i)))
+			f(rightEdge - (checkedValueType(size) - 1 - checkedValueType(i)))
 		}
 	}
 }
 
 // GetReplayWindowBits gets every bit matching isSet value and returns thme in array
-func GetReplayWindowBits[checkedValueType ~uint8 | ~uint16 | ~uint32 | ~uint64](window uint64, rightEdge checkedValueType, isSet bool) []checkedValueType {
-	result := make([]checkedValueType, 0)
+func GetReplayWindowBits[checkedValueType ~uint8 | ~uint16 | ~uint32 | ~uint64, windowHolderType ~uint8 | ~uint16 | ~uint32 | ~uint64](window []windowHolderType, rightEdge checkedValueType, isSet bool) []checkedValueType {
+	result := make([]checkedValueType, 0, len(window)*int(GetBitSize[windowHolderType]()))
 	IterateReplayWindowBits(window, rightEdge, func(value checkedValueType) {
 		result = append(result, value)
 	}, isSet)
