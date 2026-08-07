@@ -86,6 +86,13 @@ func NewPacketOrderer[orderNumberType ~uint8 | ~uint16 | ~uint32 | ~uint64, data
 //
 // Returns slice of data if packets get into sequence or nil
 func (orderer *PacketOrderer[orderNumberType, dataType]) Push(orderNumber orderNumberType, data dataType) []dataType {
+	return orderer.PushWithMissingPacketOption(orderNumber, data, orderer.allowMissingPackets)
+}
+
+// PushWithMissingPacketOption pushes to queue if waiting for packet.
+//
+// Returns slice of data if packets get into sequence or nil
+func (orderer *PacketOrderer[orderNumberType, dataType]) PushWithMissingPacketOption(orderNumber orderNumberType, data dataType, allowMissingPackets PacketOrdererAllowMissingPackets) []dataType {
 	//Lock mutex
 	orderer.mutex.Lock()
 	defer orderer.mutex.Unlock()

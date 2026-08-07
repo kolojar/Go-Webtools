@@ -120,6 +120,16 @@ type ConnectionStabilizerSettings struct {
 
 	// WindoWordCount is count of words of window
 	WindowWordCount uint8
+
+	// HeapSizeSimple is initial size of heap of orderer for type stableDataWithOrderInstantFrame and stableDataWithOrderTimeoutFrame
+	//
+	// Recommendation: Set this to 0 (if you use instant) or 16 (if you use timeout)
+	HeapSizeSimple uint
+
+	// HeapSizePrecise is initial size of heap of orderer for type stableDataWithOrderResendFrame
+	//
+	// Recommendation: Set this to 16
+	HeapSizePrecise uint
 }
 
 // connectionStabilizer is internal struct for universal handeling of reads and writes from/to UDP
@@ -158,6 +168,11 @@ type connectionStabilizerConn[sequenceNumberType ~uint8 | ~uint16 | ~uint32 | ~u
 	rttCalculator helpertools.RTTCalculator
 	// sendPacketOrderSimpleMutex is mutex for ordering packets so original order can be preserved
 	sendPacketOrderSimpleMutex sync.Mutex
+
+	// ordererSimple is orderer for types stableDataWithOrderInstantFrame and stableDataWithOrderTimeoutFrame
+	ordererSimple helpertools.PacketOrderer[orderNumberType, []byte]
+	// ordererSimple is orderer for type stableDataWithOrderResendFrame
+	ordererPrecise helpertools.PacketOrderer[orderNumberType, []byte]
 }
 
 func newConnectionStabilizerConn[sequenceNumberType ~uint8 | ~uint16 | ~uint32 | ~uint64, orderNumberType ~uint8 | ~uint16 | ~uint32 | ~uint64, windowWordType ~uint8 | ~uint16 | ~uint32 | ~uint64](settings *ConnectionStabilizerSettings) (*connectionStabilizerConn[sequenceNumberType, orderNumberType, windowWordType], error) {
@@ -167,6 +182,8 @@ func newConnectionStabilizerConn[sequenceNumberType ~uint8 | ~uint16 | ~uint32 |
 		sendPacketOrderNumberPrecise: 0,
 		sendPacketOrderSimpleMutex:   sync.Mutex{},
 		lastACKTimestampsUnixNano:    make([]atomic.Int64, settings.WindowWordCount),
+		ordererSimple:                *helpertools.NewPacketOrderer[orderNumberType, []byte](helpertools.AllowInDumpAndPush, false, settings.HeapSizeSimple),
+		ordererPrecise:               *helpertools.NewPacketOrderer[orderNumberType, []byte](helpertools.AllowInDump, false, settings.HeapSizePrecise),
 	}
 	var err error
 	conn.incomingPacketsWindow, err = helpertools.NewReplayWindow[sequenceNumberType, windowWordType](settings.WindowWordCount)
@@ -250,6 +267,41 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 
 		//Request ACK
 		stabilizer.handleACKSend(conn, sConn, seqNum, true)
+	} else if frameType == stableDataWithOrderInstantFrame {
+		//Data frame with instant ordering function - apply simple orderer
+		sConn := stabilizer.conns.Get(conn)
+		if sConn == nil {
+			conn.GetLogger().Log(4, "Invalid connection for: "+conn.GetAddress().String())
+			return
+		}
+		orderNum, readBytes := helpertools.ParseGenericLitteEndian[orderNumberType](framedData)
+		for _, v := range sConn.ordererSimple.Push(orderNum, framedData[readBytes:]) {
+			if stabilizer.readFunc != nil {
+				stabilizer.readFunc(conn, v)
+			}
+		}
+	} else if frameType == stableDataWithOrderTimeoutFrame {
+		//Data frame with instant ordering function - apply simple orderer
+		sConn := stabilizer.conns.Get(conn)
+		if sConn == nil {
+			conn.GetLogger().Log(4, "Invalid connection for: "+conn.GetAddress().String())
+			return
+		}
+		orderNum, readBytes := helpertools.ParseGenericLitteEndian[orderNumberType](framedData)
+		for _, v := range sConn.ordererSimple.PushWithMissingPacketOption(orderNum, framedData[readBytes:], helpertools.AllowNone) {
+			if stabilizer.readFunc != nil {
+				stabilizer.readFunc(conn, v)
+			}
+		}
+
+		//Start timeout
+		time.AfterFunc(stabilizer.settings.OrderDelay, func() {
+			for _, v := range sConn.ordererSimple.Dump(orderNum) {
+				if stabilizer.readFunc != nil {
+					stabilizer.readFunc(conn, v)
+				}
+			}
+		})
 	}
 }
 
