@@ -8,7 +8,7 @@ const BufferSize = 1024 * 16
 type NetworkStatus uint8
 
 /*
-ConnectStatus is status of connect
+ConnectStatus is status of none
 */
 const NoneNetworkStatus NetworkStatus = 0
 

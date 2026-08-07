@@ -3,13 +3,14 @@ package udp
 import (
 	"net"
 
+	webtools "github.com/kolojar/Go-Webtools"
 	"github.com/kolojar/Go-Webtools/helpertools"
 )
 
 /*
 ClientReadFunc is function definition for reading data from Client
 */
-type ClientReadFunc func(client *Client, sourceAddress *net.UDPAddr, data []byte, ended bool)
+type ClientReadFunc func(client *Client, sourceAddress *net.UDPAddr, data []byte, status webtools.NetworkStatus)
 
 /*
 Client is basic UDP Client
@@ -62,6 +63,13 @@ func (cl *Client) Connect() error {
 		cl.Logger.Log(3, "Error connecting to: "+cl.address.String()+" | Error: "+err.Error())
 		return err
 	}
+
+	//Send event
+	if cl.readFunc != nil {
+		cl.readFunc(cl, cl.address, nil, webtools.ConnectStatus)
+	}
+
+	//Start read loop
 	go func() {
 		cl.isAlive = true
 		//Handle read
@@ -77,7 +85,7 @@ func (cl *Client) Connect() error {
 
 func (cl *Client) readFuncLocal(addrFrom *net.UDPAddr, data []byte, ended bool) {
 	if cl.readFunc != nil {
-		cl.readFunc(cl, addrFrom, data, ended)
+		cl.readFunc(cl, addrFrom, data, helpertools.FormatByBool(ended, webtools.DisconnectStatus, webtools.ReadDataStatus))
 	}
 	//Sort if framed
 

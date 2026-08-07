@@ -56,7 +56,7 @@ func (conn *ServerConn) Close() {
 	conn.origin.conns.Delete(conn.address.String())
 	conn.origin.Logger.Log(0, "Closed connection on "+conn.address.String())
 	if conn.origin.readFunc != nil {
-		conn.origin.readFunc(conn, nil, true)
+		conn.origin.readFunc(conn, nil, webtools.DisconnectStatus)
 	}
 	//udpConn.Client.Stop()
 }
@@ -64,7 +64,7 @@ func (conn *ServerConn) Close() {
 /*
 ServerReadFunc is function definition for reading data from Server
 */
-type ServerReadFunc func(conn *ServerConn, data []byte, ended bool)
+type ServerReadFunc func(conn *ServerConn, data []byte, status webtools.NetworkStatus)
 
 /*
 Server is basic UDP server
@@ -142,7 +142,7 @@ func (udp *Server) Start() {
 /*
 Handles UDP Read
 */
-func handleUDPRead(listener *net.UDPConn, logger *helpertools.ConsoleLogger, readFunc func(*net.UDPAddr, []byte, bool)) bool {
+func handleUDPRead(listener *net.UDPConn, logger *helpertools.ConsoleLogger, readFunc func(addr *net.UDPAddr, data []byte, ended bool)) bool {
 	buffer := make([]byte, webtools.BufferSize)
 	//Get connection and data
 	n, addr, err := listener.ReadFromUDP(buffer)
@@ -184,13 +184,19 @@ func (udp *Server) readFuncLocal(addr *net.UDPAddr, data []byte, ended bool) {
 			//No connection, create new
 			udpConn = &ServerConn{origin: udp, lastSeen: time.Now(), address: addr}
 			udpConn.origin.conns.Set(addr.String(), udpConn)
+
+			//Send event to read func
+			if udp.readFunc != nil {
+				udp.Logger.Log(0, "New connection from: "+addr.String())
+				udp.readFunc(udpConn, data, webtools.ConnectStatus)
+			}
 		}
 		udpConn.lastSeen = time.Now()
 
 		//Process read
 		if udp.readFunc != nil {
 			udp.Logger.Log(0, "Reading from: "+addr.String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data))
-			udp.readFunc(udpConn, data, false)
+			udp.readFunc(udpConn, data, webtools.ReadDataStatus)
 		}
 	}
 

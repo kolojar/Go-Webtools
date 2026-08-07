@@ -18,8 +18,6 @@
 - 1 byte Control sequence
 - x byte Data
 
-TODO: Need to fix ACK frame
-
 ## Data frame with resend (5)
 - 1 byte Control sequence
 - 12 byte Replay window

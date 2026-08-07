@@ -1,7 +1,6 @@
 package udp
 
 import (
-	"bytes"
 	"encoding/binary"
 	"encoding/hex"
 	"net"
@@ -118,64 +117,73 @@ type ConnectionStabilizerSettings struct {
 	//
 	// Recommendation: Set this to 10 ms
 	TimeBetweenACKPackets time.Duration
+
+	// WindoWordCount is count of words of window
+	WindowWordCount uint8
 }
 
 // connectionStabilizer is internal struct for universal handeling of reads and writes from/to UDP
-type connectionStabilizer[T UniversalConn] struct {
+type connectionStabilizer[connType UniversalConn, sequenceNumberType ~uint8 | ~uint16 | ~uint32 | ~uint64, orderNumberType ~uint8 | ~uint16 | ~uint32 | ~uint64, windowWordType ~uint8 | ~uint16 | ~uint32 | ~uint64] struct {
 	settings *ConnectionStabilizerSettings
-	readFunc StabilizerReadFunc[T]
-	conns    helpertools.SafeMap[T, *connectionStabilizerConn]
+	readFunc StabilizerReadFunc[connType]
+	conns    helpertools.SafeMap[connType, *connectionStabilizerConn[sequenceNumberType, orderNumberType, windowWordType]]
 }
 
 // newConnectionStabilizer creates new connectionStabilizer
-func newConnectionStabilizer[T UniversalConn](settings *ConnectionStabilizerSettings, readFunc StabilizerReadFunc[T], isServer bool) *connectionStabilizer[T] {
-	return &connectionStabilizer[T]{
+func newConnectionStabilizer[connType UniversalConn, sequenceNumberType ~uint8 | ~uint16 | ~uint32 | ~uint64, orderNumberType ~uint8 | ~uint16 | ~uint32 | ~uint64, windowWordType ~uint8 | ~uint16 | ~uint32 | ~uint64](settings *ConnectionStabilizerSettings, readFunc StabilizerReadFunc[connType], isServer bool) *connectionStabilizer[connType, sequenceNumberType, orderNumberType, windowWordType] {
+	return &connectionStabilizer[connType, sequenceNumberType, orderNumberType, windowWordType]{
 		settings: settings,
 		readFunc: readFunc,
-		conns:    helpertools.MakeSafeMap[T, *connectionStabilizerConn](helpertools.FormatByBool(isServer, 0, 1)),
+		conns:    helpertools.MakeSafeMap[connType, *connectionStabilizerConn[sequenceNumberType, orderNumberType, windowWordType]](helpertools.FormatByBool(isServer, 0, 1)),
 	}
 }
 
-type connectionStabilizerConn struct {
+type connectionStabilizerConn[sequenceNumberType ~uint8 | ~uint16 | ~uint32 | ~uint64, orderNumberType ~uint8 | ~uint16 | ~uint32 | ~uint64, windowWordType ~uint8 | ~uint16 | ~uint32 | ~uint64] struct {
 	// sendPacketResendNumber is sequence number for resend prevention and request
-	sendPacketResendNumber atomic.Uint32
+	sendPacketResendNumber atomic.Uint64
 	// missingPingPackets is counter of missing and send packets
 	missingPingPackets atomic.Uint32
-	// countOfPacketsSinceLastACK counts recieved packets since last ACK-Compatible packet
-	countOfPacketsSinceLastACK atomic.Uint32
-	// lastACKTimestampUnixNano is timestamp of last send ACK-Compatible packet in UNIX Nano
-	lastACKTimestampUnixNano atomic.Int64
+	// lastACKTimestampsUnixNano is timestamp of last send ACK-Compatible packet in UNIX Nano per word
+	lastACKTimestampsUnixNano []atomic.Int64
 	// sendPacketOrderNumberSimple is sequence number for ordering of packets (for types stableDataWithOrderInstantFrame and stableDataWithOrderTimeoutFrame)
-	sendPacketOrderNumberSimple uint32
+	sendPacketOrderNumberSimple orderNumberType
 	// sendPacketOrderNumberPrecise is sequence number for ordering of packets (for type stableDataWithOrderResendFrame)
-	sendPacketOrderNumberPrecise uint32
+	sendPacketOrderNumberPrecise orderNumberType
 
 	// sendedPacketsACKsWindow is used for lookup if packets need to be resended
-	sendedPacketsACKsWindow helpertools.ReplayWindow[uint32]
+	sendedPacketsACKsWindow *helpertools.ReplayWindow[sequenceNumberType, windowWordType]
 	// incomingPacketsWindow is used for checking if packet with sequence number already got recieved or not
-	incomingPacketsWindow helpertools.ReplayWindow[uint32]
+	incomingPacketsWindow *helpertools.ReplayWindow[sequenceNumberType, windowWordType]
 	// rttCalculator is rtt calculator for transmition timing
 	rttCalculator helpertools.RTTCalculator
+	// sendPacketOrderSimpleMutex is mutex for ordering packets so original order can be preserved
 	sendPacketOrderSimpleMutex sync.Mutex
 }
 
-func newConnectionStabilizerConn(settings *ConnectionStabilizerSettings) *connectionStabilizerConn {
-	conn := &connectionStabilizerConn{
-		sendedPacketsACKsWindow: *helpertools.NewReplayWindow[uint32](),
-		incomingPacketsWindow:   *helpertools.NewReplayWindow[uint32](),
-		rttCalculator:           *helpertools.NewRTTCalculator(settings.MinimumRTT, settings.MaximumRTT, settings.FallbackRTT),
+func newConnectionStabilizerConn[sequenceNumberType ~uint8 | ~uint16 | ~uint32 | ~uint64, orderNumberType ~uint8 | ~uint16 | ~uint32 | ~uint64, windowWordType ~uint8 | ~uint16 | ~uint32 | ~uint64](settings *ConnectionStabilizerSettings) (*connectionStabilizerConn[sequenceNumberType, orderNumberType, windowWordType], error) {
+	conn := &connectionStabilizerConn[sequenceNumberType, orderNumberType, windowWordType]{
+		rttCalculator:                *helpertools.NewRTTCalculator(settings.MinimumRTT, settings.MaximumRTT, settings.FallbackRTT),
+		sendPacketOrderNumberSimple:  0,
+		sendPacketOrderNumberPrecise: 0,
+		sendPacketOrderSimpleMutex:   sync.Mutex{},
+		lastACKTimestampsUnixNano:    make([]atomic.Int64, settings.WindowWordCount),
+	}
+	var err error
+	conn.incomingPacketsWindow, err = helpertools.NewReplayWindow[sequenceNumberType, windowWordType](settings.WindowWordCount)
+	if err != nil {
+		return nil, err
+	}
+	conn.sendedPacketsACKsWindow, err = helpertools.NewReplayWindow[sequenceNumberType, windowWordType](settings.WindowWordCount)
+	if err != nil {
+		return nil, err
 	}
 	conn.sendPacketResendNumber.Store(0)
-	conn.sendPacketOrderNumberSimple.Store(0)
-	conn.sendPacketOrderNumberPrecise.Store(0)
 	conn.missingPingPackets.Store(0)
-	conn.countOfPacketsSinceLastACK.Store(0)
-	conn.lastACKTimestampUnixNano.Store(time.Now().UnixNano())
-	return conn
+	return conn, nil
 }
 
 // processRead is internal function for handeling reads
-func (stabilizer *connectionStabilizer[T]) processRead(conn T, framedData []byte) {
+func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumberType, windowWordType]) processRead(conn connType, framedData []byte) {
 	//Check if has at least one byte
 	if len(framedData) == 0 {
 		return
@@ -186,15 +194,15 @@ func (stabilizer *connectionStabilizer[T]) processRead(conn T, framedData []byte
 	framedData = framedData[1:]
 
 	//Read ACK settings
-	if frameType != stableDataFrame && frameType != stableDataWithOrderInstantFrame && frameType != stableDataWithOrderTimeoutFrame {
-		//Valid ACK-compatible packet
-		framedData = framedData[stabilizer.conns.Get(conn).sendedPacketsACKsWindow.JoinWindowDataBytes(framedData):]
+	if frameType != stableDataFrame && frameType != stableDataWithOrderInstantFrame && frameType != stableDataWithOrderTimeoutFrame && frameType != stableDataRecievedFrame {
+		//Valid ACK-compatible data packet
+		framedData = framedData[stabilizer.conns.Get(conn).sendedPacketsACKsWindow.JoinWindowDataBytes(framedData, 1):]
 	}
 
 	//Sort types
 	if frameType == stablePingFrame {
 		//Ping frame = reply with pong
-		if len(framedData) != 8 {
+		if len(framedData) == 8 {
 			conn.GetLogger().Log(1, "Got ping from: "+conn.GetAddress().String())
 			stabilizer.processWrite(conn, stablePongFrame, framedData)
 		} else {
@@ -207,12 +215,19 @@ func (stabilizer *connectionStabilizer[T]) processRead(conn T, framedData []byte
 			return
 		}
 
-		//Calculate RTO- 12 byte Replay window
-		sconn := stabilizer.conns.Get(conn)
-		sconn.rttCalculator.CalculateRTT(time.Since(time.UnixMicro(int64(binary.LittleEndian.Uint64(framedData)))))
-		if stabilizer.settings.KeepAliveTriesBeforeError != -1 {
-			sconn.missingPingPackets.Store(0)
+		//Calculate RTO
+		sConn := stabilizer.conns.Get(conn)
+		if sConn == nil {
+			conn.GetLogger().Log(4, "Invalid connection for: "+conn.GetAddress().String())
+			return
 		}
+		sConn.rttCalculator.CalculateRTT(time.Since(time.UnixMicro(int64(binary.LittleEndian.Uint64(framedData)))))
+		if stabilizer.settings.KeepAliveTriesBeforeError != -1 {
+			sConn.missingPingPackets.Store(0)
+		}
+	} else if frameType == stableDataRecievedFrame {
+		//ACK Frame
+		stabilizer.conns.Get(conn).sendedPacketsACKsWindow.JoinWindowDataBytes(framedData, 0)
 	} else if frameType == stableDataFrame {
 		//Data frame - no checking applied = pass to read func
 		if stabilizer.readFunc != nil {
@@ -221,54 +236,64 @@ func (stabilizer *connectionStabilizer[T]) processRead(conn T, framedData []byte
 	} else if frameType == stableDataWithResendFrame {
 		//Data frame with resend function - apply window and send ACK
 		sConn := stabilizer.conns.Get(conn)
-		if sConn.sendedPacketsACKsWindow.ApplyWindowCheck(binary.LittleEndian.Uint32(framedData)) {
+		if sConn == nil {
+			conn.GetLogger().Log(4, "Invalid connection for: "+conn.GetAddress().String())
+			return
+		}
+		seqNum, readBytes := helpertools.ParseGenericLitteEndian[sequenceNumberType](framedData)
+		if sConn.incomingPacketsWindow.ApplyWindowCheck(seqNum) {
 			//Pass to read func
 			if stabilizer.readFunc != nil {
-				stabilizer.readFunc(conn, framedData[4:])
+				stabilizer.readFunc(conn, framedData[readBytes:])
 			}
 		}
 
 		//Request ACK
-		stabilizer.handleACKSend(conn, sConn, true)
+		stabilizer.handleACKSend(conn, sConn, seqNum, true)
 	}
 }
 
 // handleACKSend handles sending ACK packets
-func (stabilizer *connectionStabilizer[T]) handleACKSend(conn T, sConn *connectionStabilizerConn, loop bool) {
-	//Check for count of packets
-	if sConn.countOfPacketsSinceLastACK.Load() >= stabilizer.settings.CountOfRecievedPacketsForACK {
-		stabilizer.processWrite(conn, stableDataRecievedFrame, nil)
+func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumberType, windowWordType]) handleACKSend(conn connType, sConn *connectionStabilizerConn[sequenceNumberType, orderNumberType, windowWordType], seqNum sequenceNumberType, loop bool) {
+	//Check for validity
+	if sConn == nil {
+		conn.GetLogger().Log(4, "Invalid connection for: "+conn.GetAddress().String())
 		return
 	}
 
+	//Calculate word count
+	wordIndex := uint8((sConn.incomingPacketsWindow.GetRightEdge()-seqNum+sequenceNumberType(helpertools.GetBitSize[sequenceNumberType]()-1))>>uint32(helpertools.GetBitShiftSize[uint32]())) - 1
+
 	//Check for duration
-	if time.Since(time.Unix(0, sConn.lastACKTimestampUnixNano.Load())) >= stabilizer.settings.TimeBetweenACKPackets {
-		stabilizer.processWrite(conn, stableDataRecievedFrame, nil)
+	if time.Since(time.Unix(0, sConn.lastACKTimestampsUnixNano[wordIndex].Load())) >= stabilizer.settings.TimeBetweenACKPackets {
+		stabilizer.processWrite(conn, stableDataRecievedFrame, []byte{wordIndex + 1})
 		return
 	}
 
 	//Wait some time for loop
 	if loop {
-		go func() {
-			time.Sleep(stabilizer.settings.TimeBetweenACKPackets)
-			stabilizer.handleACKSend(conn, sConn, false)
-		}()
+		time.AfterFunc(stabilizer.settings.TimeBetweenACKPackets, func() {
+			stabilizer.handleACKSend(conn, sConn, seqNum, false)
+		})
 	}
 }
 
 // processWrite is internal function for handeling writes
-func (stabilizer *connectionStabilizer[T]) processWrite(conn T, frameType stableFrameType, data []byte) {
+func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumberType, windowWordType]) processWrite(conn connType, frameType stableFrameType, data []byte) {
 	//Create new byte buffer
-	buffer := new(bytes.Buffer)
-	buffer.WriteByte(byte(frameType))
-	var sConn *connectionStabilizerConn
+	buffer := make([]byte, 1)
+	buffer = append(buffer, byte(frameType))
+	var sConn *connectionStabilizerConn[sequenceNumberType, orderNumberType, windowWordType]
 
 	//Write ACK is possible
-	if frameType != stableDataFrame && frameType != stableDataWithOrderInstantFrame && frameType != stableDataWithOrderTimeoutFrame {
+	if frameType != stableDataFrame && frameType != stableDataWithOrderInstantFrame && frameType != stableDataWithOrderTimeoutFrame && frameType != stableDataRecievedFrame {
 		sConn = stabilizer.conns.Get(conn)
-		sConn.countOfPacketsSinceLastACK.Store(0)
-		sConn.lastACKTimestampUnixNano.Store(time.Now().UnixNano())
-		buffer.Write(stabilizer.conns.Get(conn).incomingPacketsWindow.GetWindowDataBytes())
+		if sConn == nil {
+			conn.GetLogger().Log(4, "Invalid connection for: "+conn.GetAddress().String())
+			return
+		}
+		sConn.lastACKTimestampsUnixNano[len(sConn.lastACKTimestampsUnixNano)-1].Store(time.Now().UnixNano())
+		buffer = append(buffer, stabilizer.conns.Get(conn).incomingPacketsWindow.GetWindowDataBytes(1, false)...)
 	}
 
 	//Process specific types
@@ -277,10 +302,8 @@ func (stabilizer *connectionStabilizer[T]) processWrite(conn T, frameType stable
 		if stabilizer.settings.KeepAliveTriesBeforeError == -1 || sConn.missingPingPackets.Load() < uint32(stabilizer.settings.KeepAliveTriesBeforeError) {
 			//Can send ping packet
 			conn.GetLogger().Log(1, "Sending ping to: "+conn.GetAddress().String())
-			timestamp := make([]byte, 8)
-			binary.LittleEndian.PutUint64(timestamp, uint64(time.Now().UnixMicro()))
-			buffer.Write(timestamp)
-			conn.Send(buffer.Bytes())
+			buffer = binary.LittleEndian.AppendUint64(buffer, uint64(time.Now().UnixMicro()))
+			conn.Send(buffer)
 			if stabilizer.settings.KeepAliveTriesBeforeError != -1 {
 				sConn.missingPingPackets.Add(1)
 			}
@@ -293,37 +316,53 @@ func (stabilizer *connectionStabilizer[T]) processWrite(conn T, frameType stable
 	} else if frameType == stablePongFrame {
 		//Pong frame
 		conn.GetLogger().Log(1, "Sending pong to: "+conn.GetAddress().String())
-		buffer.Write(data)
-		conn.Send(buffer.Bytes())
+		conn.Send(append(buffer, data...))
 		return
 	} else if frameType == stableDataRecievedFrame {
 		//Data recieved frame - ACK frame
 		conn.GetLogger().Log(1, "Sending ACK frame to: "+conn.GetAddress().String()+" for packet [hex]: "+hex.EncodeToString(data))
-		conn.Send(buffer.Bytes())
+		for i := range uint8(data[0]) {
+			sConn.lastACKTimestampsUnixNano[uint8(len(sConn.lastACKTimestampsUnixNano)-1)-i].Store(time.Now().UnixNano())
+		}
+		conn.Send(append(buffer, stabilizer.conns.Get(conn).incomingPacketsWindow.GetWindowDataBytes(uint8(data[0]), true)...))
 		return
 	} else if frameType == stableDataFrame {
 		//Data frame - no checking applied
 		conn.GetLogger().Log(1, "Sending pure data frame to: "+conn.GetAddress().String())
-		buffer.Write(data)
-		conn.Send(buffer.Bytes())
+		conn.Send(append(buffer, data...))
 		return
 	} else if frameType == stableDataWithResendFrame {
 		//Data frame with resend function - add sequence number and data and pass to writer function
-		sequenceNumber := sConn.sendPacketResendNumber.Add(1)-1
-		buffer.Write(binary.LittleEndian.AppendUint32([]byte{}, sequenceNumber))
-		buffer.Write(data)
-		go stabilizer.resendWrite(conn, sConn, sequenceNumber, buffer.Bytes())
+		sequenceNumber := sequenceNumberType(sConn.sendPacketResendNumber.Add(1) - 1)
+		buffer, _ = helpertools.AppendGenericLitteEndian[sequenceNumberType](buffer, sequenceNumber)
+		go stabilizer.resendWrite(conn, sConn, sequenceNumber, append(buffer, data...))
+		return
 	} else if frameType == stableDataWithOrderInstantFrame || frameType == stableDataWithOrderTimeoutFrame {
 		//Data frame with order function (instant / timeout) - add order number and data and send
-		orderNumber := sConn.
+		sConn.sendPacketOrderSimpleMutex.Lock()
+		orderNumber := sConn.sendPacketOrderNumberSimple
+		sConn.sendPacketOrderNumberSimple++
+		sConn.sendPacketOrderSimpleMutex.Unlock()
+
+		//Add all bytes
+		conn.GetLogger().Log(1, "Sending ordered data frame with order number: "+strconv.FormatUint(uint64(orderNumber), 10)+" to: "+conn.GetAddress().String())
+		buffer, _ = helpertools.AppendGenericLitteEndian[orderNumberType](buffer, orderNumber)
+		conn.Send(append(buffer, data...))
 	}
 
 }
 
 // resendWrite is helper function for resendable writing to connection until valid ACK is recieved or timeout is reached
-func (stabilizer *connectionStabilizer[T]) resendWrite(conn T, sConn *connectionStabilizerConn, sequenceNumber uint32, data []byte) {
+func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumberType, windowWordType]) resendWrite(conn connType, sConn *connectionStabilizerConn[sequenceNumberType, orderNumberType, windowWordType], sequenceNumber sequenceNumberType, data []byte) {
+	//Check for validity
+	if sConn == nil {
+		conn.GetLogger().Log(4, "Invalid connection for: "+conn.GetAddress().String())
+		return
+	}
+
+	//Send
 	for sendTry := uint8(0); stabilizer.settings.ResendRetries == 0 || sendTry <= stabilizer.settings.ResendRetries; sendTry++ {
-		conn.GetLogger().Log(1, "Sending resend data frame to: "+conn.GetAddress().String()+" with try: "+strconv.FormatUint(uint64(sendTry), 10))
+		conn.GetLogger().Log(1, "Sending resend data frame with sequence number: "+strconv.FormatUint(uint64(sequenceNumber), 10)+" to: "+conn.GetAddress().String()+" with try: "+strconv.FormatUint(uint64(sendTry), 10))
 		conn.Send(data)
 		time.Sleep(sConn.rttCalculator.GetRTO())
 		if sConn.sendedPacketsACKsWindow.CheckValue(sequenceNumber) {
@@ -333,16 +372,22 @@ func (stabilizer *connectionStabilizer[T]) resendWrite(conn T, sConn *connection
 	conn.GetLogger().Log(2, "Failed sending resend data frame to: "+conn.GetAddress().String())
 }
 
-/*
-CleanupConnection removes specified connection
-*/
-func (stabilizer *connectionStabilizer[T]) CleanupConnection(conn T) {
+// HandleConnect should be called everytime new connection connects to server / client
+func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumberType, windowWordType]) HandleConnect(conn connType) error {
+	sConn, err := newConnectionStabilizerConn[sequenceNumberType, orderNumberType, windowWordType](stabilizer.settings)
+	if err != nil {
+		return err
+	}
+	stabilizer.conns.Set(conn, sConn)
+	return nil
+}
+
+// CleanupConnection removes specified connection
+func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumberType, windowWordType]) CleanupConnection(conn connType) {
 	stabilizer.conns.Delete(conn)
 }
 
-/*
-CleanupConnections removes all connections
-*/
-func (stabilizer *connectionStabilizer[T]) CleanupConnections() {
+// CleanupConnections removes all connections
+func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumberType, windowWordType]) CleanupConnections() {
 	stabilizer.conns.Clear()
 }

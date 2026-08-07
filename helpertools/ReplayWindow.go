@@ -24,6 +24,11 @@ type ReplayWindow[checkedValueType ~uint8 | ~uint16 | ~uint32 | ~uint64, windowH
 	isFirstValue bool
 }
 
+// GetRightEdge gets rightEdge
+func (window *ReplayWindow[checkedValueType, windowHolderType]) GetRightEdge() checkedValueType {
+	return window.rightEdge
+}
+
 // NewReplayWindow initializes ReplayWindow. windowWordCount is count of windowHolderType (total window size = windowWordCount * countOfBytes(windowHolderType) * 8)
 func NewReplayWindow[checkedValueType ~uint8 | ~uint16 | ~uint32 | ~uint64, windowHolderType ~uint8 | ~uint16 | ~uint32 | ~uint64](windowWordCount uint8) (*ReplayWindow[checkedValueType, windowHolderType], error) {
 	if GetByteSize[windowHolderType]() <= 2 && uint16(GetBitSize[windowHolderType]()*windowWordCount) > uint16(checkedValueType(checkedValueType(0)-1)) {
