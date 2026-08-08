@@ -40,17 +40,17 @@ const stablePongFrame stableFrameType = 2
 // stableDataRecievedFrame is frame code with information about success recieve of packet (ACK)
 const stableDataRecievedFrame stableFrameType = 3
 
-// stableDataFrame is pure data frame code
-const stableDataFrame stableFrameType = 4
+// StableDataFrame is pure data frame code
+const StableDataFrame stableFrameType = 4
 
-// stableDataWithResendFrame is data frame code with checking for delivery
-const stableDataWithResendFrame stableFrameType = 5
+// StableDataWithResendFrame is data frame code with checking for delivery
+const StableDataWithResendFrame stableFrameType = 5
 
-// stableDataWithOrderInstantFrame is data frame code with checking for order of packets, instantly drops out of order packets.
+// StableDataWithOrderInstantFrame is data frame code with checking for order of packets, instantly drops out of order packets.
 // Example: If packet 2 arrives before packet 1, it processes packet 2 and packet 1 gets dropped.
 //
 // For more stable see stableDataWithOrderTimeoutFrame
-const stableDataWithOrderInstantFrame stableFrameType = 6
+const StableDataWithOrderInstantFrame stableFrameType = 6
 
 // stableDataWithOrderFrame is data frame code with checking for order of packets, drops out of order packets after timeout.
 // Example: When packet 2 arrieves, it waits timeout (if there are packets before that have not arrived) before processing the packet 2 and dropping all older packets.
@@ -58,15 +58,15 @@ const stableDataWithOrderInstantFrame stableFrameType = 6
 // For instant processing see: stableDataWithOrderInstantFrame.
 //
 // Note: Timeout is set via setting in connection stabilizer
-const stableDataWithOrderTimeoutFrame stableFrameType = 7
+const StableDataWithOrderTimeoutFrame stableFrameType = 7
 
-// stableDataWithOrderResendFrame is data frame code with checking for order of packets and for delivery. It works like TCP.
+// StableDataWithOrderResendFrame is data frame code with checking for order of packets and for delivery. It works like TCP.
 //
 // Warning: This type can introduce big latency or infinite waiting for packets, if they get lost. Packets are waiting for strict order.
 // Example: If packet 2 arrives before packet 1, it waits until packet 1 is recieved.
 //
 // Note: For this frame type ResendRetries is set to 0
-const stableDataWithOrderResendFrame stableFrameType = 8
+const StableDataWithOrderResendFrame stableFrameType = 8
 
 // ConnectionStabilizerSettings are settings used in connectionStabilizer
 type ConnectionStabilizerSettings struct {
@@ -238,7 +238,7 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 	framedData = framedData[1:]
 
 	//Read ACK settings
-	if frameType != stableDataFrame && frameType != stableDataWithOrderInstantFrame && frameType != stableDataWithOrderTimeoutFrame && frameType != stableDataRecievedFrame {
+	if frameType != StableDataFrame && frameType != StableDataWithOrderInstantFrame && frameType != StableDataWithOrderTimeoutFrame && frameType != stableDataRecievedFrame {
 		//Valid ACK-compatible data packet
 		framedData = framedData[stabilizer.conns.Get(conn).sendedPacketsACKsWindow.JoinWindowDataBytes(framedData, 1):]
 	}
@@ -281,7 +281,7 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 			conn.GetLogger().Log(1, "Got ACK frame from: "+conn.GetAddress().String())
 			stabilizer.conns.Get(conn).sendedPacketsACKsWindow.JoinWindowDataBytes(framedData, 0)
 		}
-	case stableDataFrame:
+	case StableDataFrame:
 		{
 			//Data frame - no checking applied = pass to read func
 			conn.GetLogger().Log(1, "Got data frame from: "+conn.GetAddress().String())
@@ -294,7 +294,7 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 				stabilizer.readFunc(sConn, framedData)
 			}
 		}
-	case stableDataWithResendFrame:
+	case StableDataWithResendFrame:
 		{
 			//Data frame with resend function - apply window and send ACK
 			sConn := stabilizer.conns.Get(conn)
@@ -314,7 +314,7 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 			//Request ACK
 			stabilizer.handleACKSend(conn, sConn, seqNum, true)
 		}
-	case stableDataWithOrderInstantFrame:
+	case StableDataWithOrderInstantFrame:
 		{
 			//Data frame with instant ordering function - apply simple orderer
 			sConn := stabilizer.conns.Get(conn)
@@ -330,7 +330,7 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 				}
 			}
 		}
-	case stableDataWithOrderTimeoutFrame:
+	case StableDataWithOrderTimeoutFrame:
 		{
 			//Data frame with instant ordering function - apply simple orderer
 			sConn := stabilizer.conns.Get(conn)
@@ -355,7 +355,7 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 				}
 			})
 		}
-	case stableDataWithOrderResendFrame:
+	case StableDataWithOrderResendFrame:
 		{
 			//Data frame with resend and order function - apply window and send ACK and order packets
 			sConn := stabilizer.conns.Get(conn)
@@ -414,7 +414,7 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 // HandleWrite handles writes in stabilizer with default settings
 func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumberType, windowWordType]) HandleWriteDefault(conn connType, data []byte) {
 	if stabilizer.settings.DefaultSendFrameType == stablePingFrame || stabilizer.settings.DefaultSendFrameType == stablePongFrame || stabilizer.settings.DefaultSendFrameType == stableDataRecievedFrame || stabilizer.settings.DefaultSendFrameType == 0 {
-		stabilizer.settings.DefaultSendFrameType = stableDataFrame
+		stabilizer.settings.DefaultSendFrameType = StableDataFrame
 	}
 	stabilizer.HandleWrite(conn, stabilizer.settings.DefaultSendFrameType, data)
 }
@@ -427,7 +427,7 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 	var sConn *connectionStabilizerConn[sequenceNumberType, orderNumberType, windowWordType]
 
 	//Write ACK is possible
-	if frameType != stableDataFrame && frameType != stableDataWithOrderInstantFrame && frameType != stableDataWithOrderTimeoutFrame && frameType != stableDataRecievedFrame {
+	if frameType != StableDataFrame && frameType != StableDataWithOrderInstantFrame && frameType != StableDataWithOrderTimeoutFrame && frameType != stableDataRecievedFrame {
 		sConn = stabilizer.conns.Get(conn)
 		if sConn == nil {
 			conn.GetLogger().Log(4, "Invalid connection for: "+conn.GetAddress().String())
@@ -471,20 +471,20 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 			}
 			conn.Send(append(buffer, stabilizer.conns.Get(conn).incomingPacketsWindow.GetWindowDataBytes(uint8(data[0]), true)...))
 		}
-	case stableDataFrame:
+	case StableDataFrame:
 		{
 			//Data frame - no checking applied
 			conn.GetLogger().Log(1, "Sending pure data frame to: "+conn.GetAddress().String())
 			conn.Send(append(buffer, data...))
 		}
-	case stableDataWithResendFrame:
+	case StableDataWithResendFrame:
 		{
 			//Data frame with resend function - add sequence number and data and pass to writer function
 			sequenceNumber := sequenceNumberType(sConn.sendPacketResendNumber.Add(1) - 1)
 			buffer, _ = helpertools.AppendGenericLitteEndian(buffer, sequenceNumber)
 			go stabilizer.resendWrite(conn, sConn, sequenceNumber, append(buffer, data...), false)
 		}
-	case stableDataWithOrderInstantFrame, stableDataWithOrderTimeoutFrame:
+	case StableDataWithOrderInstantFrame, StableDataWithOrderTimeoutFrame:
 		{
 			//Data frame with order function (instant / timeout) - add order number and data and send
 			sConn.sendPacketOrderSimpleMutex.Lock()
@@ -497,7 +497,7 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 			buffer, _ = helpertools.AppendGenericLitteEndian(buffer, orderNumber)
 			conn.Send(append(buffer, data...))
 		}
-	case stableDataWithOrderResendFrame:
+	case StableDataWithOrderResendFrame:
 		{
 			//Data frame with order and resend function - add sequence number, order number and send
 			sConn.sendPacketOrderPreciseMutex.Lock()

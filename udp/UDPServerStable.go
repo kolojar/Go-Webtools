@@ -62,7 +62,7 @@ type ServerStable[sequenceNumberType ~uint8 | ~uint16 | ~uint32 | ~uint64, order
 	conns      helpertools.SafeMap[*connectionStabilizerConn[sequenceNumberType, orderNumberType, windowWordType], *ServerStableConn[sequenceNumberType, orderNumberType, windowWordType]]
 }
 
-func NewServerStable[sequenceNumberType ~uint8 | ~uint16 | ~uint32 | ~uint64, orderNumberType ~uint8 | ~uint16 | ~uint32 | ~uint64, windowWordType ~uint8 | ~uint16 | ~uint32 | ~uint64](address string, readFunc ServerStableReadFunc[sequenceNumberType, orderNumberType, windowWordType], reportTraffic bool, connectionStabilizerSettings *ConnectionStabilizerSettings) (sv *ServerStable[sequenceNumberType, orderNumberType, windowWordType], err error) {
+func NewServerStable[sequenceNumberType ~uint8 | ~uint16 | ~uint32 | ~uint64, orderNumberType ~uint8 | ~uint16 | ~uint32 | ~uint64, windowWordType ~uint8 | ~uint16 | ~uint32 | ~uint64](address string, readFunc ServerStableReadFunc[sequenceNumberType, orderNumberType, windowWordType], connectionStabilizerSettings *ConnectionStabilizerSettings, reportTraffic bool) (sv *ServerStable[sequenceNumberType, orderNumberType, windowWordType], err error) {
 	//Create basic structure
 	sv = &ServerStable[sequenceNumberType, orderNumberType, windowWordType]{
 		readFunc: readFunc,
@@ -150,18 +150,18 @@ func (sv *ServerStable[sequenceNumberType, orderNumberType, windowWordType]) Wri
 func (sv *ServerStable[sequenceNumberType, orderNumberType, windowWordType]) WriteToClientAdvanced(conn *ServerStableConn[sequenceNumberType, orderNumberType, windowWordType], data []byte, useResend bool, orderLevel StabilizerOrderLevel) {
 	if useResend {
 		if orderLevel == StabilizerNoOrdering {
-			sv.stabilizer.HandleWrite(conn.conn, stableDataWithResendFrame, data)
+			sv.stabilizer.HandleWrite(conn.conn, StableDataWithResendFrame, data)
 		} else {
-			sv.stabilizer.HandleWrite(conn.conn, stableDataWithOrderResendFrame, data)
+			sv.stabilizer.HandleWrite(conn.conn, StableDataWithOrderResendFrame, data)
 		}
 	} else {
 		switch orderLevel {
 		case StabilizerNoOrdering:
-			sv.stabilizer.HandleWrite(conn.conn, stableDataFrame, data)
+			sv.stabilizer.HandleWrite(conn.conn, StableDataFrame, data)
 		case StabilizerInstantOrdering:
-			sv.stabilizer.HandleWrite(conn.conn, stableDataWithOrderInstantFrame, data)
+			sv.stabilizer.HandleWrite(conn.conn, StableDataWithOrderInstantFrame, data)
 		case StabilizerTimeoutOrdering:
-			sv.stabilizer.HandleWrite(conn.conn, stableDataWithOrderTimeoutFrame, data)
+			sv.stabilizer.HandleWrite(conn.conn, StableDataWithOrderTimeoutFrame, data)
 		default:
 			panic("unknown orderLevel: " + strconv.FormatUint(uint64(orderLevel), 10))
 		}

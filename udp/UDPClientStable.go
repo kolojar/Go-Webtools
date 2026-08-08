@@ -93,18 +93,18 @@ func (cl *ClientStable[sequenceNumberType, orderNumberType, windowWordType]) Sen
 func (cl *ClientStable[sequenceNumberType, orderNumberType, windowWordType]) SendAdvanced(data []byte, useResend bool, orderLevel StabilizerOrderLevel) {
 	if useResend {
 		if orderLevel == StabilizerNoOrdering {
-			cl.stabilizer.HandleWrite(&cl.client, stableDataWithResendFrame, data)
+			cl.stabilizer.HandleWrite(&cl.client, StableDataWithResendFrame, data)
 		} else {
-			cl.stabilizer.HandleWrite(&cl.client, stableDataWithOrderResendFrame, data)
+			cl.stabilizer.HandleWrite(&cl.client, StableDataWithOrderResendFrame, data)
 		}
 	} else {
 		switch orderLevel {
 		case StabilizerNoOrdering:
-			cl.stabilizer.HandleWrite(&cl.client, stableDataFrame, data)
+			cl.stabilizer.HandleWrite(&cl.client, StableDataFrame, data)
 		case StabilizerInstantOrdering:
-			cl.stabilizer.HandleWrite(&cl.client, stableDataWithOrderInstantFrame, data)
+			cl.stabilizer.HandleWrite(&cl.client, StableDataWithOrderInstantFrame, data)
 		case StabilizerTimeoutOrdering:
-			cl.stabilizer.HandleWrite(&cl.client, stableDataWithOrderTimeoutFrame, data)
+			cl.stabilizer.HandleWrite(&cl.client, StableDataWithOrderTimeoutFrame, data)
 		default:
 			panic("unknown orderLevel: " + strconv.FormatUint(uint64(orderLevel), 10))
 		}
@@ -124,4 +124,9 @@ func (cl *ClientStable[sequenceNumberType, orderNumberType, windowWordType]) Clo
 // GetLogger gets logger of client
 func (cl *ClientStable[sequenceNumberType, orderNumberType, windowWordType]) GetLogger() *helpertools.ConsoleLogger {
 	return cl.client.Logger
+}
+
+// IsAlive checks if client is alive
+func (cl *ClientStable[sequenceNumberType, orderNumberType, windowWordType]) IsAlive() bool {
+	return cl.client.isAlive
 }

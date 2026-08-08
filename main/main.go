@@ -25,6 +25,8 @@ import (
 
 func main() {
 	fmt.Println("Hello world")
+	stabilizerSettings := udp.ConnectionStabilizerSettings{DefaultSendFrameType: udp.StableDataFrame}
+	stabilizerSettings.SetRecommended()
 	ip, _ := p2p.GetThisComputerLocalIP()
 	upnp := p2p.NewUPnPServiceManager(ip)
 	switch os.Args[1] {
@@ -432,6 +434,33 @@ func main() {
 			//watcher := filesystem.NewFileSystemWatcher("/mnt/DATA/Programming/Go/Go-Webtools/test", filesystemEvent, true, true)
 			//defer watcher.StopWatching()
 			//watcher.StartWatching()
+		}
+	case "uss":
+		{
+			sv, _ := udp.NewServerStable("127.0.0.1:7777", func(conn *udp.ServerStableConn[uint16, uint16, uint64], data []byte, status webtools.NetworkStatus) {
+				if status == webtools.ReadDataStatus {
+					conn.Send(data)
+				}
+			}, &stabilizerSettings, true)
+			sv.Start()
+		}
+	case "ucs":
+		{
+			client, _ := udp.NewClientStable("127.0.0.1:7777", func(client *udp.ClientStable[uint16, uint16, uint64], sourceAddress *net.UDPAddr, data []byte, status webtools.NetworkStatus) {
+				fmt.Println(string(data))
+				rc++
+			}, &stabilizerSettings, true)
+			client.Connect()
+			for i := 0; i < 10; i++ {
+				client.Send([]byte("Test" + strconv.Itoa(i) + "|"))
+				time.Sleep(time.Millisecond * 5)
+			}
+			time.Sleep(30 * time.Second)
+			client.Stop()
+			fmt.Println(rc)
+			for client.IsAlive() {
+				time.Sleep(1 * time.Second)
+			}
 		}
 	}
 }
