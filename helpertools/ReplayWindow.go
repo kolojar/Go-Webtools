@@ -34,6 +34,9 @@ func MakeReplayWindow[checkedValueType ~uint8 | ~uint16 | ~uint32 | ~uint64, win
 	if GetByteSize[windowHolderType]() <= 2 && uint16(GetBitSize[windowHolderType]()*windowWordCount) > uint16(checkedValueType(checkedValueType(0)-1)) {
 		panic("window too big for checkedValueType")
 	}
+	if windowWordCount == 0 {
+		panic("window size can not be 0")
+	}
 	return ReplayWindow[checkedValueType, windowHolderType]{window: make([]windowHolderType, windowWordCount), rightEdge: 0, mutex: sync.Mutex{}, isFirstValue: true, maxForwardJump: (checkedValueType(0) - 1) >> 1}
 }
 
@@ -107,10 +110,10 @@ func (window *ReplayWindow[checkedValueType, windowHolderType]) ApplyWindowCheck
 	}
 
 	//Check bit
-	if CheckBitArray(window.window, uint64(olderValue)) {
+	if CheckBitArray(window.window, uint64(window.GetWindowBitSize()-1-olderValue)) {
 		return false
 	}
-	window.window = SetBitArray(window.window, uint64(olderValue))
+	window.window = SetBitArray(window.window, uint64(window.GetWindowBitSize()-1-olderValue))
 	return true
 }
 
@@ -121,7 +124,7 @@ func (window *ReplayWindow[checkedValueType, windowHolderType]) CheckValue(value
 	defer window.mutex.Unlock()
 
 	//Check if in range
-	location := window.rightEdge - value
+	location := window.GetWindowBitSize() - 1 - (window.rightEdge - value)
 	if location >= window.GetWindowBitSize() {
 		//Out of range
 		return false
@@ -228,7 +231,7 @@ func (window *ReplayWindow[checkedValueType, windowHolderType]) JoinWindowData(w
 	//Calculate forward jump (example if overflows: uint8(1) - uint8(254) = 3)
 	forwardJump := rightEdge - window.rightEdge
 	windowSizeBits := window.GetWindowBitSize()
-	if forwardJump > 0 && forwardJump < window.maxForwardJump {
+	if forwardJump < window.maxForwardJump {
 		//Valid forward jump
 		if forwardJump >= windowSizeBits {
 			//Overflow window
@@ -250,11 +253,6 @@ func (window *ReplayWindow[checkedValueType, windowHolderType]) JoinWindowData(w
 		for i := 0; i < min(len(window.window), len(windowBytes)); i++ {
 			window.window[len(window.window)-1-i] |= windowBytes[len(windowBytes)-1-i]
 		}
-		return
-	}
-
-	//Check if value is same
-	if forwardJump == 0 {
 		return
 	}
 
@@ -307,7 +305,12 @@ func (window *ReplayWindow[checkedValueType, windowHolderType]) JoinWindowDataBy
 
 	//Perform join
 	window.JoinWindowData(windowBytes, rightEdge)
-	return int(readBytes) + len(windowBytes)*int(GetByteSize[windowHolderType]())
+
+	//TODO: Unify
+	readBytesTotal := int(GetByteSize[checkedValueType]())
+	readBytesTotal += FormatByBool(wordCount == 0, 1, 0)
+	readBytesTotal += len(windowBytes) * int(GetByteSize[windowHolderType]())
+	return readBytesTotal
 }
 
 // IterateReplayWindowBits goes through every bit and if bit activnes matches isSet it is send to f function callback
@@ -322,7 +325,7 @@ func IterateReplayWindowBits[checkedValueType ~uint8 | ~uint16 | ~uint32 | ~uint
 	}
 }
 
-// GetReplayWindowBits gets every bit matching isSet value and returns thme in array
+// GetReplayWindowBits gets every bit matching isSet value and returns them in array
 func GetReplayWindowBits[checkedValueType ~uint8 | ~uint16 | ~uint32 | ~uint64, windowHolderType ~uint8 | ~uint16 | ~uint32 | ~uint64](window []windowHolderType, rightEdge checkedValueType, isSet bool) []checkedValueType {
 	result := make([]checkedValueType, 0, len(window)*int(GetBitSize[windowHolderType]()))
 	IterateReplayWindowBits(window, rightEdge, func(value checkedValueType) {

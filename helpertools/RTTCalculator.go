@@ -6,10 +6,10 @@ import (
 )
 
 // Value from https://datatracker.ietf.org/doc/html/rfc6298#section-2 - section 2.3
-const rttCalculatorNestedAverageAlpha = float64(0.125)
+const RTTCalculatorNestedAverageAlpha = float64(0.125)
 
 // Value from https://datatracker.ietf.org/doc/html/rfc6298#section-2 - section 2.3
-const rttCalculatorNestedAverageBeta = float64(0.25)
+const RTTCalculatorNestedAverageBeta = float64(0.25)
 
 // RTTCalculator is struct for calculating RTT
 type RTTCalculator struct {
@@ -60,7 +60,11 @@ func (rtt *RTTCalculator) CalculateRTT(duration time.Duration) {
 
 	//Handle isFirst duration
 	if rtt.isFirst {
-		rtt.ForceSetRTT(duration)
+		if rtt.isFirst {
+			rtt.isFirst = false
+		}
+		rtt.rtt = duration
+		rtt.rttJitter = rtt.rtt / 2
 		return
 	}
 
@@ -74,11 +78,11 @@ func (rtt *RTTCalculator) CalculateRTT(duration time.Duration) {
 
 	//Calculate average jitter
 	//rtt.rttJitter = time.Duration((1.0-rttCalculatorNestedAverageBeta)*float64(rtt.rttJitter) + rttCalculatorNestedAverageBeta*diff)
-	rtt.rttJitter = NestedAverage(rtt.rttJitter, diff, rttCalculatorNestedAverageBeta)
+	rtt.rttJitter = NestedAverage(rtt.rttJitter, diff, RTTCalculatorNestedAverageBeta)
 
 	//Calculate average RTT
 	//rtt.rtt = time.Duration((1.0-rttCalculatorNestedAverageAlpha)*float64(rtt.rtt) + rttCalculatorNestedAverageAlpha*float64(duration))
-	rtt.rtt = NestedAverage(rtt.rtt, duration, rttCalculatorNestedAverageAlpha)
+	rtt.rtt = NestedAverage(rtt.rtt, duration, RTTCalculatorNestedAverageAlpha)
 }
 
 // GetRTT gets RTT value

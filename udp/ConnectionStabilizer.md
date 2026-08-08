@@ -10,6 +10,7 @@
 
 ## Data recieved (ACK) frame (3)
 - 1 byte Control sequence
+- 8 byte Timestamp in UnixMicro in LittleEndian
 - 4 byte ACK right edge as uint32 in LittleEndian
 - 1 byte ACK window size (up to 32)
 - up to 256 byte ACK window (status of last 2048 packets - if were recieved or not) as 32x uint64 in LittleEndian
@@ -20,6 +21,7 @@
 
 ## Data frame with resend (5)
 - 1 byte Control sequence
+- 8 byte Timestamp in UnixMicro in LittleEndian
 - 12 byte Replay window
 - 1-8 byte Sequence number in LittleEndian
 - x byte Data
@@ -36,6 +38,7 @@
 
 ## Data frame with order and resend (8)
 - 1 byte Control sequence
+- 8 byte Timestamp in UnixMicro in LittleEndian
 - 12 byte Replay window
 - 1-8 byte Sequence number in LittleEndian
 - 1-8 byte Order number precise in LittleEndian

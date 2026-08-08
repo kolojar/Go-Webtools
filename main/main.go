@@ -16,6 +16,7 @@ import (
 	webtools "github.com/kolojar/Go-Webtools"
 	"github.com/kolojar/Go-Webtools/database"
 	"github.com/kolojar/Go-Webtools/filesystem"
+	"github.com/kolojar/Go-Webtools/helpertools"
 	"github.com/kolojar/Go-Webtools/httptools"
 	"github.com/kolojar/Go-Webtools/p2p"
 	"github.com/kolojar/Go-Webtools/proxy"
@@ -25,8 +26,9 @@ import (
 
 func main() {
 	fmt.Println("Hello world")
-	stabilizerSettings := udp.ConnectionStabilizerSettings{DefaultSendFrameType: udp.StableDataFrame}
+	stabilizerSettings := udp.ConnectionStabilizerSettings{DefaultSendFrameType: udp.StableDataWithResendFrame, WindowWordCount: 16}
 	stabilizerSettings.SetRecommended()
+	//stabilizerSettings.ResendRetries = 100
 	ip, _ := p2p.GetThisComputerLocalIP()
 	upnp := p2p.NewUPnPServiceManager(ip)
 	switch os.Args[1] {
@@ -191,7 +193,7 @@ func main() {
 		}
 	case "ub":
 		{
-			ub, _ := udp.NewBridge("127.0.0.1:7777", "127.0.0.1:17777", true)
+			ub, _ := udp.NewBridge("127.0.0.1:7777", "127.0.0.1:17777", false)
 			ub.Start()
 		}
 	/*case "p2psv":
@@ -437,27 +439,39 @@ func main() {
 		}
 	case "uss":
 		{
-			sv, _ := udp.NewServerStable("127.0.0.1:7777", func(conn *udp.ServerStableConn[uint16, uint16, uint64], data []byte, status webtools.NetworkStatus) {
+			sv, _ := udp.NewServerStable("127.0.0.1:7777", func(conn *udp.ServerStableConn[uint32, uint32, uint64], data []byte, status webtools.NetworkStatus) {
 				if status == webtools.ReadDataStatus {
 					conn.Send(data)
 				}
-			}, &stabilizerSettings, true)
+			}, &stabilizerSettings, false)
 			sv.Start()
 		}
 	case "ucs":
 		{
-			client, _ := udp.NewClientStable("127.0.0.1:7777", func(client *udp.ClientStable[uint16, uint16, uint64], sourceAddress *net.UDPAddr, data []byte, status webtools.NetworkStatus) {
-				fmt.Println(string(data))
-				rc++
-			}, &stabilizerSettings, true)
+			recieve := make([]string, 0)
+			duplicates := make(map[string]int, 0)
+			client, _ := udp.NewClientStable("127.0.0.1:7777", func(client *udp.ClientStable[uint32, uint32, uint64], sourceAddress *net.UDPAddr, data []byte, status webtools.NetworkStatus) {
+				if status == webtools.ReadDataStatus {
+					recieve = append(recieve, string(data))
+					duplicates[string(data)]++
+					rc++
+					stamp, _ := time.Parse(time.RFC3339Nano, strings.Split(string(data), "|")[1])
+					fmt.Println(string(data), rc, stamp, time.Since(stamp).Milliseconds(), "ms")
+				}
+			}, &stabilizerSettings, false)
 			client.Connect()
-			for i := 0; i < 10; i++ {
-				client.Send([]byte("Test" + strconv.Itoa(i) + "|"))
-				time.Sleep(time.Millisecond * 5)
+			for i := 0; i < 1026; i++ {
+				client.Send([]byte("Test" + strconv.Itoa(i) + "|" + time.Now().Format(time.RFC3339Nano)))
+				//time.Sleep(time.Millisecond * 5)
 			}
-			time.Sleep(30 * time.Second)
+			helpertools.ReadLineFromConsole("Press enter to exit")
 			client.Stop()
-			fmt.Println(rc)
+			fmt.Println(rc, recieve, len(recieve))
+			for k, v := range duplicates {
+				if v > 1 {
+					fmt.Println(k, v)
+				}
+			}
 			for client.IsAlive() {
 				time.Sleep(1 * time.Second)
 			}
