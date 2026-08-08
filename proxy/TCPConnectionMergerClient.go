@@ -150,7 +150,7 @@ func (cl *ConnectionMergerClient) handleLocalTCPReadFunc(tcpConn *tcp.ServerConn
 		tempID := helpertools.GenerateRandomID()
 		cl.pendingConnections.Set(tempID, tcpConn)
 		cl.tcpClient.GetLogger().Log(1, "Preparing new connection with temporary id: "+tempID+" for connection connected to: "+tcpConn.GetConn().RemoteAddr().String()+" connected locally to: "+tcpConn.GetConn().LocalAddr().String())
-		cl.tcpClient.Send(PackWebtoolsFrame(FrameTypeConnect, []byte(strconv.Itoa(slices.Index(cl.tcpServers, tcpConn.origin))), []byte(tempID)))
+		cl.tcpClient.Send(PackWebtoolsFrame(FrameTypeConnect, []byte(strconv.Itoa(slices.Index(cl.tcpServers, tcpConn.GetOrigin()))), []byte(tempID)))
 		cl.pendingConnsData.Set(tcpConn, append(make([][]byte, 0), data))
 		return
 	}

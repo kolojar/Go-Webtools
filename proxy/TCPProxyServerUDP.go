@@ -138,7 +138,7 @@ func (sv *TCPProxyServerUDP) handleTCPReadFunc(conn *tcp.ServerConn, frame []byt
 	}
 }
 
-func (sv *TCPProxyServerUDP) handleUDPReadFunc(udp *udp.Client, _ *net.UDPAddr, data []byte, ended bool) {
+func (sv *TCPProxyServerUDP) handleUDPReadFunc(udp *udp.Client, _ *net.UDPAddr, data []byte, status webtools.NetworkStatus) {
 	//Get TCP client
 	if sv.clientToID.Get(udp) == "" || sv.idToClient.Get(sv.clientToID.Get(udp)) == nil {
 		//Connection does not exists
@@ -149,12 +149,12 @@ func (sv *TCPProxyServerUDP) handleUDPReadFunc(udp *udp.Client, _ *net.UDPAddr, 
 	cl := sv.idToClient.Get(id)
 
 	//End other connection
-	if ended {
+	if status == webtools.DisconnectStatus {
 		cl.Close(true)
+	} else if status == webtools.ReadDataStatus {
+		//Send to client
+		cl.SendToTCP(FrameTypeData, data)
 	}
-
-	//Send to client
-	cl.SendToTCP(FrameTypeData, data)
 }
 
 /*

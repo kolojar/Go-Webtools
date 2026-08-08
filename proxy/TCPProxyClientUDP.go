@@ -98,7 +98,7 @@ func (cl *TCPProxyClientUDP) handleTCPReadFunc(_ *tcp.ClientSimple, frame []byte
 	}
 }
 
-func (cl *TCPProxyClientUDP) handleUDPReadFunc(udpConn *udp.ServerConn, data []byte, ended bool) {
+func (cl *TCPProxyClientUDP) handleUDPReadFunc(udpConn *udp.ServerConn, data []byte, status webtools.NetworkStatus) {
 	if cl.pendingConnsData.Get(udpConn) != nil {
 		//Already pending connection
 		cl.pendingConnsData.Set(udpConn, append(cl.pendingConnsData.Get(udpConn), data))
@@ -116,13 +116,14 @@ func (cl *TCPProxyClientUDP) handleUDPReadFunc(udpConn *udp.ServerConn, data []b
 		return
 	}
 
-	if ended {
+	if status == webtools.DisconnectStatus {
 		//Connection ennded
 		cl.tcpClient.Send(PackWebtoolsFrame(FrameTypeClose, []byte(id), nil))
 		return
+	} else if status == webtools.ReadDataStatus {
+		//Send data
+		cl.tcpClient.Send(PackWebtoolsFrame(FrameTypeData, []byte(id), data))
 	}
-	//Send data
-	cl.tcpClient.Send(PackWebtoolsFrame(FrameTypeData, []byte(id), data))
 }
 
 /*

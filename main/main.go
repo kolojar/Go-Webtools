@@ -16,7 +16,6 @@ import (
 	webtools "github.com/kolojar/Go-Webtools"
 	"github.com/kolojar/Go-Webtools/database"
 	"github.com/kolojar/Go-Webtools/filesystem"
-	"github.com/kolojar/Go-Webtools/helpertools"
 	"github.com/kolojar/Go-Webtools/httptools"
 	"github.com/kolojar/Go-Webtools/p2p"
 	"github.com/kolojar/Go-Webtools/proxy"
@@ -26,7 +25,6 @@ import (
 
 func main() {
 	fmt.Println("Hello world")
-	framer := udp.NewUDPFramerSimple(nil, 50, 5, true, 50, true)
 	ip, _ := p2p.GetThisComputerLocalIP()
 	upnp := p2p.NewUPnPServiceManager(ip)
 	switch os.Args[1] {
@@ -53,14 +51,12 @@ func main() {
 	case "us":
 		{
 			server, _ := udp.NewServer("127.0.0.1:7777", readFuncUDPSv, true)
-			server.SetupFraming(framer)
 			server.Start()
 			break
 		}
 	case "uc":
 		{
 			client, _ := udp.NewClient("127.0.0.1:17777", readFuncUDPCl, true)
-			client.SetupFraming(framer)
 			client.Connect()
 			for i := 0; i < 10; i++ {
 				client.Send([]byte("Test" + strconv.Itoa(i) + "|"))
@@ -147,12 +143,12 @@ func main() {
 		}
 	case "tcms":
 		{
-			sv, _ := tcp.NewConnectionMergerServer("127.0.0.1:8882", []string{"127.0.0.1:5679", "127.0.0.1:7777", "127.0.0.1:8888"}, true)
+			sv, _ := proxy.NewConnectionMergerServer("127.0.0.1:8882", []string{"127.0.0.1:5679", "127.0.0.1:7777", "127.0.0.1:8888"}, true)
 			sv.Start()
 		}
 	case "tcmc":
 		{
-			cl, _ := tcp.NewConnectionMergerClient("127.0.0.1:8882", "127.0.0.1", map[string]string{"127.0.0.1:5679": "5681", "127.0.0.1:7777": "17777", "127.0.0.1:8888": "8888"}, true)
+			cl, _ := proxy.NewConnectionMergerClient("127.0.0.1:8882", "127.0.0.1", map[string]string{"127.0.0.1:5679": "5681", "127.0.0.1:7777": "17777", "127.0.0.1:8888": "8888"}, true)
 			cl.Connect()
 			for cl.IsAlive() {
 				time.Sleep(1 * time.Second)
@@ -196,7 +192,7 @@ func main() {
 			ub, _ := udp.NewBridge("127.0.0.1:7777", "127.0.0.1:17777", true)
 			ub.Start()
 		}
-	case "p2psv":
+	/*case "p2psv":
 		{
 			sv, _ := p2p.NewCoordinator("0.0.0.0:1234", true, true)
 			sv.Start()
@@ -229,7 +225,7 @@ func main() {
 			cl.ConnectToPeer([]byte(strings.ReplaceAll(string(data), "\n", "")))
 			cl.Send([]byte(strings.ReplaceAll(string(data), "\n", "")), []byte("Hello"))
 			helpertools.ReadLineFromConsole("wait")
-		}
+		}*/
 	case "upnp":
 		{
 			localIP, _ := p2p.GetThisComputerLocalIP()
@@ -255,7 +251,7 @@ func main() {
 			//upnp.RemoveUPnPPort(5555, "TCP")
 			upnp.Shutdown()
 		}
-	case "p2ppsu":
+	/*case "p2ppsu":
 		{
 			proxy, _ := proxy.NewP2PProxyServerUDP("127.0.0.1:1234", 5678, "127.0.0.1:7777", true)
 			proxy.Start()
@@ -304,7 +300,7 @@ func main() {
 			for {
 				time.Sleep(100 * time.Millisecond)
 			}
-		}
+		}*/
 	case "testdb":
 		{
 			/*v := struct {
@@ -458,13 +454,13 @@ func filesystemEvent(path string, operation filesystem.FileSystemEventType, isDi
 	//fmt.Println(path, operation, isDir, newPath)
 }
 
-func p2pReadFunc(client *p2p.Client, sourceID []byte, data []byte, _ bool, _ *helpertools.ConsoleLogger) {
+/*func p2pReadFunc(client *p2p.Client, sourceID []byte, data []byte, _ bool, _ *helpertools.ConsoleLogger) {
 	client.Send(sourceID, data)
 }
 
 func p2pReadFunc2(_ *p2p.Client, _ []byte, data []byte, _ bool, _ *helpertools.ConsoleLogger) {
 	fmt.Println(string(data))
-}
+	}*/
 
 var rc = 0
 
@@ -483,14 +479,14 @@ func readFuncTCPCl(_ *tcp.ClientSimple, data []byte, _ webtools.NetworkStatus) {
 	rc += len(strings.Split(string(data), "|")) - 1
 }
 
-func readFuncUDPSv(conn *udp.ServerConn, data []byte, ended bool) {
-	if !ended {
+func readFuncUDPSv(conn *udp.ServerConn, data []byte, status webtools.NetworkStatus) {
+	if status == webtools.ReadDataStatus {
 		conn.Send(data)
 	}
 	fmt.Println(string(data))
 }
 
-func readFuncUDPCl(_ *udp.Client, _ *net.UDPAddr, data []byte, _ bool) {
+func readFuncUDPCl(_ *udp.Client, _ *net.UDPAddr, data []byte, _ webtools.NetworkStatus) {
 	//conn.Send(data)
 	//if !ended {
 	//	conn.Stop()

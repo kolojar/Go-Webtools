@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	webtools "github.com/kolojar/Go-Webtools"
 	"github.com/kolojar/Go-Webtools/helpertools"
 )
 
@@ -71,7 +70,7 @@ It is recommended to call Shutdown on end
 func NewUPnPServiceManager(localIP string) *UPnPServiceManager {
 	return &UPnPServiceManager{
 		controlURLs: make([]string, 0),
-		Logger:      webtools.NewConsoleLogger("UPnP", 0),
+		Logger:      helpertools.NewConsoleLogger("UPnP", 0),
 		mappedUrls:  helpertools.MakeSafeMap[int, string](),
 		localIP:     localIP,
 	}
