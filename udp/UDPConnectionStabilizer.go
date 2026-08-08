@@ -1,6 +1,7 @@
 package udp
 
 import (
+	"context"
 	"encoding/binary"
 	"encoding/hex"
 	"net"
@@ -134,18 +135,29 @@ type ConnectionStabilizerSettings struct {
 
 // connectionStabilizer is internal struct for universal handeling of reads and writes from/to UDP
 type connectionStabilizer[connType UniversalConn, sequenceNumberType ~uint8 | ~uint16 | ~uint32 | ~uint64, orderNumberType ~uint8 | ~uint16 | ~uint32 | ~uint64, windowWordType ~uint8 | ~uint16 | ~uint32 | ~uint64] struct {
-	settings *ConnectionStabilizerSettings
-	readFunc StabilizerReadFunc[sequenceNumberType, orderNumberType, windowWordType]
-	conns    helpertools.SafeMap[connType, *connectionStabilizerConn[sequenceNumberType, orderNumberType, windowWordType]]
+	settings                *ConnectionStabilizerSettings
+	readFunc                StabilizerReadFunc[sequenceNumberType, orderNumberType, windowWordType]
+	conns                   helpertools.SafeMap[connType, *connectionStabilizerConn[sequenceNumberType, orderNumberType, windowWordType]]
+	keepAliveTickerStopFunc context.CancelFunc
 }
 
 // newConnectionStabilizer creates new connectionStabilizer
 func newConnectionStabilizer[connType UniversalConn, sequenceNumberType ~uint8 | ~uint16 | ~uint32 | ~uint64, orderNumberType ~uint8 | ~uint16 | ~uint32 | ~uint64, windowWordType ~uint8 | ~uint16 | ~uint32 | ~uint64](settings *ConnectionStabilizerSettings, readFunc StabilizerReadFunc[sequenceNumberType, orderNumberType, windowWordType], isServer bool) *connectionStabilizer[connType, sequenceNumberType, orderNumberType, windowWordType] {
-	return &connectionStabilizer[connType, sequenceNumberType, orderNumberType, windowWordType]{
-		settings: settings,
-		readFunc: readFunc,
-		conns:    helpertools.MakeSafeMap[connType, *connectionStabilizerConn[sequenceNumberType, orderNumberType, windowWordType]](helpertools.FormatByBool(isServer, 0, 1)),
+	//Create stabilizer
+	stabilizer := &connectionStabilizer[connType, sequenceNumberType, orderNumberType, windowWordType]{
+		settings:                settings,
+		readFunc:                readFunc,
+		conns:                   helpertools.MakeSafeMap[connType, *connectionStabilizerConn[sequenceNumberType, orderNumberType, windowWordType]](helpertools.FormatByBool(isServer, 0, 1)),
+		keepAliveTickerStopFunc: nil,
 	}
+
+	//Setup keep alive
+	if settings.KeepAliveInterval != 0 {
+		ctx, cancel := context.WithCancel(context.Background())
+		go stabilizer.keepAliveSender(ctx)
+		stabilizer.keepAliveTickerStopFunc = cancel
+	}
+	return stabilizer
 }
 
 // connectionStabilizerConn is internal conn of stabilizer
@@ -486,11 +498,20 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 
 // HandleConnect should be called everytime new connection connects to server / client
 func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumberType, windowWordType]) HandleConnect(conn connType) (sConn *connectionStabilizerConn[sequenceNumberType, orderNumberType, windowWordType], err error) {
+	//Create connection
 	sConn, err = newConnectionStabilizerConn[sequenceNumberType, orderNumberType, windowWordType](stabilizer.settings)
 	if err != nil {
 		return nil, err
 	}
 	stabilizer.conns.Set(conn, sConn)
+
+	//Send 3 KeepAlives
+	go func() {
+		for _ = range uint8(3) {
+			stabilizer.HandleWrite(conn, stablePingFrame, nil)
+			time.Sleep(sConn.rttCalculator.GetRTO())
+		}
+	}()
 	return sConn, nil
 }
 
@@ -507,4 +528,36 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 // CleanupConnections removes all connections
 func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumberType, windowWordType]) CleanupConnections() {
 	stabilizer.conns.Clear()
+}
+
+// keepAliveSender is internal function for sending keep alives
+func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumberType, windowWordType]) keepAliveSender(ctx context.Context) {
+	//Create new ticker
+	ticker := time.NewTicker(stabilizer.settings.KeepAliveInterval)
+	defer ticker.Stop()
+
+	//Run loop
+	for {
+		select {
+		case <-ctx.Done():
+			{
+				return
+			}
+		case <-ticker.C:
+			{
+				stabilizer.conns.Range(func(conn connType, _ *connectionStabilizerConn[sequenceNumberType, orderNumberType, windowWordType]) (doBreak bool) {
+					stabilizer.HandleWrite(conn, stablePingFrame, nil)
+					return false
+				})
+				return
+			}
+		}
+	}
+}
+
+// Stop stops stabilizer
+func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumberType, windowWordType]) Stop() {
+	if stabilizer.keepAliveTickerStopFunc != nil {
+		stabilizer.keepAliveTickerStopFunc()
+	}
 }

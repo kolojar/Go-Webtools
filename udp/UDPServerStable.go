@@ -161,3 +161,32 @@ func (sv *ServerStable[sequenceNumberType, orderNumberType, windowWordType]) Wri
 		}
 	}
 }
+
+/*
+IsAlive gets if server is alive
+*/
+func (sv *ServerStable[sequenceNumberType, orderNumberType, windowWordType]) IsAlive() bool {
+	return sv.udpServer.isAlive
+}
+
+/*
+GetAddress gets address of server
+*/
+func (sv *ServerStable[sequenceNumberType, orderNumberType, windowWordType]) GetAddress() *net.UDPAddr {
+	return sv.udpServer.address
+}
+
+/*
+Start starts UDP Server, locks execution thread
+*/
+func (sv *ServerStable[sequenceNumberType, orderNumberType, windowWordType]) Start() {
+	sv.udpServer.Start()
+}
+
+/*
+Stops stops UDP Server
+*/
+func (sv *ServerStable[sequenceNumberType, orderNumberType, windowWordType]) Stop() {
+	sv.udpServer.Stop()
+	sv.stabilizer.Stop()
+}
