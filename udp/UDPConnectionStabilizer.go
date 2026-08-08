@@ -168,6 +168,8 @@ type connectionStabilizerConn[sequenceNumberType ~uint8 | ~uint16 | ~uint32 | ~u
 	rttCalculator helpertools.RTTCalculator
 	// sendPacketOrderSimpleMutex is mutex for ordering packets so original order can be preserved
 	sendPacketOrderSimpleMutex sync.Mutex
+	// sendPacketOrderPreciseMutex is mutex for ordering packets so original order can be preserved
+	sendPacketOrderPreciseMutex sync.Mutex
 
 	// ordererSimple is orderer for types stableDataWithOrderInstantFrame and stableDataWithOrderTimeoutFrame
 	ordererSimple helpertools.PacketOrderer[orderNumberType, []byte]
@@ -238,15 +240,18 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 			conn.GetLogger().Log(4, "Invalid connection for: "+conn.GetAddress().String())
 			return
 		}
+		conn.GetLogger().Log(1, "Got pong from: "+conn.GetAddress().String())
 		sConn.rttCalculator.CalculateRTT(time.Since(time.UnixMicro(int64(binary.LittleEndian.Uint64(framedData)))))
 		if stabilizer.settings.KeepAliveTriesBeforeError != -1 {
 			sConn.missingPingPackets.Store(0)
 		}
 	} else if frameType == stableDataRecievedFrame {
 		//ACK Frame
+		conn.GetLogger().Log(1, "Got ACK frame from: "+conn.GetAddress().String())
 		stabilizer.conns.Get(conn).sendedPacketsACKsWindow.JoinWindowDataBytes(framedData, 0)
 	} else if frameType == stableDataFrame {
 		//Data frame - no checking applied = pass to read func
+		conn.GetLogger().Log(1, "Got data frame from: "+conn.GetAddress().String())
 		if stabilizer.readFunc != nil {
 			stabilizer.readFunc(conn, framedData)
 		}
@@ -258,6 +263,7 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 			return
 		}
 		seqNum, readBytes := helpertools.ParseGenericLitteEndian[sequenceNumberType](framedData)
+		conn.GetLogger().Log(1, "Got data frame with resend from: "+conn.GetAddress().String()+" with sequence number: "+strconv.FormatUint(uint64(seqNum), 10))
 		if sConn.incomingPacketsWindow.ApplyWindowCheck(seqNum) {
 			//Pass to read func
 			if stabilizer.readFunc != nil {
@@ -275,6 +281,7 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 			return
 		}
 		orderNum, readBytes := helpertools.ParseGenericLitteEndian[orderNumberType](framedData)
+		conn.GetLogger().Log(1, "Got data frame with instant order from: "+conn.GetAddress().String()+" with order number: "+strconv.FormatUint(uint64(orderNum), 10))
 		for _, v := range sConn.ordererSimple.Push(orderNum, framedData[readBytes:]) {
 			if stabilizer.readFunc != nil {
 				stabilizer.readFunc(conn, v)
@@ -288,6 +295,7 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 			return
 		}
 		orderNum, readBytes := helpertools.ParseGenericLitteEndian[orderNumberType](framedData)
+		conn.GetLogger().Log(1, "Got data frame with timeout order from: "+conn.GetAddress().String()+" with order number: "+strconv.FormatUint(uint64(orderNum), 10))
 		for _, v := range sConn.ordererSimple.PushWithMissingPacketOption(orderNum, framedData[readBytes:], helpertools.AllowNone) {
 			if stabilizer.readFunc != nil {
 				stabilizer.readFunc(conn, v)
@@ -302,6 +310,30 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 				}
 			}
 		})
+	} else if frameType == stableDataWithOrderResendFrame {
+		//Data frame with resend and order function - apply window and send ACK and order packets
+		sConn := stabilizer.conns.Get(conn)
+		if sConn == nil {
+			conn.GetLogger().Log(4, "Invalid connection for: "+conn.GetAddress().String())
+			return
+		}
+		seqNum, readBytes := helpertools.ParseGenericLitteEndian[sequenceNumberType](framedData)
+		framedData = framedData[readBytes:]
+		orderNum, readBytes := helpertools.ParseGenericLitteEndian[orderNumberType](framedData)
+		conn.GetLogger().Log(1, "Got data frame with resend and order from: "+conn.GetAddress().String()+" with sequence number: "+strconv.FormatUint(uint64(seqNum), 10)+" and order number: "+strconv.FormatUint(uint64(orderNum), 10))
+		if sConn.incomingPacketsWindow.ApplyWindowCheck(seqNum) {
+			for _, v := range sConn.ordererPrecise.Push(orderNum, framedData[readBytes:]) {
+				//Pass to read func
+				if stabilizer.readFunc != nil {
+					stabilizer.readFunc(conn, v)
+				}
+			}
+		}
+
+		//Request ACK
+		stabilizer.handleACKSend(conn, sConn, seqNum, true)
+	} else {
+		conn.GetLogger().Log(4, "Invalid frame type: "+strconv.FormatUint(uint64(frameType), 10)+" for: "+conn.GetAddress().String())
 	}
 }
 
@@ -400,8 +432,21 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 		conn.GetLogger().Log(1, "Sending ordered data frame with order number: "+strconv.FormatUint(uint64(orderNumber), 10)+" to: "+conn.GetAddress().String())
 		buffer, _ = helpertools.AppendGenericLitteEndian[orderNumberType](buffer, orderNumber)
 		conn.Send(append(buffer, data...))
+		return
+	} else if frameType == stableDataWithOrderResendFrame {
+		//Data frame with order and resend function - add sequence number, order number and send
+		sConn.sendPacketOrderPreciseMutex.Lock()
+		orderNumber := sConn.sendPacketOrderNumberPrecise
+		sConn.sendPacketOrderNumberPrecise++
+		sConn.sendPacketOrderPreciseMutex.Unlock()
+		sequenceNumber := sequenceNumberType(sConn.sendPacketResendNumber.Add(1) - 1)
+		buffer, _ = helpertools.AppendGenericLitteEndian[sequenceNumberType](buffer, sequenceNumber)
+		buffer, _ = helpertools.AppendGenericLitteEndian[orderNumberType](buffer, orderNumber)
+		go stabilizer.resendWrite(conn, sConn, sequenceNumber, append(buffer, data...))
+		return
+	} else {
+		conn.GetLogger().Log(4, "Invalid frame type: "+strconv.FormatUint(uint64(frameType), 10)+" for: "+conn.GetAddress().String())
 	}
-
 }
 
 // resendWrite is helper function for resendable writing to connection until valid ACK is recieved or timeout is reached

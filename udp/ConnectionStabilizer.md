@@ -34,11 +34,12 @@
 - 1-8 byte Order number simple in LittleEndian
 - x byte Data
 
-TODO:
-
 ## Data frame with order and resend (8)
 - 1 byte Control sequence
 - 12 byte Replay window
 - 1-8 byte Sequence number in LittleEndian
 - 1-8 byte Order number precise in LittleEndian
 - x byte Data
+
+## TODO:
+ - Testing
