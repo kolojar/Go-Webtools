@@ -34,7 +34,7 @@ func NewClientStable[sequenceNumberType ~uint8 | ~uint16 | ~uint32 | ~uint64, or
 	sClient.client = *client
 
 	//Create connection stabilizer
-	sClient.stabilizer = *newConnectionStabilizer[*Client, sequenceNumberType, orderNumberType, windowWordType](settings, sClient.stabilizerReadFunc, false)
+	sClient.stabilizer = *newConnectionStabilizer[*Client](settings, sClient.stabilizerReadFunc, false)
 	return sClient, nil
 }
 
@@ -48,23 +48,32 @@ func (cl *ClientStable[sequenceNumberType, orderNumberType, windowWordType]) sta
 // readFuncLocal is local function that handles reading from UDP client
 func (cl *ClientStable[sequenceNumberType, orderNumberType, windowWordType]) readFuncLocal(_ *Client, sourceAddress *net.UDPAddr, data []byte, status webtools.NetworkStatus) {
 	cl.sourceAddress = sourceAddress
-	if status == webtools.ConnectStatus {
-		//Handle connect
-		cl.stabilizer.HandleConnect(&cl.client)
-		if cl.readFunc != nil {
-			cl.readFunc(cl, sourceAddress, nil, status)
+	switch status {
+	case webtools.ConnectStatus:
+		{
+			//Handle connect
+			cl.stabilizer.HandleConnect(&cl.client)
+			if cl.readFunc != nil {
+				cl.readFunc(cl, sourceAddress, nil, status)
+			}
 		}
-	} else if status == webtools.DisconnectStatus {
-		//Handle disconnect
-		cl.stabilizer.CleanupConnection(&cl.client)
-		if cl.readFunc != nil {
-			cl.readFunc(cl, sourceAddress, nil, status)
+	case webtools.DisconnectStatus:
+		{
+			//Handle disconnect
+			cl.stabilizer.CleanupConnection(&cl.client)
+			if cl.readFunc != nil {
+				cl.readFunc(cl, sourceAddress, nil, status)
+			}
 		}
-	} else if status == webtools.ReadDataStatus {
-		//Handle read
-		cl.stabilizer.HandleRead(&cl.client, data)
-	} else {
-		cl.client.Logger.Log(4, "Invalid connection status: "+strconv.FormatUint(uint64(status), 10)+" for connection: "+sourceAddress.String())
+	case webtools.ReadDataStatus:
+		{
+			//Handle read
+			cl.stabilizer.HandleRead(&cl.client, data)
+		}
+	default:
+		{
+			cl.client.Logger.Log(4, "Invalid connection status: "+strconv.FormatUint(uint64(status), 10)+" for connection: "+sourceAddress.String())
+		}
 	}
 }
 
@@ -89,13 +98,14 @@ func (cl *ClientStable[sequenceNumberType, orderNumberType, windowWordType]) Sen
 			cl.stabilizer.HandleWrite(&cl.client, stableDataWithOrderResendFrame, data)
 		}
 	} else {
-		if orderLevel == StabilizerNoOrdering {
+		switch orderLevel {
+		case StabilizerNoOrdering:
 			cl.stabilizer.HandleWrite(&cl.client, stableDataFrame, data)
-		} else if orderLevel == StabilizerInstantOrdering {
+		case StabilizerInstantOrdering:
 			cl.stabilizer.HandleWrite(&cl.client, stableDataWithOrderInstantFrame, data)
-		} else if orderLevel == StabilizerTimeoutOrdering {
+		case StabilizerTimeoutOrdering:
 			cl.stabilizer.HandleWrite(&cl.client, stableDataWithOrderTimeoutFrame, data)
-		} else {
+		default:
 			panic("unknown orderLevel: " + strconv.FormatUint(uint64(orderLevel), 10))
 		}
 	}

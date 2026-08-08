@@ -29,12 +29,12 @@ func (window *ReplayWindow[checkedValueType, windowHolderType]) GetRightEdge() c
 	return window.rightEdge
 }
 
-// NewReplayWindow initializes ReplayWindow. windowWordCount is count of windowHolderType (total window size = windowWordCount * countOfBytes(windowHolderType) * 8)
-func NewReplayWindow[checkedValueType ~uint8 | ~uint16 | ~uint32 | ~uint64, windowHolderType ~uint8 | ~uint16 | ~uint32 | ~uint64](windowWordCount uint8) (*ReplayWindow[checkedValueType, windowHolderType], error) {
+// MakeReplayWindow initializes ReplayWindow. windowWordCount is count of windowHolderType (total window size = windowWordCount * countOfBytes(windowHolderType) * 8)
+func MakeReplayWindow[checkedValueType ~uint8 | ~uint16 | ~uint32 | ~uint64, windowHolderType ~uint8 | ~uint16 | ~uint32 | ~uint64](windowWordCount uint8) ReplayWindow[checkedValueType, windowHolderType] {
 	if GetByteSize[windowHolderType]() <= 2 && uint16(GetBitSize[windowHolderType]()*windowWordCount) > uint16(checkedValueType(checkedValueType(0)-1)) {
-		return nil, errors.New("window too big for checkedValueType")
+		panic("window too big for checkedValueType")
 	}
-	return &ReplayWindow[checkedValueType, windowHolderType]{window: make([]windowHolderType, windowWordCount), rightEdge: 0, mutex: sync.Mutex{}, isFirstValue: true, maxForwardJump: (checkedValueType(0) - 1) >> 1}, nil
+	return ReplayWindow[checkedValueType, windowHolderType]{window: make([]windowHolderType, windowWordCount), rightEdge: 0, mutex: sync.Mutex{}, isFirstValue: true, maxForwardJump: (checkedValueType(0) - 1) >> 1}
 }
 
 // GetWindowBitSize retuns bit count of window

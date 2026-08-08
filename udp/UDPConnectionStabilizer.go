@@ -192,9 +192,9 @@ type connectionStabilizerConn[sequenceNumberType ~uint8 | ~uint16 | ~uint32 | ~u
 	sendPacketOrderNumberPrecise orderNumberType
 
 	// sendedPacketsACKsWindow is used for lookup if packets need to be resended
-	sendedPacketsACKsWindow *helpertools.ReplayWindow[sequenceNumberType, windowWordType]
+	sendedPacketsACKsWindow helpertools.ReplayWindow[sequenceNumberType, windowWordType]
 	// incomingPacketsWindow is used for checking if packet with sequence number already got recieved or not
-	incomingPacketsWindow *helpertools.ReplayWindow[sequenceNumberType, windowWordType]
+	incomingPacketsWindow helpertools.ReplayWindow[sequenceNumberType, windowWordType]
 	// rttCalculator is rtt calculator for transmition timing
 	rttCalculator helpertools.RTTCalculator
 	// sendPacketOrderSimpleMutex is mutex for ordering packets so original order can be preserved
@@ -209,7 +209,7 @@ type connectionStabilizerConn[sequenceNumberType ~uint8 | ~uint16 | ~uint32 | ~u
 }
 
 // newConnectionStabilizerConn creates new connection for stabilizer
-func newConnectionStabilizerConn[sequenceNumberType ~uint8 | ~uint16 | ~uint32 | ~uint64, orderNumberType ~uint8 | ~uint16 | ~uint32 | ~uint64, windowWordType ~uint8 | ~uint16 | ~uint32 | ~uint64](settings *ConnectionStabilizerSettings) (*connectionStabilizerConn[sequenceNumberType, orderNumberType, windowWordType], error) {
+func newConnectionStabilizerConn[sequenceNumberType ~uint8 | ~uint16 | ~uint32 | ~uint64, orderNumberType ~uint8 | ~uint16 | ~uint32 | ~uint64, windowWordType ~uint8 | ~uint16 | ~uint32 | ~uint64](settings *ConnectionStabilizerSettings) *connectionStabilizerConn[sequenceNumberType, orderNumberType, windowWordType] {
 	conn := &connectionStabilizerConn[sequenceNumberType, orderNumberType, windowWordType]{
 		rttCalculator:                *helpertools.NewRTTCalculator(settings.MinimumRTT, settings.MaximumRTT, settings.FallbackRTT),
 		sendPacketOrderNumberSimple:  0,
@@ -218,19 +218,12 @@ func newConnectionStabilizerConn[sequenceNumberType ~uint8 | ~uint16 | ~uint32 |
 		lastACKTimestampsUnixNano:    make([]atomic.Int64, settings.WindowWordCount),
 		ordererSimple:                *helpertools.NewPacketOrderer[orderNumberType, []byte](helpertools.AllowInDumpAndPush, false, settings.HeapSizeSimple),
 		ordererPrecise:               *helpertools.NewPacketOrderer[orderNumberType, []byte](helpertools.AllowInDump, false, settings.HeapSizePrecise),
-	}
-	var err error
-	conn.incomingPacketsWindow, err = helpertools.NewReplayWindow[sequenceNumberType, windowWordType](settings.WindowWordCount)
-	if err != nil {
-		return nil, err
-	}
-	conn.sendedPacketsACKsWindow, err = helpertools.NewReplayWindow[sequenceNumberType, windowWordType](settings.WindowWordCount)
-	if err != nil {
-		return nil, err
+		incomingPacketsWindow:        helpertools.MakeReplayWindow[sequenceNumberType, windowWordType](settings.WindowWordCount),
+		sendedPacketsACKsWindow:      helpertools.MakeReplayWindow[sequenceNumberType, windowWordType](settings.WindowWordCount),
 	}
 	conn.sendPacketResendNumber.Store(0)
 	conn.missingPingPackets.Store(0)
-	return conn, nil
+	return conn
 }
 
 // HandleRead is handle function for reading and should be called when packet is recieved
@@ -544,12 +537,9 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 }
 
 // HandleConnect should be called everytime new connection connects to server / client
-func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumberType, windowWordType]) HandleConnect(conn connType) (sConn *connectionStabilizerConn[sequenceNumberType, orderNumberType, windowWordType], err error) {
+func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumberType, windowWordType]) HandleConnect(conn connType) (sConn *connectionStabilizerConn[sequenceNumberType, orderNumberType, windowWordType]) {
 	//Create connection
-	sConn, err = newConnectionStabilizerConn[sequenceNumberType, orderNumberType, windowWordType](stabilizer.settings)
-	if err != nil {
-		return nil, err
-	}
+	sConn = newConnectionStabilizerConn[sequenceNumberType, orderNumberType, windowWordType](stabilizer.settings)
 	stabilizer.conns.Set(conn, sConn)
 
 	//Send 3 KeepAlives
@@ -559,7 +549,7 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 			time.Sleep(sConn.rttCalculator.GetRTO())
 		}
 	}()
-	return sConn, nil
+	return sConn
 }
 
 // GetConn retuns stable connection

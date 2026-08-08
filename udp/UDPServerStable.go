@@ -77,7 +77,7 @@ func NewServerStable[sequenceNumberType ~uint8 | ~uint16 | ~uint32 | ~uint64, or
 	sv.udpServer = *udpSv
 
 	//Create connection stabilizer
-	sv.stabilizer = *newConnectionStabilizer[*ServerConn, sequenceNumberType, orderNumberType, windowWordType](connectionStabilizerSettings, sv.stabilizerReadFunc, true)
+	sv.stabilizer = *newConnectionStabilizer[*ServerConn](connectionStabilizerSettings, sv.stabilizerReadFunc, true)
 
 	//Handle disconnect
 	sv.udpServer.OnConnectionCleanup.AddEventListerner(false, func(conn *ServerConn) {
@@ -89,41 +89,46 @@ func NewServerStable[sequenceNumberType ~uint8 | ~uint16 | ~uint32 | ~uint64, or
 
 // readFuncLocal is helper function for reading from udpServer
 func (sv *ServerStable[sequenceNumberType, orderNumberType, windowWordType]) readFuncLocal(conn *ServerConn, data []byte, status webtools.NetworkStatus) {
-	if status == webtools.ConnectStatus {
-		//Handle connect
-		sConn, err := sv.stabilizer.HandleConnect(conn)
-		if err != nil {
-			sv.udpServer.Logger.Log(4, "Error handling connection connect: "+err.Error())
-			return
-		}
+	switch status {
+	case webtools.ConnectStatus:
+		{
+			//Handle connect
+			sConn := sv.stabilizer.HandleConnect(conn)
 
-		//Create server conn
-		svConn := &ServerStableConn[sequenceNumberType, orderNumberType, windowWordType]{
-			origin: sv,
-			sConn:  sConn,
-			conn:   conn,
-		}
-		sv.conns.Set(sConn, svConn)
+			//Create server conn
+			svConn := &ServerStableConn[sequenceNumberType, orderNumberType, windowWordType]{
+				origin: sv,
+				sConn:  sConn,
+				conn:   conn,
+			}
+			sv.conns.Set(sConn, svConn)
 
-		//Pass to read func
-		if sv.readFunc != nil {
-			sv.readFunc(svConn, data, status)
+			//Pass to read func
+			if sv.readFunc != nil {
+				sv.readFunc(svConn, data, status)
+			}
 		}
-	} else if status == webtools.DisconnectStatus {
-		//Handle disconnect
-		sConn := sv.stabilizer.GetConn(conn)
-		svConn := sv.conns.Get(sConn)
-		sv.conns.Delete(sConn)
-		sv.stabilizer.CleanupConnection(conn)
+	case webtools.DisconnectStatus:
+		{
+			//Handle disconnect
+			sConn := sv.stabilizer.GetConn(conn)
+			svConn := sv.conns.Get(sConn)
+			sv.conns.Delete(sConn)
+			sv.stabilizer.CleanupConnection(conn)
 
-		//Pass to read func
-		if sv.readFunc != nil {
-			sv.readFunc(svConn, data, status)
+			//Pass to read func
+			if sv.readFunc != nil {
+				sv.readFunc(svConn, data, status)
+			}
 		}
-	} else if status == webtools.ReadDataStatus {
-		sv.stabilizer.HandleRead(conn, data)
-	} else {
-		sv.udpServer.Logger.Log(4, "Invalid connection status: "+strconv.FormatUint(uint64(status), 10)+" for connection: "+conn.address.String())
+	case webtools.ReadDataStatus:
+		{
+			sv.stabilizer.HandleRead(conn, data)
+		}
+	default:
+		{
+			sv.udpServer.Logger.Log(4, "Invalid connection status: "+strconv.FormatUint(uint64(status), 10)+" for connection: "+conn.address.String())
+		}
 	}
 }
 
@@ -150,13 +155,14 @@ func (sv *ServerStable[sequenceNumberType, orderNumberType, windowWordType]) Wri
 			sv.stabilizer.HandleWrite(conn.conn, stableDataWithOrderResendFrame, data)
 		}
 	} else {
-		if orderLevel == StabilizerNoOrdering {
+		switch orderLevel {
+		case StabilizerNoOrdering:
 			sv.stabilizer.HandleWrite(conn.conn, stableDataFrame, data)
-		} else if orderLevel == StabilizerInstantOrdering {
+		case StabilizerInstantOrdering:
 			sv.stabilizer.HandleWrite(conn.conn, stableDataWithOrderInstantFrame, data)
-		} else if orderLevel == StabilizerTimeoutOrdering {
+		case StabilizerTimeoutOrdering:
 			sv.stabilizer.HandleWrite(conn.conn, stableDataWithOrderTimeoutFrame, data)
-		} else {
+		default:
 			panic("unknown orderLevel: " + strconv.FormatUint(uint64(orderLevel), 10))
 		}
 	}
