@@ -26,7 +26,7 @@ type UniversalConn interface {
 }
 
 // StabilizerReadFunc is definition of function for reading
-type StabilizerReadFunc[T UniversalConn] func(conn T, data []byte)
+type StabilizerReadFunc[sequenceNumberType ~uint8 | ~uint16 | ~uint32 | ~uint64, orderNumberType ~uint8 | ~uint16 | ~uint32 | ~uint64, windowWordType ~uint8 | ~uint16 | ~uint32 | ~uint64] func(conn *connectionStabilizerConn[sequenceNumberType, orderNumberType, windowWordType], data []byte)
 
 type stableFrameType uint8
 
@@ -135,12 +135,12 @@ type ConnectionStabilizerSettings struct {
 // connectionStabilizer is internal struct for universal handeling of reads and writes from/to UDP
 type connectionStabilizer[connType UniversalConn, sequenceNumberType ~uint8 | ~uint16 | ~uint32 | ~uint64, orderNumberType ~uint8 | ~uint16 | ~uint32 | ~uint64, windowWordType ~uint8 | ~uint16 | ~uint32 | ~uint64] struct {
 	settings *ConnectionStabilizerSettings
-	readFunc StabilizerReadFunc[connType]
+	readFunc StabilizerReadFunc[sequenceNumberType, orderNumberType, windowWordType]
 	conns    helpertools.SafeMap[connType, *connectionStabilizerConn[sequenceNumberType, orderNumberType, windowWordType]]
 }
 
 // newConnectionStabilizer creates new connectionStabilizer
-func newConnectionStabilizer[connType UniversalConn, sequenceNumberType ~uint8 | ~uint16 | ~uint32 | ~uint64, orderNumberType ~uint8 | ~uint16 | ~uint32 | ~uint64, windowWordType ~uint8 | ~uint16 | ~uint32 | ~uint64](settings *ConnectionStabilizerSettings, readFunc StabilizerReadFunc[connType], isServer bool) *connectionStabilizer[connType, sequenceNumberType, orderNumberType, windowWordType] {
+func newConnectionStabilizer[connType UniversalConn, sequenceNumberType ~uint8 | ~uint16 | ~uint32 | ~uint64, orderNumberType ~uint8 | ~uint16 | ~uint32 | ~uint64, windowWordType ~uint8 | ~uint16 | ~uint32 | ~uint64](settings *ConnectionStabilizerSettings, readFunc StabilizerReadFunc[sequenceNumberType, orderNumberType, windowWordType], isServer bool) *connectionStabilizer[connType, sequenceNumberType, orderNumberType, windowWordType] {
 	return &connectionStabilizer[connType, sequenceNumberType, orderNumberType, windowWordType]{
 		settings: settings,
 		readFunc: readFunc,
@@ -148,6 +148,7 @@ func newConnectionStabilizer[connType UniversalConn, sequenceNumberType ~uint8 |
 	}
 }
 
+// connectionStabilizerConn is internal conn of stabilizer
 type connectionStabilizerConn[sequenceNumberType ~uint8 | ~uint16 | ~uint32 | ~uint64, orderNumberType ~uint8 | ~uint16 | ~uint32 | ~uint64, windowWordType ~uint8 | ~uint16 | ~uint32 | ~uint64] struct {
 	// sendPacketResendNumber is sequence number for resend prevention and request
 	sendPacketResendNumber atomic.Uint64
@@ -177,6 +178,7 @@ type connectionStabilizerConn[sequenceNumberType ~uint8 | ~uint16 | ~uint32 | ~u
 	ordererPrecise helpertools.PacketOrderer[orderNumberType, []byte]
 }
 
+// newConnectionStabilizerConn creates new connection for stabilizer
 func newConnectionStabilizerConn[sequenceNumberType ~uint8 | ~uint16 | ~uint32 | ~uint64, orderNumberType ~uint8 | ~uint16 | ~uint32 | ~uint64, windowWordType ~uint8 | ~uint16 | ~uint32 | ~uint64](settings *ConnectionStabilizerSettings) (*connectionStabilizerConn[sequenceNumberType, orderNumberType, windowWordType], error) {
 	conn := &connectionStabilizerConn[sequenceNumberType, orderNumberType, windowWordType]{
 		rttCalculator:                *helpertools.NewRTTCalculator(settings.MinimumRTT, settings.MaximumRTT, settings.FallbackRTT),
@@ -201,8 +203,8 @@ func newConnectionStabilizerConn[sequenceNumberType ~uint8 | ~uint16 | ~uint32 |
 	return conn, nil
 }
 
-// processRead is internal function for handeling reads
-func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumberType, windowWordType]) processRead(conn connType, framedData []byte) {
+// HandleRead is handle function for reading and should be called when packet is recieved
+func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumberType, windowWordType]) HandleRead(conn connType, framedData []byte) {
 	//Check if has at least one byte
 	if len(framedData) == 0 {
 		return
@@ -223,7 +225,7 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 		//Ping frame = reply with pong
 		if len(framedData) == 8 {
 			conn.GetLogger().Log(1, "Got ping from: "+conn.GetAddress().String())
-			stabilizer.processWrite(conn, stablePongFrame, framedData)
+			stabilizer.HandleWrite(conn, stablePongFrame, framedData)
 		} else {
 			conn.GetLogger().Log(4, "Got invalid ping from: "+conn.GetAddress().String())
 		}
@@ -253,7 +255,12 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 		//Data frame - no checking applied = pass to read func
 		conn.GetLogger().Log(1, "Got data frame from: "+conn.GetAddress().String())
 		if stabilizer.readFunc != nil {
-			stabilizer.readFunc(conn, framedData)
+			sConn := stabilizer.conns.Get(conn)
+			if sConn == nil {
+				conn.GetLogger().Log(4, "Invalid connection for: "+conn.GetAddress().String())
+				return
+			}
+			stabilizer.readFunc(sConn, framedData)
 		}
 	} else if frameType == stableDataWithResendFrame {
 		//Data frame with resend function - apply window and send ACK
@@ -267,7 +274,7 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 		if sConn.incomingPacketsWindow.ApplyWindowCheck(seqNum) {
 			//Pass to read func
 			if stabilizer.readFunc != nil {
-				stabilizer.readFunc(conn, framedData[readBytes:])
+				stabilizer.readFunc(sConn, framedData[readBytes:])
 			}
 		}
 
@@ -284,7 +291,7 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 		conn.GetLogger().Log(1, "Got data frame with instant order from: "+conn.GetAddress().String()+" with order number: "+strconv.FormatUint(uint64(orderNum), 10))
 		for _, v := range sConn.ordererSimple.Push(orderNum, framedData[readBytes:]) {
 			if stabilizer.readFunc != nil {
-				stabilizer.readFunc(conn, v)
+				stabilizer.readFunc(sConn, v)
 			}
 		}
 	} else if frameType == stableDataWithOrderTimeoutFrame {
@@ -298,7 +305,7 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 		conn.GetLogger().Log(1, "Got data frame with timeout order from: "+conn.GetAddress().String()+" with order number: "+strconv.FormatUint(uint64(orderNum), 10))
 		for _, v := range sConn.ordererSimple.PushWithMissingPacketOption(orderNum, framedData[readBytes:], helpertools.AllowNone) {
 			if stabilizer.readFunc != nil {
-				stabilizer.readFunc(conn, v)
+				stabilizer.readFunc(sConn, v)
 			}
 		}
 
@@ -306,7 +313,7 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 		time.AfterFunc(stabilizer.settings.OrderDelay, func() {
 			for _, v := range sConn.ordererSimple.Dump(orderNum) {
 				if stabilizer.readFunc != nil {
-					stabilizer.readFunc(conn, v)
+					stabilizer.readFunc(sConn, v)
 				}
 			}
 		})
@@ -325,7 +332,7 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 			for _, v := range sConn.ordererPrecise.Push(orderNum, framedData[readBytes:]) {
 				//Pass to read func
 				if stabilizer.readFunc != nil {
-					stabilizer.readFunc(conn, v)
+					stabilizer.readFunc(sConn, v)
 				}
 			}
 		}
@@ -350,7 +357,7 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 
 	//Check for duration
 	if time.Since(time.Unix(0, sConn.lastACKTimestampsUnixNano[wordIndex].Load())) >= stabilizer.settings.TimeBetweenACKPackets {
-		stabilizer.processWrite(conn, stableDataRecievedFrame, []byte{wordIndex + 1})
+		stabilizer.HandleWrite(conn, stableDataRecievedFrame, []byte{wordIndex + 1})
 		return
 	}
 
@@ -362,8 +369,16 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 	}
 }
 
-// processWrite is internal function for handeling writes
-func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumberType, windowWordType]) processWrite(conn connType, frameType stableFrameType, data []byte) {
+// HandleWrite handles writes in stabilizer with default settings
+func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumberType, windowWordType]) HandleWriteDefault(conn connType, data []byte) {
+	if stabilizer.settings.DefaultSendFrameType == stablePingFrame || stabilizer.settings.DefaultSendFrameType == stablePongFrame || stabilizer.settings.DefaultSendFrameType == stableDataRecievedFrame || stabilizer.settings.DefaultSendFrameType == 0 {
+		stabilizer.settings.DefaultSendFrameType = stableDataFrame
+	}
+	stabilizer.HandleWrite(conn, stabilizer.settings.DefaultSendFrameType, data)
+}
+
+// HandleWrite handles writes in stabilizer
+func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumberType, windowWordType]) HandleWrite(conn connType, frameType stableFrameType, data []byte) {
 	//Create new byte buffer
 	buffer := make([]byte, 1)
 	buffer = append(buffer, byte(frameType))
@@ -470,13 +485,18 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 }
 
 // HandleConnect should be called everytime new connection connects to server / client
-func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumberType, windowWordType]) HandleConnect(conn connType) error {
-	sConn, err := newConnectionStabilizerConn[sequenceNumberType, orderNumberType, windowWordType](stabilizer.settings)
+func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumberType, windowWordType]) HandleConnect(conn connType) (sConn *connectionStabilizerConn[sequenceNumberType, orderNumberType, windowWordType], err error) {
+	sConn, err = newConnectionStabilizerConn[sequenceNumberType, orderNumberType, windowWordType](stabilizer.settings)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	stabilizer.conns.Set(conn, sConn)
-	return nil
+	return sConn, nil
+}
+
+// GetConn retuns stable connection
+func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumberType, windowWordType]) GetConn(conn connType) *connectionStabilizerConn[sequenceNumberType, orderNumberType, windowWordType] {
+	return stabilizer.conns.Get(conn)
 }
 
 // CleanupConnection removes specified connection
