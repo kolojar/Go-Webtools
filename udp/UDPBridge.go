@@ -8,6 +8,7 @@ import (
 	"net"
 	"time"
 
+	webtools "github.com/kolojar/Go-Webtools"
 	"github.com/kolojar/Go-Webtools/helpertools"
 )
 
@@ -25,55 +26,63 @@ type Bridge struct {
 /*
 Read data Handler for local UDP (original server - source server)
 */
-func (br *Bridge) readFuncUDPLocal(client *Client, _ *net.UDPAddr, data []byte, ended bool) {
-	if br.connetionUDPLocalToRemote.Get(client) == nil {
+func (br *Bridge) readFuncUDPLocal(client *Client, _ *net.UDPAddr, data []byte, status webtools.NetworkStatus) {
+	remoteConn := br.connetionUDPLocalToRemote.Get(client)
+	if remoteConn == nil {
 		br.udpServer.Logger.Log(3, "Error writing to UDP Client - Connection does not exist!")
 		return
 	}
-	if !ended {
-		time.Sleep(time.Millisecond * time.Duration(rand.Int32N(50))) //Fake latency test
-		br.connetionUDPLocalToRemote.Get(client).Send(data)
-	} else {
-		//conn := proxySv.connetionWebSocketToTCPTranslator[ws].connection
-		//delete(proxySv.connetionTCPToWebSocketTranslator, conn)
-		//delete(proxySv.connetionWebSocketToTCPTranslator, ws)
-		//bridge.connetionUDP1To2[conn].Close()
-		conn2 := br.connetionUDPLocalToRemote.Get(client)
-		br.connetionUDPLocalToRemote.Delete(client)
-		br.connetionUDPRemoteToLocal.Delete(conn2)
-		conn2.Close()
-		client.Stop()
+	switch status {
+	case webtools.ReadDataStatus:
+		{
+			time.Sleep(time.Millisecond * time.Duration(rand.Int32N(50))) //Fake latency test
+			remoteConn.Send(data)
+		}
+	case webtools.DisconnectStatus:
+		{
+			//conn := proxySv.connetionWebSocketToTCPTranslator[ws].connection
+			//delete(proxySv.connetionTCPToWebSocketTranslator, conn)
+			//delete(proxySv.connetionWebSocketToTCPTranslator, ws)
+			//bridge.connetionUDP1To2[conn].Close()
+			br.connetionUDPLocalToRemote.Delete(client)
+			br.connetionUDPRemoteToLocal.Delete(remoteConn)
+			remoteConn.Close()
+			client.Stop()
+		}
 	}
 }
 
 /*
 Read data Handler for bridget UDP (new server - virtual target server)
 */
-func (br *Bridge) readFuncUDPRemote(conn *ServerConn, data []byte, ended bool) {
-	if br.connetionUDPRemoteToLocal.Get(conn) == nil {
-		if ended {
-			return
+func (br *Bridge) readFuncUDPRemote(conn *ServerConn, data []byte, status webtools.NetworkStatus) {
+	switch status {
+	case webtools.ConnectStatus:
+		{
+			udpClient, err := NewClient(br.udpSourceServerAdress, br.readFuncUDPLocal, br.reportTraffic)
+			if err != nil {
+				br.udpServer.Logger.Log(3, "Error connecting to: "+br.udpSourceServerAdress+" | Error: "+err.Error())
+			}
+			udpClient.Logger.Prefix = "UDPBridge - " + udpClient.Logger.Prefix
+			udpClient.Connect()
+			br.connetionUDPRemoteToLocal.Set(conn, udpClient)
+			br.connetionUDPLocalToRemote.Set(udpClient, conn)
 		}
-		udpClient, err := NewClient(br.udpSourceServerAdress, br.readFuncUDPLocal, br.reportTraffic)
-		if err != nil {
-			br.udpServer.Logger.Log(3, "Error connecting to: "+br.udpSourceServerAdress+" | Error: "+err.Error())
+	case webtools.ReadDataStatus:
+		{
+			br.connetionUDPRemoteToLocal.Get(conn).Send(data)
 		}
-		udpClient.Logger.Prefix = "UDPBridge - " + udpClient.Logger.Prefix
-		udpClient.Connect()
-		br.connetionUDPRemoteToLocal.Set(conn, udpClient)
-		br.connetionUDPLocalToRemote.Set(udpClient, conn)
-	}
-	if !ended {
-		br.connetionUDPRemoteToLocal.Get(conn).Send(data)
-	} else {
-		conn2 := br.connetionUDPRemoteToLocal.Get(conn)
-		br.connetionUDPRemoteToLocal.Delete(conn)
-		br.connetionUDPLocalToRemote.Delete(conn2)
-		conn2.Stop()
-		conn.Close()
-		//conn := proxySv.connetionWebSocketToTCPTranslator[ws].connection
-		//delete(proxySv.connetionTCPToWebSocketTranslator, conn)
-		//delete(proxySv.connetionWebSocketToTCPTranslator, ws)
+	case webtools.DisconnectStatus:
+		{
+			conn2 := br.connetionUDPRemoteToLocal.Get(conn)
+			br.connetionUDPRemoteToLocal.Delete(conn)
+			br.connetionUDPLocalToRemote.Delete(conn2)
+			conn2.Stop()
+			conn.Close()
+			//conn := proxySv.connetionWebSocketToTCPTranslator[ws].connection
+			//delete(proxySv.connetionTCPToWebSocketTranslator, conn)
+			//delete(proxySv.connetionWebSocketToTCPTranslator, ws)
+		}
 	}
 }
 

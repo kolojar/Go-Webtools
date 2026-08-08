@@ -106,7 +106,7 @@ func (cl *Client) Send(data []byte) {
 }
 
 /*
-Stop stops TCP client
+Stop stops UDP client
 */
 func (cl *Client) Stop() {
 	if cl.Conn == nil || !cl.isAlive {
