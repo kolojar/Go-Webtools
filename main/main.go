@@ -26,7 +26,7 @@ import (
 
 func main() {
 	fmt.Println("Hello world")
-	stabilizerSettings := udp.ConnectionStabilizerSettings{DefaultSendFrameType: udp.StableDataWithResendFrame, WindowWordCount: 16}
+	stabilizerSettings := udp.ConnectionStabilizerSettings{DefaultSendFrameType: udp.StableDataWithOrderResendFrame, WindowWordCount: 16}
 	stabilizerSettings.SetRecommended()
 	//stabilizerSettings.ResendRetries = 1
 	ip, _ := p2p.GetThisComputerLocalIP()
@@ -464,9 +464,9 @@ func main() {
 				}
 			}, &stabilizerSettings, true)
 			client.Connect()
-			for i := 0; i < 1000; i++ {
+			for i := 0; i < 100; i++ {
 				client.Send([]byte("Test" + strconv.Itoa(i) + "|" + time.Now().Format(time.RFC3339Nano)))
-				//time.Sleep(time.Millisecond * 5)
+				time.Sleep(time.Millisecond * 5)
 			}
 			helpertools.ReadLineFromConsole("Press enter to exit")
 			client.Stop()

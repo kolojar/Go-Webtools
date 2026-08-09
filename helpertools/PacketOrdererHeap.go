@@ -2,10 +2,11 @@ package helpertools
 
 import (
 	"container/heap"
+	"fmt"
 	"sync"
 )
 
-// AllowNone diasbles this feature
+// AllowNone disables this feature
 const AllowNone PacketOrdererAllowMissingPackets = 0
 
 // AllowInDump allows this feature in Dump function only
@@ -29,7 +30,7 @@ func (holder packetOrdererHolder[orderNumberType, dataType]) Len() int {
 
 // Less reports whether the element with index i must sort before the element with index j.
 func (holder packetOrdererHolder[orderNumberType, dataType]) Less(i, j int) bool {
-	return IsSequenceNumberInFuture(holder[j].Key, holder[i].Key)
+	return IsSequenceNumberInFuture(holder[i].Key, holder[j].Key)
 }
 
 // Swap swaps the elements with indexes i and j.
@@ -56,6 +57,7 @@ type PacketOrderer[orderNumberType ~uint8 | ~uint16 | ~uint32 | ~uint64, dataTyp
 	allowMissingPackets     PacketOrdererAllowMissingPackets
 	allowOlderPackets       bool
 	lastOrderNumberExported orderNumberType
+	isFirst                 bool
 }
 
 // NewPacketOrderer initializes new packet orderer
@@ -73,6 +75,7 @@ func NewPacketOrderer[orderNumberType ~uint8 | ~uint16 | ~uint32 | ~uint64, data
 		allowOlderPackets:       allowOlderPackets,
 		mutex:                   sync.Mutex{},
 		lastOrderNumberExported: 0,
+		isFirst:                 true,
 	}
 
 	//Setup heap if needed
@@ -98,25 +101,34 @@ func (orderer *PacketOrderer[orderNumberType, dataType]) PushWithMissingPacketOp
 	defer orderer.mutex.Unlock()
 
 	//Handle old packets
-	if !orderer.allowOlderPackets && !IsSequenceNumberInFuture(orderer.lastOrderNumberExported, orderNumber) {
+	if !orderer.isFirst && !orderer.allowOlderPackets && !IsSequenceNumberInFuture(orderer.lastOrderNumberExported, orderNumber) {
 		//Drop old packet
+		fmt.Println("Dropping:", orderNumber, " because too old:", orderer.lastOrderNumberExported)
 		return nil
 	}
 
+	//Handle first packet
+	if orderer.isFirst {
+		orderer.isFirst = false
+	}
+
 	//Handle forced missing packets
-	if orderer.allowMissingPackets == AllowInDumpAndPush {
+	if allowMissingPackets == AllowInDumpAndPush {
+		fmt.Println("Exporting:", orderNumber, " because option missing packets is active")
 		orderer.lastOrderNumberExported = orderNumber
 		return []dataType{data}
 	}
 
 	//Check if packets are 1 order number apart
 	if orderer.lastOrderNumberExported+1 == orderNumber {
-		orderer.lastOrderNumberExported = orderNumber
+		fmt.Println("Exporting:", orderNumber, " because one bigger that last exported:", orderer.lastOrderNumberExported)
+		//orderer.lastOrderNumberExported = orderNumber
 
 		//Check next sequences
 		result := []dataType{data}
 		for len(orderer.packetsHeap) != 0 && orderer.packetsHeap[0].Key == orderer.lastOrderNumberExported+1 {
 			pop := heap.Pop(&orderer.packetsHeap).(KeyValuePair[orderNumberType, dataType])
+			fmt.Println("Exporting:", pop.Key, " because smaller than:", orderNumber)
 			orderer.lastOrderNumberExported = pop.Key
 			result = append(result, pop.Value)
 		}
@@ -147,6 +159,7 @@ func (orderer *PacketOrderer[orderNumberType, dataType]) Dump(orderNumber orderN
 				break
 			}
 			pop := heap.Pop(&orderer.packetsHeap).(KeyValuePair[orderNumberType, dataType])
+			fmt.Println("Dumping(can skip):", pop.Key, "because in sequence of:", orderNumber)
 			result = append(result, pop.Value)
 			orderer.lastOrderNumberExported = pop.Key
 		}
@@ -157,6 +170,7 @@ func (orderer *PacketOrderer[orderNumberType, dataType]) Dump(orderNumber orderN
 	if orderer.lastOrderNumberExported+1 == orderer.packetsHeap[0].Key {
 		if len(orderer.packetsHeap) == 1 {
 			//Export only one
+			fmt.Println("Dumping(one):", orderer.packetsHeap[0].Key, "because in sequence of:", orderNumber)
 			orderer.lastOrderNumberExported = orderer.packetsHeap[0].Key
 			result := []dataType{heap.Pop(&orderer.packetsHeap).(KeyValuePair[orderNumberType, dataType]).Value}
 			return result
@@ -169,6 +183,7 @@ func (orderer *PacketOrderer[orderNumberType, dataType]) Dump(orderNumber orderN
 				break
 			}
 			pop := heap.Pop(&orderer.packetsHeap).(KeyValuePair[orderNumberType, dataType])
+			fmt.Println("Dumping(cant skip):", pop.Key, "because in sequence of:", orderNumber)
 			orderer.lastOrderNumberExported = pop.Key
 			result = append(result, pop.Value)
 		}

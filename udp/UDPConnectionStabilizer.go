@@ -143,7 +143,7 @@ func (settings *ConnectionStabilizerSettings) SetRecommended() {
 	settings.KeepAliveTriesBeforeError = 10
 	settings.KeepAliveResendOnNoPong = true
 	settings.ResendRetries = 10
-	settings.OrderDelay = 25 * time.Millisecond
+	settings.OrderDelay = 50 * time.Millisecond
 	settings.FallbackRTT = 100 * time.Millisecond
 	settings.MinimumRTT = 10 * time.Millisecond
 	settings.MaximumRTT = 1500 * time.Millisecond
@@ -514,6 +514,11 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 	case StableDataWithOrderInstantFrame, StableDataWithOrderTimeoutFrame:
 		{
 			//Data frame with order function (instant / timeout) - add order number and data and send
+			sConn = stabilizer.conns.Get(conn)
+			if sConn == nil {
+				conn.GetLogger().Log(3, "Invalid connection for: "+conn.GetAddress().String())
+				return
+			}
 			sConn.sendPacketOrderSimpleMutex.Lock()
 			orderNumber := sConn.sendPacketOrderNumberSimple
 			sConn.sendPacketOrderNumberSimple++
