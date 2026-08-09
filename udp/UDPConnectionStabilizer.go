@@ -3,7 +3,6 @@ package udp
 import (
 	"context"
 	"encoding/binary"
-	"fmt"
 	"net"
 	"strconv"
 	"sync"
@@ -84,6 +83,8 @@ type ConnectionStabilizerSettings struct {
 	KeepAliveResendOnNoPong bool
 
 	// ResendRetries sets how many times can be packet resended. Set to 0 for unlimited. Timeout for resending is RTO
+	//
+	// Warning: Maximum is 254
 	ResendRetries uint8
 
 	// OrderDelayMiliseconds sets how long does stabilizer wait for other packets to arrive before ordering them and passing them to read function.
@@ -282,15 +283,14 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 	case stableDataRecievedFrame:
 		{
 			//ACK Frame - Calculate RTO and process Window
+			delta := time.Since(time.UnixMicro(int64(binary.LittleEndian.Uint64(framedData))))
 			sConn := stabilizer.conns.Get(conn)
 			if sConn == nil {
 				conn.GetLogger().Log(3, "Invalid connection for: "+conn.GetAddress().String())
 				return
 			}
-			delta := time.Since(time.UnixMicro(int64(binary.LittleEndian.Uint64(framedData))))
 			conn.GetLogger().Log(1, "Got ACK frame from: "+conn.GetAddress().String()+", Time: "+strconv.FormatInt(delta.Milliseconds(), 10)+" ms")
 			sConn.rttCalculator.CalculateRTT(delta)
-			fmt.Println("RTO:", sConn.rttCalculator.GetRTO().Milliseconds(), "ms")
 			framedData = framedData[8:]
 
 			//Process Window
@@ -312,12 +312,12 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 	case StableDataWithResendFrame:
 		{
 			//Data frame with resend function - calculate latency and apply window and send ACK
+			delta := time.Since(time.UnixMicro(int64(binary.LittleEndian.Uint64(framedData))))
 			sConn := stabilizer.conns.Get(conn)
 			if sConn == nil {
 				conn.GetLogger().Log(3, "Invalid connection for: "+conn.GetAddress().String())
 				return
 			}
-			delta := time.Since(time.UnixMicro(int64(binary.LittleEndian.Uint64(framedData))))
 			sConn.incomingLatencyRTTCalculator.CalculateRTT(delta)
 			framedData = framedData[8:]
 
@@ -378,12 +378,12 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 	case StableDataWithOrderResendFrame:
 		{
 			//Data frame with resend and order function - calculate latency, apply window and send ACK and order packets
+			delta := time.Since(time.UnixMicro(int64(binary.LittleEndian.Uint64(framedData))))
 			sConn := stabilizer.conns.Get(conn)
 			if sConn == nil {
 				conn.GetLogger().Log(3, "Invalid connection for: "+conn.GetAddress().String())
 				return
 			}
-			delta := time.Since(time.UnixMicro(int64(binary.LittleEndian.Uint64(framedData))))
 			sConn.incomingLatencyRTTCalculator.CalculateRTT(delta)
 			framedData = framedData[8:]
 
@@ -420,8 +420,7 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 	}
 
 	//Calculate word count
-	wordIndex := uint8((sConn.incomingPacketsWindow.GetRightEdge() - seqNum) >> uint32(helpertools.GetBitShiftSize[windowWordType]()))
-	//fmt.Println(sConn.incomingPacketsWindow.GetRightEdge(), seqNum, sequenceNumberType(helpertools.GetBitSize[windowWordType]()-1), wordIndex)
+	wordIndex := uint8(((sConn.incomingPacketsWindow.GetRightEdge() - seqNum) & (sConn.incomingPacketsWindow.GetWindowBitSize() - 1)) >> uint32(helpertools.GetBitShiftSize[windowWordType]()))
 
 	//Check for duration
 	if time.Since(time.Unix(0, sConn.lastACKTimestampsUnixNano[wordIndex].Load())) >= stabilizer.settings.TimeBetweenACKPackets {
@@ -509,9 +508,8 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 		{
 			//Data frame with resend function - add sequence number and data and pass to writer function
 			sequenceNumber := sequenceNumberType(sConn.sendPacketResendNumber.Add(1) - 1)
-			buffer = binary.LittleEndian.AppendUint64(buffer, uint64(time.Now().UnixMicro()))
 			buffer, _ = helpertools.AppendGenericLitteEndian(buffer, sequenceNumber)
-			go stabilizer.resendWrite(conn, sConn, sequenceNumber, append(buffer, data...), false)
+			go stabilizer.resendWrite(conn, sConn, sequenceNumber, append(buffer, data...), false, 0)
 		}
 	case StableDataWithOrderInstantFrame, StableDataWithOrderTimeoutFrame:
 		{
@@ -534,10 +532,9 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 			sConn.sendPacketOrderNumberPrecise++
 			sConn.sendPacketOrderPreciseMutex.Unlock()
 			sequenceNumber := sequenceNumberType(sConn.sendPacketResendNumber.Add(1) - 1)
-			buffer = binary.LittleEndian.AppendUint64(buffer, uint64(time.Now().UnixMicro()))
 			buffer, _ = helpertools.AppendGenericLitteEndian(buffer, sequenceNumber)
 			buffer, _ = helpertools.AppendGenericLitteEndian(buffer, orderNumber)
-			go stabilizer.resendWrite(conn, sConn, sequenceNumber, append(buffer, data...), true)
+			go stabilizer.resendWrite(conn, sConn, sequenceNumber, append(buffer, data...), true, 0)
 		}
 	default:
 		{
@@ -547,23 +544,37 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 }
 
 // resendWrite is helper function for resendable writing to connection until valid ACK is recieved or timeout is reached
-func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumberType, windowWordType]) resendWrite(conn connType, sConn *connectionStabilizerConn[sequenceNumberType, orderNumberType, windowWordType], sequenceNumber sequenceNumberType, data []byte, infiniteSend bool) {
+func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumberType, windowWordType]) resendWrite(conn connType, sConn *connectionStabilizerConn[sequenceNumberType, orderNumberType, windowWordType], sequenceNumber sequenceNumberType, data []byte, infiniteSend bool, try uint8) {
 	//Check for validity
 	if sConn == nil {
 		conn.GetLogger().Log(3, "Invalid connection for: "+conn.GetAddress().String())
 		return
 	}
 
-	//Send
-	for sendTry := uint8(0); stabilizer.settings.ResendRetries == 0 || infiniteSend || sendTry <= stabilizer.settings.ResendRetries; sendTry++ {
-		conn.GetLogger().Log(1, "Sending resend data frame with sequence number: "+strconv.FormatUint(uint64(sequenceNumber), 10)+" to: "+conn.GetAddress().String()+" with try: "+strconv.FormatUint(uint64(sendTry), 10))
-		conn.Send(data)
-		time.Sleep(sConn.rttCalculator.GetRTO())
-		if sConn.sendedPacketsACKsWindow.CheckValue(sequenceNumber) {
-			return
-		}
+	//Build first try
+	if try == 0 {
+		dataSend := make([]byte, len(data)+8)
+		copy(dataSend[:13], data[:13])
+		copy(dataSend[21:], data[13:])
+		data = dataSend
 	}
-	conn.GetLogger().Log(2, "Failed sending resend data frame to: "+conn.GetAddress().String()+" for sequence number: "+strconv.FormatUint(uint64(sequenceNumber), 10))
+	binary.LittleEndian.PutUint64(data[13:21], uint64(time.Now().UnixMicro()))
+
+	//Send
+	if stabilizer.settings.ResendRetries == 0 || infiniteSend || try <= min(stabilizer.settings.ResendRetries, 254) {
+		conn.GetLogger().Log(1, "Sending resend data frame with sequence number: "+strconv.FormatUint(uint64(sequenceNumber), 10)+" to: "+conn.GetAddress().String()+" with try: "+strconv.FormatUint(uint64(try), 10))
+		conn.Send(data)
+		time.AfterFunc(sConn.rttCalculator.GetRTO(), func() {
+			if !sConn.sendedPacketsACKsWindow.CheckValue(sequenceNumber) {
+				if try+1 == 0 {
+					try = 0
+				}
+				stabilizer.resendWrite(conn, sConn, sequenceNumber, data, infiniteSend, try+1)
+			}
+		})
+	} else {
+		conn.GetLogger().Log(2, "Failed sending resend data frame to: "+conn.GetAddress().String()+" for sequence number: "+strconv.FormatUint(uint64(sequenceNumber), 10))
+	}
 }
 
 // HandleConnect should be called everytime new connection connects to server / client

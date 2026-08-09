@@ -21,8 +21,8 @@
 
 ## Data frame with resend (5)
 - 1 byte Control sequence
-- 8 byte Timestamp in UnixMicro in LittleEndian
 - 12 byte Replay window
+- 8 byte Timestamp in UnixMicro in LittleEndian
 - 1-8 byte Sequence number in LittleEndian
 - x byte Data
 
@@ -38,8 +38,8 @@
 
 ## Data frame with order and resend (8)
 - 1 byte Control sequence
-- 8 byte Timestamp in UnixMicro in LittleEndian
 - 12 byte Replay window
+- 8 byte Timestamp in UnixMicro in LittleEndian
 - 1-8 byte Sequence number in LittleEndian
 - 1-8 byte Order number precise in LittleEndian
 - x byte Data

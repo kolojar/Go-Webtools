@@ -35,8 +35,11 @@ func (br *Bridge) readFuncUDPLocal(client *Client, _ *net.UDPAddr, data []byte, 
 	switch status {
 	case webtools.ReadDataStatus:
 		{
-			time.Sleep(time.Millisecond * time.Duration(rand.Int32N(50))) //Fake latency test
-			remoteConn.Send(data)
+			if rand.Int32N(50) < 40 {
+				time.AfterFunc(time.Millisecond*time.Duration(rand.Int32N(50)), func() {
+					remoteConn.Send(data)
+				}) //Fake latency test
+			} //Fake loss test
 		}
 	case webtools.DisconnectStatus:
 		{

@@ -13,7 +13,7 @@ type ClientStableReadFunc[sequenceNumberType ~uint8 | ~uint16 | ~uint32 | ~uint6
 
 // ClientStable is struct for client stable
 type ClientStable[sequenceNumberType ~uint8 | ~uint16 | ~uint32 | ~uint64, orderNumberType ~uint8 | ~uint16 | ~uint32 | ~uint64, windowWordType ~uint8 | ~uint16 | ~uint32 | ~uint64] struct {
-	client        Client
+	client        *Client
 	stabilizer    connectionStabilizer[*Client, sequenceNumberType, orderNumberType, windowWordType]
 	readFunc      ClientStableReadFunc[sequenceNumberType, orderNumberType, windowWordType]
 	sourceAddress *net.UDPAddr
@@ -31,7 +31,7 @@ func NewClientStable[sequenceNumberType ~uint8 | ~uint16 | ~uint32 | ~uint64, or
 	if err != nil {
 		return nil, err
 	}
-	sClient.client = *client
+	sClient.client = client
 
 	//Create connection stabilizer
 	sClient.stabilizer = *newConnectionStabilizer[*Client](settings, sClient.stabilizerReadFunc, false)
@@ -52,7 +52,7 @@ func (cl *ClientStable[sequenceNumberType, orderNumberType, windowWordType]) rea
 	case webtools.ConnectStatus:
 		{
 			//Handle connect
-			cl.stabilizer.HandleConnect(&cl.client)
+			cl.stabilizer.HandleConnect(cl.client)
 			if cl.readFunc != nil {
 				cl.readFunc(cl, sourceAddress, nil, status)
 			}
@@ -60,7 +60,7 @@ func (cl *ClientStable[sequenceNumberType, orderNumberType, windowWordType]) rea
 	case webtools.DisconnectStatus:
 		{
 			//Handle disconnect
-			cl.stabilizer.CleanupConnection(&cl.client)
+			cl.stabilizer.CleanupConnection(cl.client)
 			if cl.readFunc != nil {
 				cl.readFunc(cl, sourceAddress, nil, status)
 			}
@@ -68,7 +68,7 @@ func (cl *ClientStable[sequenceNumberType, orderNumberType, windowWordType]) rea
 	case webtools.ReadDataStatus:
 		{
 			//Handle read
-			cl.stabilizer.HandleRead(&cl.client, data)
+			cl.stabilizer.HandleRead(cl.client, data)
 		}
 	default:
 		{
@@ -84,7 +84,7 @@ func (cl *ClientStable[sequenceNumberType, orderNumberType, windowWordType]) Con
 
 // Send sends data to server
 func (cl *ClientStable[sequenceNumberType, orderNumberType, windowWordType]) Send(data []byte) {
-	cl.stabilizer.HandleWriteDefault(&cl.client, data)
+	cl.stabilizer.HandleWriteDefault(cl.client, data)
 }
 
 // SendAdvanced writes data to connection using specific frame settings
@@ -93,18 +93,18 @@ func (cl *ClientStable[sequenceNumberType, orderNumberType, windowWordType]) Sen
 func (cl *ClientStable[sequenceNumberType, orderNumberType, windowWordType]) SendAdvanced(data []byte, useResend bool, orderLevel StabilizerOrderLevel) {
 	if useResend {
 		if orderLevel == StabilizerNoOrdering {
-			cl.stabilizer.HandleWrite(&cl.client, StableDataWithResendFrame, data)
+			cl.stabilizer.HandleWrite(cl.client, StableDataWithResendFrame, data)
 		} else {
-			cl.stabilizer.HandleWrite(&cl.client, StableDataWithOrderResendFrame, data)
+			cl.stabilizer.HandleWrite(cl.client, StableDataWithOrderResendFrame, data)
 		}
 	} else {
 		switch orderLevel {
 		case StabilizerNoOrdering:
-			cl.stabilizer.HandleWrite(&cl.client, StableDataFrame, data)
+			cl.stabilizer.HandleWrite(cl.client, StableDataFrame, data)
 		case StabilizerInstantOrdering:
-			cl.stabilizer.HandleWrite(&cl.client, StableDataWithOrderInstantFrame, data)
+			cl.stabilizer.HandleWrite(cl.client, StableDataWithOrderInstantFrame, data)
 		case StabilizerTimeoutOrdering:
-			cl.stabilizer.HandleWrite(&cl.client, StableDataWithOrderTimeoutFrame, data)
+			cl.stabilizer.HandleWrite(cl.client, StableDataWithOrderTimeoutFrame, data)
 		default:
 			panic("unknown orderLevel: " + strconv.FormatUint(uint64(orderLevel), 10))
 		}

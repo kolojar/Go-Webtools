@@ -28,7 +28,7 @@ func main() {
 	fmt.Println("Hello world")
 	stabilizerSettings := udp.ConnectionStabilizerSettings{DefaultSendFrameType: udp.StableDataWithResendFrame, WindowWordCount: 16}
 	stabilizerSettings.SetRecommended()
-	//stabilizerSettings.ResendRetries = 100
+	//stabilizerSettings.ResendRetries = 1
 	ip, _ := p2p.GetThisComputerLocalIP()
 	upnp := p2p.NewUPnPServiceManager(ip)
 	switch os.Args[1] {
@@ -443,24 +443,28 @@ func main() {
 				if status == webtools.ReadDataStatus {
 					conn.Send(data)
 				}
-			}, &stabilizerSettings, false)
+			}, &stabilizerSettings, true)
 			sv.Start()
 		}
 	case "ucs":
 		{
 			recieve := make([]string, 0)
 			duplicates := make(map[string]int, 0)
-			client, _ := udp.NewClientStable("127.0.0.1:7777", func(client *udp.ClientStable[uint32, uint32, uint64], sourceAddress *net.UDPAddr, data []byte, status webtools.NetworkStatus) {
+			client, _ := udp.NewClientStable("127.0.0.1:17777", func(client *udp.ClientStable[uint32, uint32, uint64], sourceAddress *net.UDPAddr, data []byte, status webtools.NetworkStatus) {
 				if status == webtools.ReadDataStatus {
 					recieve = append(recieve, string(data))
 					duplicates[string(data)]++
 					rc++
-					stamp, _ := time.Parse(time.RFC3339Nano, strings.Split(string(data), "|")[1])
-					fmt.Println(string(data), rc, stamp, time.Since(stamp).Milliseconds(), "ms")
+					if len(strings.Split(string(data), "|")) == 2 {
+						stamp, _ := time.Parse(time.RFC3339Nano, strings.Split(string(data), "|")[1])
+						fmt.Println(string(data), rc, stamp, time.Since(stamp).Milliseconds(), "ms")
+					} else {
+						fmt.Println("WARNING, EMPTY DATA:", string(data))
+					}
 				}
-			}, &stabilizerSettings, false)
+			}, &stabilizerSettings, true)
 			client.Connect()
-			for i := 0; i < 1026; i++ {
+			for i := 0; i < 1000; i++ {
 				client.Send([]byte("Test" + strconv.Itoa(i) + "|" + time.Now().Format(time.RFC3339Nano)))
 				//time.Sleep(time.Millisecond * 5)
 			}
