@@ -450,7 +450,7 @@ func main() {
 		{
 			recieve := make([]string, 0)
 			duplicates := make(map[string]int, 0)
-			client, _ := udp.NewClientStable("127.0.0.1:17777", func(client *udp.ClientStable[uint32, uint32, uint64], sourceAddress *net.UDPAddr, data []byte, status webtools.NetworkStatus) {
+			client, _ := udp.NewClientStable("127.0.0.1:7777", func(client *udp.ClientStable[uint32, uint32, uint64], sourceAddress *net.UDPAddr, data []byte, status webtools.NetworkStatus) {
 				if status == webtools.ReadDataStatus {
 					recieve = append(recieve, string(data))
 					duplicates[string(data)]++
@@ -464,9 +464,9 @@ func main() {
 				}
 			}, &stabilizerSettings, true)
 			client.Connect()
-			for i := 0; i < 100; i++ {
+			for i := 0; i < 10; i++ {
 				client.Send([]byte("Test" + strconv.Itoa(i) + "|" + time.Now().Format(time.RFC3339Nano)))
-				time.Sleep(time.Millisecond * 5)
+				//time.Sleep(time.Millisecond * 5)
 			}
 			helpertools.ReadLineFromConsole("Press enter to exit")
 			client.Stop()

@@ -107,7 +107,7 @@ func (orderer *PacketOrderer[orderNumberType, dataType]) PushWithMissingPacketOp
 		return nil
 	}
 
-	//Handle first packet
+	wasFirst := orderer.isFirst
 	if orderer.isFirst {
 		orderer.isFirst = false
 	}
@@ -119,23 +119,48 @@ func (orderer *PacketOrderer[orderNumberType, dataType]) PushWithMissingPacketOp
 		return []dataType{data}
 	}
 
+	//Handle first packet
+	if wasFirst {
+		if orderNumber == 0 {
+			//First packet
+			fmt.Println("Exporting:", orderNumber, " because is first")
+			orderer.lastOrderNumberExported = orderNumber
+			return []dataType{data}
+		}
+		//Out of order = store
+		heap.Push(&orderer.packetsHeap, KeyValuePair[orderNumberType, dataType]{Key: orderNumber, Value: data})
+		return nil
+	}
+
 	//Check if packets are 1 order number apart
-	if orderer.lastOrderNumberExported+1 == orderNumber {
-		fmt.Println("Exporting:", orderNumber, " because one bigger that last exported:", orderer.lastOrderNumberExported)
+	if IsSequenceNumberInFuture(orderer.lastOrderNumberExported, orderNumber) {
+		fmt.Println("Trying exporting:", orderNumber, " because bigger that last exported:", orderer.lastOrderNumberExported)
 		//orderer.lastOrderNumberExported = orderNumber
 
+//TODO: REWORK THIS CYCLE.
+		
 		//Check next sequences
-		result := []dataType{data}
+		result := []dataType{}
 		for len(orderer.packetsHeap) != 0 && orderer.packetsHeap[0].Key == orderer.lastOrderNumberExported+1 {
 			pop := heap.Pop(&orderer.packetsHeap).(KeyValuePair[orderNumberType, dataType])
 			fmt.Println("Exporting:", pop.Key, " because smaller than:", orderNumber)
 			orderer.lastOrderNumberExported = pop.Key
 			result = append(result, pop.Value)
 		}
-		return result
+		if orderer.lastOrderNumberExported+1 == orderNumber {
+			result = append(result, data)
+			if IsSequenceNumberInFuture(orderer.lastOrderNumberExported, orderNumber) {
+				fmt.Println("Exporting:", orderNumber, " as last key of:", orderNumber)
+				orderer.lastOrderNumberExported = orderNumber
+			}
+		}
+		if len(result) > 0 {
+			return result
+		}
 	}
 
 	//No valid export option = store
+	fmt.Println("Storing:", orderNumber, "because not valid in context of:", orderer.lastOrderNumberExported)
 	heap.Push(&orderer.packetsHeap, KeyValuePair[orderNumberType, dataType]{Key: orderNumber, Value: data})
 	return nil
 }
