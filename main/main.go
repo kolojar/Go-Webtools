@@ -464,7 +464,8 @@ func main() {
 				}
 			}, &stabilizerSettings, true)
 			client.Connect()
-			for i := 0; i < 10; i++ {
+			fmt.Println("Connected")
+			for i := 0; i < 1000; i++ {
 				client.Send([]byte("Test" + strconv.Itoa(i) + "|" + time.Now().Format(time.RFC3339Nano)))
 				//time.Sleep(time.Millisecond * 5)
 			}

@@ -52,12 +52,12 @@ func (holder *packetOrdererHolder[orderNumberType, dataType]) Pop() any {
 
 // PacketOrderer is struct for packet ordering using heap
 type PacketOrderer[orderNumberType ~uint8 | ~uint16 | ~uint32 | ~uint64, dataType any] struct {
-	packetsHeap             packetOrdererHolder[orderNumberType, dataType]
-	mutex                   sync.Mutex
-	allowMissingPackets     PacketOrdererAllowMissingPackets
-	allowOlderPackets       bool
-	lastOrderNumberExported orderNumberType
-	isFirst                 bool
+	packetsHeap                 packetOrdererHolder[orderNumberType, dataType]
+	mutex                       sync.Mutex
+	allowMissingPackets         PacketOrdererAllowMissingPackets
+	allowOlderPackets           bool
+	nextOrderNumberToBeExported orderNumberType
+	isFirst                     bool
 }
 
 // NewPacketOrderer initializes new packet orderer
@@ -70,12 +70,12 @@ func NewPacketOrderer[orderNumberType ~uint8 | ~uint16 | ~uint32 | ~uint64, data
 
 	//Setup orderer
 	orderer := &PacketOrderer[orderNumberType, dataType]{
-		packetsHeap:             packetsHeap,
-		allowMissingPackets:     allowMissingPackets,
-		allowOlderPackets:       allowOlderPackets,
-		mutex:                   sync.Mutex{},
-		lastOrderNumberExported: 0,
-		isFirst:                 true,
+		packetsHeap:                 packetsHeap,
+		allowMissingPackets:         allowMissingPackets,
+		allowOlderPackets:           allowOlderPackets,
+		mutex:                       sync.Mutex{},
+		nextOrderNumberToBeExported: 0,
+		isFirst:                     true,
 	}
 
 	//Setup heap if needed
@@ -101,9 +101,9 @@ func (orderer *PacketOrderer[orderNumberType, dataType]) PushWithMissingPacketOp
 	defer orderer.mutex.Unlock()
 
 	//Handle old packets
-	if !orderer.isFirst && !orderer.allowOlderPackets && !IsSequenceNumberInFuture(orderer.lastOrderNumberExported, orderNumber) {
+	if !orderer.isFirst && !orderer.allowOlderPackets && !IsSequenceNumberInFuture(orderer.nextOrderNumberToBeExported-1, orderNumber) {
 		//Drop old packet
-		fmt.Println("Dropping:", orderNumber, " because too old:", orderer.lastOrderNumberExported)
+		fmt.Println("Dropping:", orderNumber, " because too old:", orderer.nextOrderNumberToBeExported)
 		return nil
 	}
 
@@ -115,7 +115,7 @@ func (orderer *PacketOrderer[orderNumberType, dataType]) PushWithMissingPacketOp
 	//Handle forced missing packets
 	if allowMissingPackets == AllowInDumpAndPush {
 		fmt.Println("Exporting:", orderNumber, " because option missing packets is active")
-		orderer.lastOrderNumberExported = orderNumber
+		orderer.nextOrderNumberToBeExported = orderNumber + 1
 		return []dataType{data}
 	}
 
@@ -124,55 +124,67 @@ func (orderer *PacketOrderer[orderNumberType, dataType]) PushWithMissingPacketOp
 		if orderNumber == 0 {
 			//First packet
 			fmt.Println("Exporting:", orderNumber, " because is first")
-			orderer.lastOrderNumberExported = orderNumber
+			orderer.nextOrderNumberToBeExported = orderNumber + 1
 			return []dataType{data}
 		}
+
 		//Out of order = store
 		heap.Push(&orderer.packetsHeap, KeyValuePair[orderNumberType, dataType]{Key: orderNumber, Value: data})
 		return nil
 	}
 
 	//Check if packets are 1 order number apart
-	if IsSequenceNumberInFuture(orderer.lastOrderNumberExported, orderNumber) {
-		fmt.Println("Trying exporting:", orderNumber, " because bigger that last exported:", orderer.lastOrderNumberExported)
+	if IsSequenceNumberInFuture(orderer.nextOrderNumberToBeExported-1, orderNumber) {
+		fmt.Println("Trying exporting:", orderNumber, " because bigger that last exported:", orderer.nextOrderNumberToBeExported)
 		//orderer.lastOrderNumberExported = orderNumber
-
-//TODO: REWORK THIS CYCLE.
-		
-		//Check next sequences
 		result := []dataType{}
-		for len(orderer.packetsHeap) != 0 && orderer.packetsHeap[0].Key == orderer.lastOrderNumberExported+1 {
-			pop := heap.Pop(&orderer.packetsHeap).(KeyValuePair[orderNumberType, dataType])
-			fmt.Println("Exporting:", pop.Key, " because smaller than:", orderNumber)
-			orderer.lastOrderNumberExported = pop.Key
-			result = append(result, pop.Value)
-		}
-		if orderer.lastOrderNumberExported+1 == orderNumber {
-			result = append(result, data)
-			if IsSequenceNumberInFuture(orderer.lastOrderNumberExported, orderNumber) {
-				fmt.Println("Exporting:", orderNumber, " as last key of:", orderNumber)
-				orderer.lastOrderNumberExported = orderNumber
+		wasOk := true
+		orderNumberExported := false
+		for wasOk {
+			wasOk = false
+
+			//Check next sequences
+			if len(orderer.packetsHeap) != 0 && orderer.packetsHeap[0].Key == orderer.nextOrderNumberToBeExported {
+				pop := heap.Pop(&orderer.packetsHeap).(KeyValuePair[orderNumberType, dataType])
+				fmt.Println("Exporting:", pop.Key, " because smaller than:", orderNumber)
+				orderer.nextOrderNumberToBeExported = pop.Key + 1
+				result = append(result, pop.Value)
+				wasOk = true
+				continue
+			}
+
+			//Export current
+			if !orderNumberExported && orderer.nextOrderNumberToBeExported == orderNumber {
+				result = append(result, data)
+				//if IsSequenceNumberInFuture(orderer.lastOrderNumberExported, orderNumber) {
+				fmt.Println("Exporting:", orderNumber, " current sequence number:", orderNumber)
+				orderer.nextOrderNumberToBeExported = orderNumber + 1
+				//}
+				wasOk = true
+				orderNumberExported = true
 			}
 		}
+
+		//Validate result
 		if len(result) > 0 {
 			return result
 		}
 	}
 
 	//No valid export option = store
-	fmt.Println("Storing:", orderNumber, "because not valid in context of:", orderer.lastOrderNumberExported)
+	fmt.Println("Storing:", orderNumber, "because not valid in context of:", orderer.nextOrderNumberToBeExported)
 	heap.Push(&orderer.packetsHeap, KeyValuePair[orderNumberType, dataType]{Key: orderNumber, Value: data})
 	return nil
 }
 
-// Dump returns all valid data until sequnce number is reached (included)
+// Dump returns all valid data until orderNumber is reached (included)
 func (orderer *PacketOrderer[orderNumberType, dataType]) Dump(orderNumber orderNumberType) []dataType {
 	//Lock mutex
 	orderer.mutex.Lock()
 	defer orderer.mutex.Unlock()
 
 	//Check if slice has items
-	if len(orderer.packetsHeap) == 0 || !IsSequenceNumberInFuture(orderer.lastOrderNumberExported, orderNumber) {
+	if len(orderer.packetsHeap) == 0 || !IsSequenceNumberInFuture(orderer.nextOrderNumberToBeExported-1, orderNumber) {
 		return nil
 	}
 
@@ -186,30 +198,76 @@ func (orderer *PacketOrderer[orderNumberType, dataType]) Dump(orderNumber orderN
 			pop := heap.Pop(&orderer.packetsHeap).(KeyValuePair[orderNumberType, dataType])
 			fmt.Println("Dumping(can skip):", pop.Key, "because in sequence of:", orderNumber)
 			result = append(result, pop.Value)
-			orderer.lastOrderNumberExported = pop.Key
+			orderer.nextOrderNumberToBeExported = pop.Key + 1
 		}
 		return result
 	}
 
 	//Check if can export
-	if orderer.lastOrderNumberExported+1 == orderer.packetsHeap[0].Key {
+	if orderer.nextOrderNumberToBeExported == orderer.packetsHeap[0].Key {
 		if len(orderer.packetsHeap) == 1 {
 			//Export only one
 			fmt.Println("Dumping(one):", orderer.packetsHeap[0].Key, "because in sequence of:", orderNumber)
-			orderer.lastOrderNumberExported = orderer.packetsHeap[0].Key
+			orderer.nextOrderNumberToBeExported = orderer.packetsHeap[0].Key + 1
 			result := []dataType{heap.Pop(&orderer.packetsHeap).(KeyValuePair[orderNumberType, dataType]).Value}
 			return result
 		}
 
 		//Export more
 		result := make([]dataType, 0)
-		for len(orderer.packetsHeap) != 0 && orderer.packetsHeap[0].Key == orderer.lastOrderNumberExported+1 {
+		for len(orderer.packetsHeap) != 0 && orderer.packetsHeap[0].Key == orderer.nextOrderNumberToBeExported {
 			if IsSequenceNumberInFuture(orderNumber, orderer.packetsHeap[0].Key) {
 				break
 			}
 			pop := heap.Pop(&orderer.packetsHeap).(KeyValuePair[orderNumberType, dataType])
 			fmt.Println("Dumping(cant skip):", pop.Key, "because in sequence of:", orderNumber)
-			orderer.lastOrderNumberExported = pop.Key
+			orderer.nextOrderNumberToBeExported = pop.Key + 1
+			result = append(result, pop.Value)
+		}
+		return result
+	}
+	return nil
+}
+
+// DumpAll tries do Dump all packets as possible (works same as Dump but without orderNumber limit)
+func (orderer *PacketOrderer[orderNumberType, dataType]) DumpAll() []dataType {
+	//Lock mutex
+	orderer.mutex.Lock()
+	defer orderer.mutex.Unlock()
+
+	//Check if slice has items
+	if len(orderer.packetsHeap) == 0 {
+		return nil
+	}
+
+	//Handle forced missing packets
+	if orderer.allowMissingPackets == AllowInDump || orderer.allowMissingPackets == AllowInDumpAndPush {
+		result := make([]dataType, 0)
+		for len(orderer.packetsHeap) != 0 {
+			pop := heap.Pop(&orderer.packetsHeap).(KeyValuePair[orderNumberType, dataType])
+			fmt.Println("Dumping all(can skip):", pop.Key)
+			result = append(result, pop.Value)
+			orderer.nextOrderNumberToBeExported = pop.Key + 1
+		}
+		return result
+	}
+
+	//Check if can export
+	if orderer.nextOrderNumberToBeExported == orderer.packetsHeap[0].Key {
+		if len(orderer.packetsHeap) == 1 {
+			//Export only one
+			fmt.Println("Dumping all(one):", orderer.packetsHeap[0].Key)
+			orderer.nextOrderNumberToBeExported = orderer.packetsHeap[0].Key + 1
+			result := []dataType{heap.Pop(&orderer.packetsHeap).(KeyValuePair[orderNumberType, dataType]).Value}
+			return result
+		}
+
+		//Export more
+		result := make([]dataType, 0)
+		for len(orderer.packetsHeap) != 0 && orderer.packetsHeap[0].Key == orderer.nextOrderNumberToBeExported {
+			pop := heap.Pop(&orderer.packetsHeap).(KeyValuePair[orderNumberType, dataType])
+			fmt.Println("Dumping all(cant skip):", pop.Key)
+			orderer.nextOrderNumberToBeExported = pop.Key + 1
 			result = append(result, pop.Value)
 		}
 		return result
@@ -225,13 +283,13 @@ func (orderer *PacketOrderer[orderNumberType, dataType]) GetMissingOrderNumbers(
 	defer orderer.mutex.Unlock()
 
 	//Check if orderNumber is in future of lastOrderNumberExported
-	if !IsSequenceNumberInFuture(orderer.lastOrderNumberExported, orderNumber) {
+	if !IsSequenceNumberInFuture(orderer.nextOrderNumberToBeExported, orderNumber) {
 		return nil
 	}
 
 	//Check if empty
 	if len(orderer.packetsHeap) == 0 {
-		distance := orderNumber - orderer.lastOrderNumberExported
+		distance := orderNumber - orderer.nextOrderNumberToBeExported
 		if distance == 0 {
 			return nil
 		}
@@ -239,7 +297,7 @@ func (orderer *PacketOrderer[orderNumberType, dataType]) GetMissingOrderNumbers(
 		//Process missing
 		result := make([]orderNumberType, 0)
 		for i := orderNumberType(1); i <= distance; i++ {
-			result = append(result, orderer.lastOrderNumberExported+i)
+			result = append(result, orderer.nextOrderNumberToBeExported+i)
 		}
 		return result
 	}
@@ -255,7 +313,7 @@ func (orderer *PacketOrderer[orderNumberType, dataType]) GetMissingOrderNumbers(
 
 	//Get missing packets
 	var result []orderNumberType = nil
-	for order := orderer.lastOrderNumberExported + 1; order != orderNumber+1; order++ {
+	for order := orderer.nextOrderNumberToBeExported + 1; order != orderNumber+1; order++ {
 		//Check if exists
 		exists := false
 		if present != nil {

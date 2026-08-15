@@ -81,7 +81,7 @@ func NewServerStable[sequenceNumberType ~uint8 | ~uint16 | ~uint32 | ~uint64, or
 
 	//Handle disconnect
 	sv.udpServer.OnConnectionCleanup.AddEventListerner(false, func(conn *ServerConn) {
-		sv.stabilizer.CleanupConnection(conn)
+		sv.stabilizer.HandleDisconnect(conn)
 	})
 
 	return sv, nil

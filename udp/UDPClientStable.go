@@ -113,6 +113,8 @@ func (cl *ClientStable[sequenceNumberType, orderNumberType, windowWordType]) Sen
 
 // Stop stops UDP client
 func (cl *ClientStable[sequenceNumberType, orderNumberType, windowWordType]) Stop() {
+	cl.stabilizer.HandleDisconnect(cl.client)
+	cl.stabilizer.Stop()
 	cl.client.Stop()
 }
 

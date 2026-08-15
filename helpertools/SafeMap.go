@@ -153,6 +153,8 @@ func (m *SafeMap[K, V]) GetMutex() *sync.RWMutex {
 }
 
 // Range iterates trought map keys and values without creating slice
+//
+// Map is locked, so no write operations involving the map should be called in rangeFunc
 func (m *SafeMap[K, V]) Range(rangeFunc func(key K, value V) (doBreak bool)) {
 	if rangeFunc == nil {
 		return
@@ -160,6 +162,23 @@ func (m *SafeMap[K, V]) Range(rangeFunc func(key K, value V) (doBreak bool)) {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 	for k, v := range m.m {
+		if rangeFunc(k, v) {
+			break
+		}
+	}
+}
+
+// RangeWithEmpty iterates trought map keys and values without creating slice but it removes values (goes from end).
+//
+// Map is locked, so no operations involving the map should be called in rangeFunc
+func (m *SafeMap[K, V]) RangeWithEmpty(rangeFunc func(key K, value V) (doBreak bool)) {
+	if rangeFunc == nil {
+		return
+	}
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	for k, v := range m.m {
+		delete(m.m, k)
 		if rangeFunc(k, v) {
 			break
 		}

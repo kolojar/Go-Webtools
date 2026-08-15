@@ -67,6 +67,11 @@ const StableDataWithOrderTimeoutFrame stableFrameType = 7
 // Note: For this frame type ResendRetries is set to 0
 const StableDataWithOrderResendFrame stableFrameType = 8
 
+// stableDisconnectFrame is disconnect frame
+//
+// When disconnect is got, it will Dump all pending data in valid ordering system as set up (some data can be lost)
+const stableDisconnectFrame stableFrameType = 255
+
 // ConnectionStabilizerSettings are settings used in connectionStabilizer
 type ConnectionStabilizerSettings struct {
 	// KeepAliveIntervalSeconds sets how long it takes before keepAlive (ping packet) is send, set it to 0 to disable.
@@ -96,7 +101,7 @@ type ConnectionStabilizerSettings struct {
 
 	// DefaultSendFrameType sets type for Send() function.
 	//
-	// Warning: Do not set 0, stablePingFrame, stablePongFrame or stableDataRecievedFrame = application will fallback to stableDataFrame
+	// Warning: Do not set 0, stablePingFrame, stablePongFrame, stableDataRecievedFrame or stableDisconnectFrame = application will fallback to stableDataFrame
 	DefaultSendFrameType stableFrameType
 
 	// FallbackRTT is duration for RTT when IT cant be calculated yet
@@ -404,6 +409,13 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 			//Request ACK
 			stabilizer.handleACKSend(conn, sConn, seqNum, true)
 		}
+	case stableDisconnectFrame:
+		{
+			//Handle disconnect
+			conn.GetLogger().Log(2, "Got disconnect from: "+conn.GetAddress().String())
+			stabilizer.CleanupConnection(conn)
+			conn.Close()
+		}
 	default:
 		{
 			conn.GetLogger().Log(3, "Invalid frame type: "+strconv.FormatUint(uint64(frameType), 10)+" for: "+conn.GetAddress().String())
@@ -438,7 +450,7 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 
 // HandleWrite handles writes in stabilizer with default settings
 func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumberType, windowWordType]) HandleWriteDefault(conn connType, data []byte) {
-	if stabilizer.settings.DefaultSendFrameType == stablePingFrame || stabilizer.settings.DefaultSendFrameType == stablePongFrame || stabilizer.settings.DefaultSendFrameType == stableDataRecievedFrame || stabilizer.settings.DefaultSendFrameType == 0 {
+	if stabilizer.settings.DefaultSendFrameType == stablePingFrame || stabilizer.settings.DefaultSendFrameType == stablePongFrame || stabilizer.settings.DefaultSendFrameType == stableDataRecievedFrame || stabilizer.settings.DefaultSendFrameType == 0 || stabilizer.settings.DefaultSendFrameType == stableDisconnectFrame {
 		stabilizer.settings.DefaultSendFrameType = StableDataFrame
 	}
 	stabilizer.HandleWrite(conn, stabilizer.settings.DefaultSendFrameType, data)
@@ -509,7 +521,7 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 			//Data frame with resend function - add sequence number and data and pass to writer function
 			sequenceNumber := sequenceNumberType(sConn.sendPacketResendNumber.Add(1) - 1)
 			buffer, _ = helpertools.AppendGenericLitteEndian(buffer, sequenceNumber)
-			go stabilizer.resendWrite(conn, sConn, sequenceNumber, append(buffer, data...), false, 0)
+			stabilizer.resendWrite(conn, sConn, sequenceNumber, append(buffer, data...), false, 0)
 		}
 	case StableDataWithOrderInstantFrame, StableDataWithOrderTimeoutFrame:
 		{
@@ -539,7 +551,13 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 			sequenceNumber := sequenceNumberType(sConn.sendPacketResendNumber.Add(1) - 1)
 			buffer, _ = helpertools.AppendGenericLitteEndian(buffer, sequenceNumber)
 			buffer, _ = helpertools.AppendGenericLitteEndian(buffer, orderNumber)
-			go stabilizer.resendWrite(conn, sConn, sequenceNumber, append(buffer, data...), true, 0)
+			stabilizer.resendWrite(conn, sConn, sequenceNumber, append(buffer, data...), true, 0)
+		}
+	case stableDisconnectFrame:
+		{
+			//Disconnect frame
+			conn.GetLogger().Log(1, "Sending disconnect frame to: "+conn.GetAddress().String())
+			conn.Send(buffer)
 		}
 	default:
 		{
@@ -603,14 +621,38 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 	return stabilizer.conns.Get(conn)
 }
 
+func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumberType, windowWordType]) cleanupConnection(sConn *connectionStabilizerConn[sequenceNumberType, orderNumberType, windowWordType]) {
+	for _, v := range sConn.ordererSimple.DumpAll() {
+		if stabilizer.readFunc != nil {
+			stabilizer.readFunc(sConn, v)
+		}
+	}
+	for _, v := range sConn.ordererPrecise.DumpAll() {
+		if stabilizer.readFunc != nil {
+			stabilizer.readFunc(sConn, v)
+		}
+	}
+}
+
 // CleanupConnection removes specified connection
 func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumberType, windowWordType]) CleanupConnection(conn connType) {
+	//Handle dump of remaining data
+	sConn, ok := stabilizer.conns.GetHas(conn)
+	if !ok {
+		return
+	}
+	stabilizer.cleanupConnection(sConn)
+
+	//Delete
 	stabilizer.conns.Delete(conn)
 }
 
 // CleanupConnections removes all connections
 func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumberType, windowWordType]) CleanupConnections() {
-	stabilizer.conns.Clear()
+	stabilizer.conns.RangeWithEmpty(func(key connType, value *connectionStabilizerConn[sequenceNumberType, orderNumberType, windowWordType]) (doBreak bool) {
+		stabilizer.cleanupConnection(value)
+		return false
+	})
 }
 
 // keepAliveSender is internal function for sending keep alives
@@ -638,9 +680,17 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 	}
 }
 
+func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumberType, windowWordType]) HandleDisconnect(conn connType) {
+	//Send last frame = disconnect
+	stabilizer.HandleWrite(conn, stableDisconnectFrame, nil)
+	stabilizer.CleanupConnection(conn)
+	conn.Close()
+}
+
 // Stop stops stabilizer
 func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumberType, windowWordType]) Stop() {
 	if stabilizer.keepAliveTickerStopFunc != nil {
 		stabilizer.keepAliveTickerStopFunc()
 	}
+	stabilizer.CleanupConnections()
 }
