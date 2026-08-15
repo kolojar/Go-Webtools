@@ -29,7 +29,7 @@ Read data Handler for local UDP (original server - source server)
 func (br *Bridge) readFuncUDPLocal(client *Client, _ *net.UDPAddr, data []byte, status webtools.NetworkStatus) {
 	remoteConn := br.connetionUDPLocalToRemote.Get(client)
 	if remoteConn == nil {
-		br.udpServer.Logger.Log(3, "Error writing to UDP Client - Connection does not exist!")
+		br.udpServer.Logger.Log(helpertools.LogError, "Error writing to UDP Client - Connection does not exist!")
 		return
 	}
 	switch status {
@@ -64,7 +64,7 @@ func (br *Bridge) readFuncUDPRemote(conn *ServerConn, data []byte, status webtoo
 		{
 			udpClient, err := NewClient(br.udpSourceServerAdress, br.readFuncUDPLocal, br.reportTraffic)
 			if err != nil {
-				br.udpServer.Logger.Log(3, "Error connecting to: "+br.udpSourceServerAdress+" | Error: "+err.Error())
+				br.udpServer.Logger.Log(helpertools.LogError, "Error connecting to: "+br.udpSourceServerAdress+" | Error: "+err.Error())
 			}
 			udpClient.Logger.Prefix = "UDPBridge - " + udpClient.Logger.Prefix
 			udpClient.Connect()
@@ -107,7 +107,7 @@ func NewBridge(udpSourceServerAdress string, udpNewVirtualAddress string, report
 Start starts bridge, locks execution thread
 */
 func (br *Bridge) Start() {
-	br.udpServer.Logger.Log(2, "Started bridging from "+br.udpSourceServerAdress+" to "+br.udpServer.GetAddress().String())
+	br.udpServer.Logger.Log(helpertools.LogWarning, "Started bridging from "+br.udpSourceServerAdress+" to "+br.udpServer.GetAddress().String())
 	br.udpServer.Start()
 }
 

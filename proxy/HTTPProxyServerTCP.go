@@ -103,7 +103,7 @@ func (sv *HTTPProxyServerTCP) handleWebSocketReadFunc(conn *httptools.WebSocketS
 				cl, err := tcp.NewClientSimple(sv.tcpServerAddress, -1, false, sv.handleTCPReadFunc, sv.reportTrafic)
 				cl.GetLogger().Prefix = "HTTPProxyServerTCP - " + cl.GetLogger().Prefix
 				if err != nil {
-					conn.Client.Logger.Log(3, "Could not create connection with id: "+string(frame.ID)+" to server.")
+					conn.Client.Logger.Log(helpertools.LogError, "Could not create connection with id: "+string(frame.ID)+" to server.")
 					return
 				}
 				cl.Connect()
@@ -112,12 +112,12 @@ func (sv *HTTPProxyServerTCP) handleWebSocketReadFunc(conn *httptools.WebSocketS
 				sv.idToClient.Get(string(frame.ID)).SendToHTTP(FrameTypeConnect, frame.Data)
 				return
 			}
-			conn.Client.Logger.Log(3, "Could not find connection to id: "+string(frame.ID))
+			conn.Client.Logger.Log(helpertools.LogError, "Could not find connection to id: "+string(frame.ID))
 			return
 		}
 		cl := sv.idToClient.Get(string(frame.ID))
 		if !cl.tcpClient.IsAlive() {
-			conn.Client.Logger.Log(3, "Connection with id: "+string(frame.ID)+" connected to: "+conn.GetConn().RemoteAddr().String()+" connected locally to: "+conn.GetConn().LocalAddr().String()+" closed")
+			conn.Client.Logger.Log(helpertools.LogError, "Connection with id: "+string(frame.ID)+" connected to: "+conn.GetConn().RemoteAddr().String()+" connected locally to: "+conn.GetConn().LocalAddr().String()+" closed")
 			return
 		}
 
@@ -145,7 +145,7 @@ func (sv *HTTPProxyServerTCP) handleTCPReadFunc(tcp *tcp.ClientSimple, data []by
 	//Get HTTP client
 	if sv.clientToID.Get(tcp) == "" || sv.idToClient.Get(sv.clientToID.Get(tcp)) == nil {
 		//Connection does not exists
-		tcp.GetLogger().Log(3, "Connection connected to: "+tcp.GetConn().RemoteAddr().String()+" not found")
+		tcp.GetLogger().Log(helpertools.LogError, "Connection connected to: "+tcp.GetConn().RemoteAddr().String()+" not found")
 		return
 	}
 	id := sv.clientToID.Get(tcp)

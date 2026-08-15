@@ -17,7 +17,7 @@ Client is basic UDP Client
 */
 type Client struct {
 	readFunc ClientReadFunc
-	Logger   *helpertools.ConsoleLogger
+	Logger   helpertools.ConsoleLogger
 	Conn     *net.UDPConn
 	address  *net.UDPAddr
 	isAlive  bool
@@ -45,7 +45,7 @@ func NewClient(address string, readFunc ClientReadFunc, reportTraffic bool) (*Cl
 	}
 
 	//Make client
-	return &Client{address: addressObj, Logger: helpertools.NewConsoleLoggerForTraffic("UDPClient", reportTraffic), readFunc: readFunc}, nil
+	return &Client{address: addressObj, Logger: helpertools.MakeConsoleLoggerForTraffic("UDPClient", reportTraffic), readFunc: readFunc}, nil
 }
 
 /*
@@ -60,7 +60,7 @@ func (cl *Client) Connect() error {
 	var err error
 	cl.Conn, err = net.DialUDP("udp", nil, cl.address)
 	if err != nil {
-		cl.Logger.Log(3, "Error connecting to: "+cl.address.String()+" | Error: "+err.Error())
+		cl.Logger.Log(helpertools.LogError, "Error connecting to: "+cl.address.String()+" | Error: "+err.Error())
 		return err
 	}
 
@@ -92,7 +92,7 @@ func (cl *Client) readFuncLocal(addrFrom *net.UDPAddr, data []byte, ended bool) 
 	//Process read
 	//if udp.readFunc != nil {
 	//	if !ended {
-	//		udp.Logger.Log(0, "Reading from: "+addr.String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data))
+	//		udp.Logger.Log(helpertools.LogTraffic, "Reading from: "+addr.String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data))
 	//	}
 	//	udp.readFunc(udp, data, ended)
 	//}
@@ -115,10 +115,10 @@ func (cl *Client) Stop() {
 	}
 
 	//Close
-	cl.Logger.Log(1, "Requested disconnect from: "+cl.address.String())
+	cl.Logger.Log(helpertools.LogInfo, "Requested disconnect from: "+cl.address.String())
 	err := cl.Conn.Close()
 	if err != nil {
-		cl.Logger.Log(3, "Error disconnecting from: "+cl.address.String()+" | Error: "+err.Error())
+		cl.Logger.Log(helpertools.LogError, "Error disconnecting from: "+cl.address.String()+" | Error: "+err.Error())
 	}
 }
 
@@ -129,5 +129,5 @@ func (cl *Client) Close() {
 
 // GetLogger gets logger of client
 func (cl *Client) GetLogger() *helpertools.ConsoleLogger {
-	return cl.Logger
+	return &cl.Logger
 }

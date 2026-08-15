@@ -67,13 +67,13 @@ func (cl *TCPProxyClientUDP) handleTCPReadFunc(_ *tcp.ClientSimple, frame []byte
 				//Confirmed connection
 				conn := cl.pendingConnections.Get(string(frame.Data))
 				if conn == nil {
-					cl.tcpClient.GetLogger().Log(3, "Pending connection with temporary id: "+string(frame.Data)+" not found")
+					cl.tcpClient.GetLogger().Log(helpertools.LogError, "Pending connection with temporary id: "+string(frame.Data)+" not found")
 					return
 				}
 				cl.pendingConnections.Delete(string(frame.Data))
 				cl.clientToID.Set(conn, string(frame.ID))
 				cl.idToClient.Set(string(frame.ID), conn)
-				cl.tcpClient.GetLogger().Log(1, "Prepared new connection with temporary id: "+string(frame.Data)+" for connection connected to: "+conn.GetAddress().String()+" with new id: "+string(frame.ID))
+				cl.tcpClient.GetLogger().Log(helpertools.LogInfo, "Prepared new connection with temporary id: "+string(frame.Data)+" for connection connected to: "+conn.GetAddress().String()+" with new id: "+string(frame.ID))
 
 				//Process pending data
 				for len(cl.pendingConnsData.Get(conn)) > 0 {
@@ -110,7 +110,7 @@ func (cl *TCPProxyClientUDP) handleUDPReadFunc(udpConn *udp.ServerConn, data []b
 		//No connection found, request new
 		tempID := helpertools.GenerateRandomID()
 		cl.pendingConnections.Set(tempID, udpConn)
-		cl.tcpClient.GetLogger().Log(1, "Preparing new connection with temporary id: "+tempID+" for connection connected to: "+udpConn.GetAddress().String())
+		cl.tcpClient.GetLogger().Log(helpertools.LogInfo, "Preparing new connection with temporary id: "+tempID+" for connection connected to: "+udpConn.GetAddress().String())
 		cl.tcpClient.Send(PackWebtoolsFrame(FrameTypeConnect, []byte("0"), []byte(tempID)))
 		cl.pendingConnsData.Set(udpConn, append(make([][]byte, 0), data))
 		return

@@ -73,7 +73,7 @@ func (cl *ConnectionMergerClient) handleRemoteTCPReadFunc(_ *tcp.ClientSimple, f
 				var addresses []string
 				err := json.Unmarshal(frame.Data, &addresses)
 				if err != nil {
-					cl.tcpClient.GetLogger().Log(3, "Error unmarshalling server list: "+err.Error())
+					cl.tcpClient.GetLogger().Log(helpertools.LogError, "Error unmarshalling server list: "+err.Error())
 					return
 				}
 
@@ -81,14 +81,14 @@ func (cl *ConnectionMergerClient) handleRemoteTCPReadFunc(_ *tcp.ClientSimple, f
 				for i := 0; i < len(addresses); i++ {
 					localPort := cl.tcpServerAddressesToLocalPorts[addresses[i]]
 					if localPort == "" {
-						cl.tcpClient.GetLogger().Log(3, "No local port found for remote IP address: "+addresses[i]+". Stopping client...")
+						cl.tcpClient.GetLogger().Log(helpertools.LogError, "No local port found for remote IP address: "+addresses[i]+". Stopping client...")
 						cl.Stop()
 						return
 					}
 					addr := net.JoinHostPort(cl.localServersIPPrefix, localPort)
 					sv, err := tcp.NewServer(addr, cl.handleLocalTCPReadFunc, cl.reportTrafic, false)
 					if err != nil {
-						cl.tcpClient.GetLogger().Log(3, "Error creating TCP server for remote IP address: "+addresses[i]+" with local address: "+addr+". Stopping client...")
+						cl.tcpClient.GetLogger().Log(helpertools.LogError, "Error creating TCP server for remote IP address: "+addresses[i]+" with local address: "+addr+". Stopping client...")
 						cl.Stop()
 						return
 					}
@@ -103,13 +103,13 @@ func (cl *ConnectionMergerClient) handleRemoteTCPReadFunc(_ *tcp.ClientSimple, f
 				//Confirmed connection
 				conn := cl.pendingConnections.Get(string(frame.Data))
 				if conn == nil {
-					cl.tcpClient.GetLogger().Log(3, "Pending connection with temporary id: "+string(frame.Data)+" not found")
+					cl.tcpClient.GetLogger().Log(helpertools.LogError, "Pending connection with temporary id: "+string(frame.Data)+" not found")
 					return
 				}
 				cl.pendingConnections.Delete(string(frame.Data))
 				cl.clientToID.Set(conn, string(frame.ID))
 				cl.idToClient.Set(string(frame.ID), conn)
-				cl.tcpClient.GetLogger().Log(1, "Prepared new connection with temporary id: "+string(frame.Data)+" for connection connected to: "+conn.GetConn().RemoteAddr().String()+" connected locally to: "+conn.GetConn().LocalAddr().String()+" with new id: "+string(frame.ID))
+				cl.tcpClient.GetLogger().Log(helpertools.LogInfo, "Prepared new connection with temporary id: "+string(frame.Data)+" for connection connected to: "+conn.GetConn().RemoteAddr().String()+" connected locally to: "+conn.GetConn().LocalAddr().String()+" with new id: "+string(frame.ID))
 
 				//Process pending data
 				for len(cl.pendingConnsData.Get(conn)) > 0 {
@@ -149,7 +149,7 @@ func (cl *ConnectionMergerClient) handleLocalTCPReadFunc(tcpConn *tcp.ServerConn
 		//No connection found, request new
 		tempID := helpertools.GenerateRandomID()
 		cl.pendingConnections.Set(tempID, tcpConn)
-		cl.tcpClient.GetLogger().Log(1, "Preparing new connection with temporary id: "+tempID+" for connection connected to: "+tcpConn.GetConn().RemoteAddr().String()+" connected locally to: "+tcpConn.GetConn().LocalAddr().String())
+		cl.tcpClient.GetLogger().Log(helpertools.LogInfo, "Preparing new connection with temporary id: "+tempID+" for connection connected to: "+tcpConn.GetConn().RemoteAddr().String()+" connected locally to: "+tcpConn.GetConn().LocalAddr().String())
 		cl.tcpClient.Send(PackWebtoolsFrame(FrameTypeConnect, []byte(strconv.Itoa(slices.Index(cl.tcpServers, tcpConn.GetOrigin()))), []byte(tempID)))
 		cl.pendingConnsData.Set(tcpConn, append(make([][]byte, 0), data))
 		return

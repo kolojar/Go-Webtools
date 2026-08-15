@@ -39,7 +39,7 @@ Read data Handler for WebSocket
 */
 func (proxyCl *HTTPProxyClientTCP) readFuncWebSocket(conn net.Conn, data string, ended bool) {
 	if proxyCl.connetionWebSocketToTCPTranslator[conn] == nil {
-		proxyCl.Logger.Log(3, "Error writing to TCP - Connection does not exist!")
+		proxyCl.Logger.Log(helpertools.LogError, "Error writing to TCP - Connection does not exist!")
 		return
 	}
 	if !ended {
@@ -70,7 +70,7 @@ func MakeHTTPProxyClientTCP(tcpServerAdress string, proxyHostAddress string) HTT
 Starts HTTPProxy client
 */
 func (proxyCl *HTTPProxyClientTCP) Start() {
-	proxyCl.Logger.Log(2, "Started proxying client from "+proxyCl.proxyHostAddress+" to "+proxyCl.tcpServer.address)
+	proxyCl.Logger.Log(helpertools.LogWarning, "Started proxying client from "+proxyCl.proxyHostAddress+" to "+proxyCl.tcpServer.address)
 	proxyCl.tcpServer.Start()
 }
 

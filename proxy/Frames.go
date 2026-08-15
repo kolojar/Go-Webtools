@@ -64,14 +64,14 @@ func UnpackWebtoolsFrame(frame []byte, logger *helpertools.ConsoleLogger) []Unpa
 
 	//Check size
 	if len(frame) < 2 {
-		logger.Log(3, "Frame too short. | Data lenght: "+strconv.Itoa(len(frame))+" | Data in hex: "+hex.EncodeToString(frame))
+		logger.Log(helpertools.LogError, "Frame too short. | Data lenght: "+strconv.Itoa(len(frame))+" | Data in hex: "+hex.EncodeToString(frame))
 		return nil
 	}
 
 	//Get operation
 	operation := frame[0]
 	if frame[1] != FrameSeparatorChar {
-		logger.Log(3, "Invalid frame at index 1. | Data lenght: "+strconv.Itoa(len(frame))+" | Data in hex: "+hex.EncodeToString(frame))
+		logger.Log(helpertools.LogError, "Invalid frame at index 1. | Data lenght: "+strconv.Itoa(len(frame))+" | Data in hex: "+hex.EncodeToString(frame))
 		return nil
 	}
 
@@ -94,7 +94,7 @@ func UnpackWebtoolsFrame(frame []byte, logger *helpertools.ConsoleLogger) []Unpa
 					lenOfData = lenOfData - 1
 				}
 				if err != nil {
-					logger.Log(3, "Invalid frame lenght. | Data lenght: "+strconv.Itoa(len(frame))+" | Data in hex: "+hex.EncodeToString(frame)+" | Error: "+err.Error())
+					logger.Log(helpertools.LogError, "Invalid frame lenght. | Data lenght: "+strconv.Itoa(len(frame))+" | Data in hex: "+hex.EncodeToString(frame)+" | Error: "+err.Error())
 					return nil
 				}
 

@@ -124,7 +124,7 @@ func (watcher *fileSystemWatcherInstance) StartWatching() {
 	//Start subwatchers
 	entries, err := os.ReadDir(watcher.path)
 	if err != nil {
-		watcher.mainParent.Logger.Log(3, "Error started watching in path: "+watcher.path+" | Error: "+err.Error())
+		watcher.mainParent.Logger.Log(helpertools.LogError, "Error started watching in path: "+watcher.path+" | Error: "+err.Error())
 		return
 	}
 	for i := 0; i < len(entries); i++ {
@@ -137,12 +137,12 @@ func (watcher *fileSystemWatcherInstance) StartWatching() {
 	}
 
 	//Start watcher
-	watcher.mainParent.Logger.Log(2, "Started watching in path: "+watcher.path)
+	watcher.mainParent.Logger.Log(helpertools.LogWarning, "Started watching in path: "+watcher.path)
 	err = watcher.watchingLoop()
 	if err != nil {
-		watcher.mainParent.Logger.Log(3, "Error while watching: "+err.Error())
+		watcher.mainParent.Logger.Log(helpertools.LogError, "Error while watching: "+err.Error())
 	}
-	watcher.mainParent.Logger.Log(1, "Watcher exited.")
+	watcher.mainParent.Logger.Log(helpertools.LogInfo, "Watcher exited.")
 	watcher.stopped = true
 }
 
@@ -157,13 +157,13 @@ func (watcher *fileSystemWatcherInstance) StopWatching() {
 	if watcher.isRunning == false {
 		return
 	}
-	watcher.mainParent.Logger.Log(2, "Requesting stop of watching for path: "+watcher.path)
+	watcher.mainParent.Logger.Log(helpertools.LogWarning, "Requesting stop of watching for path: "+watcher.path)
 	watcher.isRunning = false
 	//syscall.InotifyRmWatch(watcher.inotifyBase, uint32(watcher.inotifyWatcher))
 	err := syscall.Close(watcher.inotifyBase)
 	time.Sleep(1 * time.Second)
 	if err != nil {
-		watcher.mainParent.Logger.Log(3, "Error stopping watcher for path: "+watcher.path+" | Error: "+err.Error())
+		watcher.mainParent.Logger.Log(helpertools.LogError, "Error stopping watcher for path: "+watcher.path+" | Error: "+err.Error())
 		watcher.stopped = true
 	}
 	for !watcher.stopped {
@@ -174,7 +174,7 @@ func (watcher *fileSystemWatcherInstance) StopWatching() {
 	for i := 0; i < len(watcher.subDirectoriesWatchers.GetValues()); i++ {
 		watcher.subDirectoriesWatchers.GetValues()[i].StopWatching()
 	}
-	watcher.mainParent.Logger.Log(1, "Watching stopped for path: "+watcher.path)
+	watcher.mainParent.Logger.Log(helpertools.LogInfo, "Watching stopped for path: "+watcher.path)
 }
 
 //func decodeMask(mask uint32) {

@@ -104,7 +104,7 @@ func (sv *TCPProxyServerUDP) handleTCPReadFunc(conn *tcp.ServerConn, frame []byt
 				cl, err := udp.NewClient(sv.tcpServerAddress, sv.handleUDPReadFunc, sv.reportTrafic)
 				cl.Logger.Prefix = "TCPProxyServerUDP - " + cl.Logger.Prefix
 				if err != nil {
-					conn.Client.GetLogger().Log(3, "Could not create connection with id: "+string(frame.ID)+" to server.")
+					conn.Client.GetLogger().Log(helpertools.LogError, "Could not create connection with id: "+string(frame.ID)+" to server.")
 					return
 				}
 				cl.Connect()
@@ -113,12 +113,12 @@ func (sv *TCPProxyServerUDP) handleTCPReadFunc(conn *tcp.ServerConn, frame []byt
 				sv.idToClient.Get(string(frame.ID)).SendToTCP(FrameTypeConnect, frame.Data)
 				return
 			}
-			conn.Client.GetLogger().Log(3, "Could not find connection to id: "+string(frame.ID))
+			conn.Client.GetLogger().Log(helpertools.LogError, "Could not find connection to id: "+string(frame.ID))
 			return
 		}
 		cl := sv.idToClient.Get(string(frame.ID))
 		if !cl.udpClient.IsAlive() {
-			conn.Client.GetLogger().Log(3, "Connection with id: "+string(frame.ID)+" connected to: "+conn.GetConn().RemoteAddr().String()+" connected locally to: "+conn.GetConn().LocalAddr().String()+" closed")
+			conn.Client.GetLogger().Log(helpertools.LogError, "Connection with id: "+string(frame.ID)+" connected to: "+conn.GetConn().RemoteAddr().String()+" connected locally to: "+conn.GetConn().LocalAddr().String()+" closed")
 			return
 		}
 
@@ -142,7 +142,7 @@ func (sv *TCPProxyServerUDP) handleUDPReadFunc(udp *udp.Client, _ *net.UDPAddr, 
 	//Get TCP client
 	if sv.clientToID.Get(udp) == "" || sv.idToClient.Get(sv.clientToID.Get(udp)) == nil {
 		//Connection does not exists
-		udp.Logger.Log(3, "Connection connected to: "+udp.Conn.RemoteAddr().String()+" not found")
+		udp.Logger.Log(helpertools.LogError, "Connection connected to: "+udp.Conn.RemoteAddr().String()+" not found")
 		return
 	}
 	id := sv.clientToID.Get(udp)

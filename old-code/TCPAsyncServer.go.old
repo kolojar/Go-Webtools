@@ -55,7 +55,7 @@ func (tcp *TCPServer) Start() bool {
 	//Create TCP address
 	//address, err2 := net.ResolveTCPAddr("tcp", tcp.address)
 	//if err2 != nil {
-	//	tcp.Logger.Log(3, "Error listening to: "+err2.Error())
+	//	tcp.Logger.Log(helpertools.LogError, "Error listening to: "+err2.Error())
 	//	return false
 	//}
 
@@ -63,13 +63,13 @@ func (tcp *TCPServer) Start() bool {
 	var err error
 	tcp.listener, err = net.Listen("tcp", tcp.address)
 	if err != nil {
-		tcp.Logger.Log(3, "Error listening to: "+err.Error())
+		tcp.Logger.Log(helpertools.LogError, "Error listening to: "+err.Error())
 		return false
 	}
 
 	//defer listener.Close()
 	tcp.isAlive = true
-	tcp.Logger.Log(2, "Started on: "+tcp.address)
+	tcp.Logger.Log(helpertools.LogWarning, "Started on: "+tcp.address)
 
 	//Start infinite loop for accepting connections
 	for !tcp.selfStop {
@@ -79,7 +79,7 @@ func (tcp *TCPServer) Start() bool {
 				//Suppress all errors
 				break
 			} else {
-				tcp.Logger.Log(3, "Error accepting connection: "+err.Error())
+				tcp.Logger.Log(helpertools.LogError, "Error accepting connection: "+err.Error())
 				continue
 			}
 		}
@@ -88,9 +88,9 @@ func (tcp *TCPServer) Start() bool {
 	}
 
 	//Stop
-	//tcp.Logger.Log(2, "Stopped on: "+tcp.address)
+	//tcp.Logger.Log(helpertools.LogWarning, "Stopped on: "+tcp.address)
 	tcp.isAlive = false
-	tcp.Logger.Log(2, "Stopped!")
+	tcp.Logger.Log(helpertools.LogWarning, "Stopped!")
 	return true
 }
 
@@ -117,7 +117,7 @@ func handleTCPRead(conn net.Conn, readFunc TCPReadFunc, logger *ConsoleLogger, u
 		n, err := conn.Read(buffer)
 		if err != nil {
 			if err.Error() != "EOF" && !strings.Contains(err.Error(), "use of closed network connection") {
-				logger.Log(3, "Error reading from: "+conn.RemoteAddr().String()+" | Error: "+err.Error())
+				logger.Log(helpertools.LogError, "Error reading from: "+conn.RemoteAddr().String()+" | Error: "+err.Error())
 			}
 			break
 		}
@@ -127,15 +127,15 @@ func handleTCPRead(conn net.Conn, readFunc TCPReadFunc, logger *ConsoleLogger, u
 		//text := textParts[i]
 		//text := strings.Join(textParts[0:(calcLenOfTextParts(textParts)-1)], string(rune(23)))
 		text := string(buffer[:n])
-		logger.Log(1, "Reading from: "+conn.RemoteAddr().String()+" | Data: "+text)
+		logger.Log(helpertools.LogInfo, "Reading from: "+conn.RemoteAddr().String()+" | Data: "+text)
 		var decrypt string
 		var err2 error
 		if useEncryption {
 			decrypt, err2 = DecryptText(encryptionPassword, text)
 			if err2 != nil {
-				logger.Log(3, "Error decrypting message: "+err2.Error())
+				logger.Log(helpertools.LogError, "Error decrypting message: "+err2.Error())
 			}
-			logger.Log(0, "Decrypted received message: "+decrypt)
+			logger.Log(helpertools.LogTraffic, "Decrypted received message: "+decrypt)
 		} else {
 			decrypt = text
 		}
@@ -144,7 +144,7 @@ func handleTCPRead(conn net.Conn, readFunc TCPReadFunc, logger *ConsoleLogger, u
 	}
 
 	//Report error
-	logger.Log(1, "Disconecting from: "+conn.RemoteAddr().String())
+	logger.Log(helpertools.LogInfo, "Disconecting from: "+conn.RemoteAddr().String())
 	readFunc(conn, "", true)
 	defer conn.Close()
 	//err := scanner.Err()
@@ -156,20 +156,20 @@ func handleTCPRead(conn net.Conn, readFunc TCPReadFunc, logger *ConsoleLogger, u
 func writeToTCP(conn net.Conn, message string, logger *ConsoleLogger, useEncryption bool, encryptionPassword string) {
 	var msg string
 	if useEncryption {
-		logger.Log(0, "Decrypted sending message: "+message)
+		logger.Log(helpertools.LogTraffic, "Decrypted sending message: "+message)
 		var err error
 		msg, err = EncryptText(encryptionPassword, message)
 		if err != nil {
-			logger.Log(3, "Error encrypting message: "+msg)
+			logger.Log(helpertools.LogError, "Error encrypting message: "+msg)
 		}
 	} else {
 		msg = message
 	}
 
-	logger.Log(1, "Sending to: "+conn.RemoteAddr().String()+" | Data: "+msg)
+	logger.Log(helpertools.LogInfo, "Sending to: "+conn.RemoteAddr().String()+" | Data: "+msg)
 	_, err := conn.Write([]byte(msg))
 	if err != nil {
-		logger.Log(3, "Error senting to: "+conn.RemoteAddr().String()+" | Error: "+err.Error())
+		logger.Log(helpertools.LogError, "Error senting to: "+conn.RemoteAddr().String()+" | Error: "+err.Error())
 	}
 }
 
@@ -178,7 +178,7 @@ func (tcp *TCPServer) WriteToClient(conn net.Conn, message string) {
 }
 
 func (tcp *TCPServer) handleTCPServerConnection(conn net.Conn) {
-	tcp.Logger.Log(1, "Connection from: "+conn.RemoteAddr().String())
+	tcp.Logger.Log(helpertools.LogInfo, "Connection from: "+conn.RemoteAddr().String())
 	handleTCPRead(conn, tcp.readFunc, &tcp.Logger, tcp.useEncryption, tcp.encryptionPassword)
 	//ServerWriteToTCPClient(conn, "Welcome to TCP server!")
 }
@@ -192,7 +192,7 @@ func (tcp *TCPServer) Stop() error {
 	err := tcp.listener.Close()
 	time.Sleep(1 * time.Second)
 	if err != nil {
-		tcp.Logger.Log(3, "Error stopping TCP server: "+err.Error())
+		tcp.Logger.Log(helpertools.LogError, "Error stopping TCP server: "+err.Error())
 	}
 	return err
 }

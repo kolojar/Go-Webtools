@@ -66,7 +66,7 @@ type Server struct {
 	listener           *net.TCPListener
 	readFunc           ServerReadFunc
 	address            *net.TCPAddr
-	Logger             *helpertools.ConsoleLogger
+	Logger             helpertools.ConsoleLogger
 	requestedStop      bool
 	isAlive            bool
 	conns              helpertools.SafeMap[*ClientSimple, *ServerConn]
@@ -105,7 +105,7 @@ func NewServer(address string, readFunc ServerReadFunc, reportTraffic bool, fram
 	if err != nil {
 		return nil, err
 	}
-	return &Server{address: addressObj, readFunc: readFunc, Logger: helpertools.NewConsoleLoggerForTraffic("TCPServer", reportTraffic), conns: helpertools.MakeSafeMap[*ClientSimple, *ServerConn](), framed: framed}, nil
+	return &Server{address: addressObj, readFunc: readFunc, Logger: helpertools.MakeConsoleLoggerForTraffic("TCPServer", reportTraffic), conns: helpertools.MakeSafeMap[*ClientSimple, *ServerConn](), framed: framed}, nil
 }
 
 /*
@@ -136,11 +136,11 @@ func (sv *Server) Start() {
 	var err error
 	sv.listener, err = net.ListenTCP("tcp", sv.address)
 	if err != nil {
-		sv.Logger.Log(3, "Error listening to "+sv.address.String()+" with error: "+err.Error())
+		sv.Logger.Log(helpertools.LogError, "Error listening to "+sv.address.String()+" with error: "+err.Error())
 		return
 	}
 	sv.isAlive = true
-	sv.Logger.Log(2, "Started listening on "+sv.address.String())
+	sv.Logger.Log(helpertools.LogWarning, "Started listening on "+sv.address.String())
 
 	// Listener loop
 	for !sv.requestedStop {
@@ -150,7 +150,7 @@ func (sv *Server) Start() {
 				// Ignore all errors
 				break
 			}
-			sv.Logger.Log(3, "Error accepting connection: "+err2.Error())
+			sv.Logger.Log(helpertools.LogError, "Error accepting connection: "+err2.Error())
 		}
 
 		// Handle connection
@@ -172,7 +172,7 @@ func (sv *Server) readFuncLocal(client *ClientSimple, data []byte, status webtoo
 	if status == webtools.DisconnectStatus {
 		sv.conns.Delete(client)
 	}
-	sv.Logger.Log(0, "Count of connections: "+strconv.Itoa(sv.conns.Len()))
+	sv.Logger.Log(helpertools.LogTraffic, "Count of connections: "+strconv.Itoa(sv.conns.Len()))
 
 	// Process read
 	if sv.readFunc != nil {
@@ -193,6 +193,6 @@ func (sv *Server) Stop() {
 	err := sv.listener.Close()
 	time.Sleep(1 * time.Second)
 	if err != nil {
-		sv.Logger.Log(3, "Error stopping TCP server: "+err.Error())
+		sv.Logger.Log(helpertools.LogError, "Error stopping TCP server: "+err.Error())
 	}
 }

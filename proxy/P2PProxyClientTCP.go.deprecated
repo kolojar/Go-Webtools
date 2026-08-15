@@ -54,7 +54,7 @@ func NewP2PProxyClientTCP(p2pCoordinatorAddress string, p2pPortForIncommingConns
 	return cl, nil
 }
 
-func (cl *P2PProxyClientTCP) handleP2PReadFunc(_ *p2p.Client, sourceID []byte, frame []byte, ended bool, logger *helpertools.ConsoleLogger) {
+func (cl *P2PProxyClientTCP) handleP2PReadFunc(_ *p2p.Client, sourceID []byte, frame []byte, ended bool, logger helpertools.ConsoleLogger) {
 	if ended {
 		//Close all connections
 		cl.tcpServer.Stop()
@@ -62,7 +62,7 @@ func (cl *P2PProxyClientTCP) handleP2PReadFunc(_ *p2p.Client, sourceID []byte, f
 	}
 	if !bytes.Equal(sourceID, cl.p2pServerID) {
 		//InvalID source ID
-		cl.tcpServer.Logger.Log(3, "InvalID peer source ID: "+string(sourceID))
+		cl.tcpServer.Logger.Log(helpertools.LogError, "InvalID peer source ID: "+string(sourceID))
 		return
 	}
 
@@ -78,13 +78,13 @@ func (cl *P2PProxyClientTCP) handleP2PReadFunc(_ *p2p.Client, sourceID []byte, f
 				//Confirmed connection
 				conn := cl.pendingConnections.Get(string(frame.Data))
 				if conn == nil {
-					cl.tcpServer.Logger.Log(3, "Pending connection with temporary ID: "+string(frame.Data)+" not found")
+					cl.tcpServer.Logger.Log(helpertools.LogError, "Pending connection with temporary ID: "+string(frame.Data)+" not found")
 					return
 				}
 				cl.pendingConnections.Delete(string(frame.Data))
 				cl.clientToID.Set(conn, string(frame.ID))
 				cl.idToClient.Set(string(frame.ID), conn)
-				cl.tcpServer.Logger.Log(1, "Prepared new connection with temporary ID: "+string(frame.Data)+" for connection connected to: "+conn.GetConn().RemoteAddr().String()+" with new ID: "+string(frame.ID))
+				cl.tcpServer.Logger.Log(helpertools.LogInfo, "Prepared new connection with temporary ID: "+string(frame.Data)+" for connection connected to: "+conn.GetConn().RemoteAddr().String()+" with new ID: "+string(frame.ID))
 
 				//Process pending data
 				for len(cl.pendingConnsData.Get(conn)) > 0 {
@@ -121,7 +121,7 @@ func (cl *P2PProxyClientTCP) handleTCPReadFunc(tcpConn *tcp.ServerConn, data []b
 		//No connection found, request new
 		tempID := helpertools.GenerateRandomID()
 		cl.pendingConnections.Set(tempID, tcpConn)
-		cl.tcpServer.Logger.Log(1, "Preparing new connection with temporary ID: "+tempID+" for connection connected to: "+tcpConn.GetConn().RemoteAddr().String())
+		cl.tcpServer.Logger.Log(helpertools.LogInfo, "Preparing new connection with temporary ID: "+tempID+" for connection connected to: "+tcpConn.GetConn().RemoteAddr().String())
 		cl.p2pClient.Send(cl.p2pServerID, PackWebtoolsFrame(FrameTypeConnect, []byte("0"), []byte(tempID)))
 		cl.pendingConnsData.Set(tcpConn, append(make([][]byte, 0), data))
 		return

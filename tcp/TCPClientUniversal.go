@@ -18,7 +18,7 @@ Return true on connection close and error
 Please use limit as count of read connections, when limit is equal to count of read connections, finish read and exit read func, do not end connection! If some read error occures, return true, TCP Client will handle closing of connection
 Do not forget to use logging. 0 = Traffic, 1 = Generic info, 2 = Warnings = Connect / Disconnect / Others..., 3 = Errors
 */
-type ClientUniversalReadHandlerFunc func(cl *ClientUniversal, limit int, logger *helpertools.ConsoleLogger, readFunc ClientUniversalOnReadFuncIntenal) (bool, error)
+type ClientUniversalReadHandlerFunc func(cl *ClientUniversal, limit int, logger helpertools.ConsoleLogger, readFunc ClientUniversalOnReadFuncIntenal) (bool, error)
 
 /*
 ClientUniversalOnReadFunc is used for calling event on read
@@ -52,7 +52,7 @@ type ClientUniversalHanderFuncs struct {
 ClientUniversal is completly universal TCP client, for example usage see tcp.ClientSimple
 */
 type ClientUniversal struct {
-	Logger  *helpertools.ConsoleLogger
+	Logger  helpertools.ConsoleLogger
 	conn    *net.TCPConn
 	address *net.TCPAddr
 	isAlive bool
@@ -100,7 +100,7 @@ func NewTCPClientUniversal(address string, reportTraffic bool) (*ClientUniversal
 	}
 
 	// Make client
-	return &ClientUniversal{address: addressObj, Logger: helpertools.NewConsoleLoggerForTraffic("TCPClientUniversal", reportTraffic), HandlerFuncs: make([]ClientUniversalHanderFuncs, 0), isPreparedWithConnection: false}, nil
+	return &ClientUniversal{address: addressObj, Logger: helpertools.MakeConsoleLoggerForTraffic("TCPClientUniversal", reportTraffic), HandlerFuncs: make([]ClientUniversalHanderFuncs, 0), isPreparedWithConnection: false}, nil
 }
 
 /*
@@ -109,7 +109,7 @@ To set up read and write mechanisms, append items to HandlerFuncs
 */
 func NewTCPClientUniversalFromConnection(conn *net.TCPConn, reportTraffic bool) *ClientUniversal {
 	// Make client
-	return &ClientUniversal{conn: conn, address: conn.RemoteAddr().(*net.TCPAddr), Logger: helpertools.NewConsoleLoggerForTraffic("TCPClientUniversal", reportTraffic), HandlerFuncs: make([]ClientUniversalHanderFuncs, 0), isPreparedWithConnection: true}
+	return &ClientUniversal{conn: conn, address: conn.RemoteAddr().(*net.TCPAddr), Logger: helpertools.MakeConsoleLoggerForTraffic("TCPClientUniversal", reportTraffic), HandlerFuncs: make([]ClientUniversalHanderFuncs, 0), isPreparedWithConnection: true}
 }
 
 /*
@@ -133,13 +133,13 @@ func (cl *ClientUniversal) Connect() bool {
 		var err error
 		cl.conn, err = net.DialTCP("tcp", nil, cl.address)
 		if err != nil {
-			cl.Logger.Log(3, "Error connecting to: "+cl.address.String()+" | Error: "+err.Error())
+			cl.Logger.Log(helpertools.LogError, "Error connecting to: "+cl.address.String()+" | Error: "+err.Error())
 			return false
 		}
 	}
 
 	// Connect
-	cl.Logger.Log(2, "Connected to: "+cl.conn.RemoteAddr().String()+" connected locally to: "+cl.conn.LocalAddr().String())
+	cl.Logger.Log(helpertools.LogWarning, "Connected to: "+cl.conn.RemoteAddr().String()+" connected locally to: "+cl.conn.LocalAddr().String())
 	cl.isAlive = true
 
 	// Handle read
@@ -175,7 +175,7 @@ func (cl *ClientUniversal) readNextFunc() {
 		closed, err := cl.currentHandlers.ReadHandler(cl, cl.currentHandlers.UseCount, cl.Logger, cl.localReadFunc)
 		if err != nil {
 			// Error occured while reading
-			cl.Logger.Log(3, "Error reading from: "+cl.conn.RemoteAddr().String()+" connected locally to: "+cl.conn.LocalAddr().String()+" | Error: "+err.Error())
+			cl.Logger.Log(helpertools.LogError, "Error reading from: "+cl.conn.RemoteAddr().String()+" connected locally to: "+cl.conn.LocalAddr().String()+" | Error: "+err.Error())
 			break
 		}
 		if closed {
@@ -185,11 +185,11 @@ func (cl *ClientUniversal) readNextFunc() {
 
 		// Inform about reached limit
 		cl.currentHandlers.ReadFunc(cl, nil, webtools.FinishedReadFuncStatus, nil)
-		cl.Logger.Log(1, "Switching read function")
+		cl.Logger.Log(helpertools.LogInfo, "Switching read function")
 	}
 
 	// Finished all readers
-	cl.Logger.Log(2, "Disconneted from: "+cl.conn.RemoteAddr().String()+" connected locally to: "+cl.conn.LocalAddr().String())
+	cl.Logger.Log(helpertools.LogWarning, "Disconneted from: "+cl.conn.RemoteAddr().String()+" connected locally to: "+cl.conn.LocalAddr().String())
 	if cl.currentHandlers.ReadFunc != nil {
 		cl.currentHandlers.ReadFunc(cl, nil, webtools.DisconnectStatus, nil)
 	}
@@ -201,17 +201,17 @@ func (cl *ClientUniversal) readNextFunc() {
 func (cl *ClientUniversal) localReadFunc(data []byte, otherData map[string]any) {
 	if cl.useEncryption {
 		// Decrypt
-		cl.Logger.Log(0, "Reading enrypted from: "+cl.conn.RemoteAddr().String()+" connected locally to: "+cl.conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data)+" | Other data: "+helpertools.MapToString(otherData))
+		cl.Logger.Log(helpertools.LogTraffic, "Reading enrypted from: "+cl.conn.RemoteAddr().String()+" connected locally to: "+cl.conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data)+" | Other data: "+helpertools.MapToString(otherData))
 		var err error
 		data, err = encryption.DecryptSymmetric([]byte(cl.encryptionPassword), data)
 		if err != nil {
-			cl.Logger.Log(3, "Error decrypting: "+err.Error())
+			cl.Logger.Log(helpertools.LogError, "Error decrypting: "+err.Error())
 			return
 		}
 	}
 
 	// Read
-	cl.Logger.Log(0, "Reading from: "+cl.conn.RemoteAddr().String()+" connected locally to: "+cl.conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data)+" | Other data: "+helpertools.MapToString(otherData))
+	cl.Logger.Log(helpertools.LogTraffic, "Reading from: "+cl.conn.RemoteAddr().String()+" connected locally to: "+cl.conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data)+" | Other data: "+helpertools.MapToString(otherData))
 	if cl.currentHandlers.ReadFunc != nil {
 		cl.currentHandlers.ReadFunc(cl, data, webtools.ReadDataStatus, otherData)
 	}
@@ -233,28 +233,28 @@ func (cl *ClientUniversal) Send(data []byte, otherData map[string]any) {
 
 	// Invalid connection
 	if cl.conn == nil {
-		cl.Logger.Log(1, "Invalid connection, cancelling write.")
+		cl.Logger.Log(helpertools.LogInfo, "Invalid connection, cancelling write.")
 		return
 	}
 
 	// Write
 	if cl.currentHandlers.WriteHandler != nil {
-		cl.Logger.Log(0, "Writing to: "+cl.conn.RemoteAddr().String()+" connected locally to: "+cl.conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data)+" | Other data: "+helpertools.MapToString(otherData))
+		cl.Logger.Log(helpertools.LogTraffic, "Writing to: "+cl.conn.RemoteAddr().String()+" connected locally to: "+cl.conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data)+" | Other data: "+helpertools.MapToString(otherData))
 		if cl.useEncryption {
 			// Encrypt
 			var err error
 			data, err = encryption.EncryptSymmetric([]byte(cl.encryptionPassword), data)
 			if err != nil {
-				cl.Logger.Log(3, "Error encrypting: "+err.Error())
+				cl.Logger.Log(helpertools.LogError, "Error encrypting: "+err.Error())
 				return
 			}
-			cl.Logger.Log(0, "Writing enrypted from: "+cl.conn.RemoteAddr().String()+" connected locally to: "+cl.conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data)+" | Other data: "+helpertools.MapToString(otherData))
+			cl.Logger.Log(helpertools.LogTraffic, "Writing enrypted from: "+cl.conn.RemoteAddr().String()+" connected locally to: "+cl.conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data)+" | Other data: "+helpertools.MapToString(otherData))
 		}
 
 		// Write
 		err := cl.currentHandlers.WriteHandler(cl, data, otherData)
 		if err != nil {
-			cl.Logger.Log(3, "Error writing to: "+cl.conn.RemoteAddr().String()+" connected locally to: "+cl.conn.LocalAddr().String()+" | Error: "+err.Error())
+			cl.Logger.Log(helpertools.LogError, "Error writing to: "+cl.conn.RemoteAddr().String()+" connected locally to: "+cl.conn.LocalAddr().String()+" | Error: "+err.Error())
 		}
 	}
 
@@ -279,9 +279,9 @@ func (cl *ClientUniversal) Stop() {
 	}
 
 	// Close
-	cl.Logger.Log(1, "Requested disconnect from: "+cl.address.String())
+	cl.Logger.Log(helpertools.LogInfo, "Requested disconnect from: "+cl.address.String())
 	err := cl.conn.Close()
 	if err != nil && !errors.Is(err, net.ErrClosed) {
-		cl.Logger.Log(3, "Error disconnecting from: "+cl.address.String()+" | Error: "+err.Error())
+		cl.Logger.Log(helpertools.LogError, "Error disconnecting from: "+cl.address.String()+" | Error: "+err.Error())
 	}
 }

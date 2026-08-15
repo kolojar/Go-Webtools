@@ -73,7 +73,7 @@ WebSocketClient is WebSocket client struct
 */
 type WebSocketClient struct {
 	tcpClient      *tcp.ClientUniversal
-	Logger         *helpertools.ConsoleLogger
+	Logger         helpertools.ConsoleLogger
 	readFunc       WebSocketClientReadFunc
 	awaitingReady  bool
 	awaitingStatus bool
@@ -95,7 +95,7 @@ NewWebSocketClient creates new HTTP WebSocket Client but does not connects it, i
 */
 func NewWebSocketClient(address string, readFunc WebSocketClientReadFunc, reportTraffic bool) (*WebSocketClient, error) {
 	//Create client
-	cl := &WebSocketClient{Logger: helpertools.NewConsoleLoggerForTraffic("HTTP-WSClient", reportTraffic), readFunc: readFunc, address: address}
+	cl := &WebSocketClient{Logger: helpertools.MakeConsoleLoggerForTraffic("HTTP-WSClient", reportTraffic), readFunc: readFunc, address: address}
 	var err error
 	var tcpAddress string
 	tcpAddress, cl.pathForHTTP = WebSocketGetAddressAndTarget(address)
@@ -135,7 +135,7 @@ func (cl *WebSocketClient) Connect() {
 	cl.tcpClient.Connect()
 
 	//Reset ready state
-	cl.tcpClient.Logger.Log(1, "Upgrading connection with: "+cl.tcpClient.GetAddress().String())
+	cl.tcpClient.Logger.Log(helpertools.LogInfo, "Upgrading connection with: "+cl.tcpClient.GetAddress().String())
 	cl.awaitingReady = true
 	cl.hijacked = false
 
@@ -160,9 +160,9 @@ func (cl *WebSocketClient) Connect() {
 	if cl.awaitingStatus {
 		//Successfully connected
 		cl.hijacked = true
-		cl.tcpClient.Logger.Log(1, "Upgraded connection with: "+cl.tcpClient.GetAddress().String())
+		cl.tcpClient.Logger.Log(helpertools.LogInfo, "Upgraded connection with: "+cl.tcpClient.GetAddress().String())
 	} else {
-		cl.tcpClient.Logger.Log(3, "Failed to upgrade connection with: "+cl.tcpClient.GetAddress().String())
+		cl.tcpClient.Logger.Log(helpertools.LogError, "Failed to upgrade connection with: "+cl.tcpClient.GetAddress().String())
 		cl.tcpClient.Stop()
 	}
 }
@@ -198,7 +198,7 @@ func (cl *WebSocketClient) readFuncLocalRaw(_ *tcp.ClientUniversal, data []byte,
 	if status != webtools.ReadDataStatus {
 		return
 	}
-	cl.Logger.Log(3, "Invalid read func called for other requests! Ignoring but inform author of this error.")
+	cl.Logger.Log(helpertools.LogError, "Invalid read func called for other requests! Ignoring but inform author of this error.")
 	if cl.readFunc != nil {
 		cl.readFunc(cl, nil, status, false)
 	}
@@ -212,7 +212,7 @@ func (cl *WebSocketClient) readFuncLocalWS(_ *tcp.ClientUniversal, data []byte, 
 	isBinaryRaw := otherData["isBinary"]
 	if isBinaryRaw == nil || isBinaryRaw == "" {
 		//Invalid opcode
-		cl.Logger.Log(3, "No property 'opcode' found in otherData")
+		cl.Logger.Log(helpertools.LogError, "No property 'opcode' found in otherData")
 		return
 	}
 	isBinary := isBinaryRaw.(bool)

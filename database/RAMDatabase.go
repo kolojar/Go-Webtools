@@ -16,7 +16,7 @@ type RAMDatabase[T any] struct {
 	//oneValueLength uint64
 	data                 helpertools.SafeMap[string, T]
 	path                 string
-	Logger               *helpertools.ConsoleLogger
+	Logger               helpertools.ConsoleLogger
 	convertToBytesDBFunc func(writer io.Writer, data T) error
 	parseDBFunc          func(reader io.Reader) (T, error)
 }
@@ -52,7 +52,7 @@ func NewRAMDatabase[T any](path string, convertToBytesDBFunc func(writer io.Writ
 	//inst.oneValueLength = uint64(emptyObjectBytes.Len())
 	inst.data = helpertools.MakeSafeMap[string, T]()
 	inst.path = path
-	inst.Logger = helpertools.NewConsoleLoggerForTraffic("RAMDB", false)
+	inst.Logger = helpertools.MakeConsoleLoggerForTraffic("RAMDB", false)
 	return &inst, nil
 }
 
@@ -95,14 +95,14 @@ func (db *RAMDatabase[T]) Len() int {
 Save saves data of database to disk
 */
 func (db *RAMDatabase[T]) Save() error {
-	db.Logger.Log(2, "Saving database, please wait...")
+	db.Logger.Log(helpertools.LogWarning, "Saving database, please wait...")
 	//Delete file if exists
 	os.Remove(db.path)
 
 	//Create DB file
 	file, err := os.Create(db.path)
 	if err != nil {
-		db.Logger.Log(3, "Error saving database: "+err.Error())
+		db.Logger.Log(helpertools.LogError, "Error saving database: "+err.Error())
 		return err
 	}
 	defer file.Close()
@@ -116,7 +116,7 @@ func (db *RAMDatabase[T]) Save() error {
 		db.convertToBytesDBFunc(file, v.Value)
 		file.Sync()
 	}
-	db.Logger.Log(2, "Database saved.")
+	db.Logger.Log(helpertools.LogWarning, "Database saved.")
 	return nil
 }
 
@@ -125,10 +125,10 @@ Load loads data of database from disk
 */
 func (db *RAMDatabase[T]) Load() error {
 	//Open DB file
-	db.Logger.Log(2, "Loading database, please wait...")
+	db.Logger.Log(helpertools.LogWarning, "Loading database, please wait...")
 	file, err := os.Open(db.path)
 	if err != nil {
-		db.Logger.Log(3, "Error loading database: "+err.Error())
+		db.Logger.Log(helpertools.LogError, "Error loading database: "+err.Error())
 		return err
 	}
 	defer file.Close()
@@ -136,7 +136,7 @@ func (db *RAMDatabase[T]) Load() error {
 	//Read length of one value
 	//err = binary.Read(file, binary.BigEndian, db.oneValueLength)
 	//if err != nil {
-	//	db.Logger.Log(3, "Error loading database: "+err.Error())
+	//	db.Logger.Log(helpertools.LogError, "Error loading database: "+err.Error())
 	//	return err
 	//}
 
@@ -149,7 +149,7 @@ func (db *RAMDatabase[T]) Load() error {
 			if err == io.EOF {
 				break
 			}
-			db.Logger.Log(3, "Error loading database key: "+err.Error())
+			db.Logger.Log(helpertools.LogError, "Error loading database key: "+err.Error())
 			return err
 		}
 
@@ -159,7 +159,7 @@ func (db *RAMDatabase[T]) Load() error {
 			if err == io.EOF {
 				break
 			}
-			db.Logger.Log(3, "Error loading database value: "+err.Error())
+			db.Logger.Log(helpertools.LogError, "Error loading database value: "+err.Error())
 			return err
 		}
 
@@ -167,6 +167,6 @@ func (db *RAMDatabase[T]) Load() error {
 		db.data.Set(key, value)
 	}
 
-	db.Logger.Log(2, "Database loaded.")
+	db.Logger.Log(helpertools.LogWarning, "Database loaded.")
 	return nil
 }

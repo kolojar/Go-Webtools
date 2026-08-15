@@ -40,7 +40,7 @@ func (client *WebSocketClient) Connect() net.Conn {
 	//Connect to server
 	conn, err := net.Dial("tcp", client.address)
 	if err != nil {
-		client.Logger.Log(3, "Error connecting to: "+client.address+" | Error: "+err.Error())
+		client.Logger.Log(helpertools.LogError, "Error connecting to: "+client.address+" | Error: "+err.Error())
 		return nil
 	}
 
@@ -61,7 +61,7 @@ func (client *WebSocketClient) Connect() net.Conn {
 	_, err2 := conn.Write([]byte(request))
 	if err2 != nil {
 		conn.Close()
-		client.Logger.Log(3, "Error writing to connection! | Error: "+err2.Error())
+		client.Logger.Log(helpertools.LogError, "Error writing to connection! | Error: "+err2.Error())
 		return nil
 	}
 
@@ -70,7 +70,7 @@ func (client *WebSocketClient) Connect() net.Conn {
 	_, err3 := conn.Read(buffer)
 	if err3 != nil {
 		conn.Close()
-		client.Logger.Log(3, "Error reading response! | Error: "+err3.Error())
+		client.Logger.Log(helpertools.LogError, "Error reading response! | Error: "+err3.Error())
 		return nil
 	}
 	response := string(buffer)
@@ -78,7 +78,7 @@ func (client *WebSocketClient) Connect() net.Conn {
 	//Check if switching protocols
 	if !strings.Contains(response, "HTTP/1.1 101 Switching Protocols") {
 		conn.Close()
-		client.Logger.Log(3, "Error handshaking response!")
+		client.Logger.Log(helpertools.LogError, "Error handshaking response!")
 		return nil
 	}
 
@@ -88,12 +88,12 @@ func (client *WebSocketClient) Connect() net.Conn {
 		conn.Close()
 		println(response)
 		println(computeWebSocketKey(key))
-		client.Logger.Log(3, "Invalid handshake key!")
+		client.Logger.Log(helpertools.LogError, "Invalid handshake key!")
 		return nil
 	}
 
 	//Handle connection
-	client.Logger.Log(2, "Connected to "+client.address+"!")
+	client.Logger.Log(helpertools.LogWarning, "Connected to "+client.address+"!")
 	client.connection = conn
 	go HandleWebSocketRead(conn, &client.Logger, client.readFunc)
 	return conn
@@ -104,10 +104,10 @@ Writes to WebSocket server
 */
 func (client *WebSocketClient) WriteToServer(message string) {
 	frame := PackWebSocketFrame(message, 1)
-	client.Logger.Log(1, "Sending data to server | Data: "+message)
+	client.Logger.Log(helpertools.LogInfo, "Sending data to server | Data: "+message)
 	_, err := client.connection.Write(frame)
 	if err != nil {
-		client.Logger.Log(3, "Error sending data to server | Error: "+err.Error())
+		client.Logger.Log(helpertools.LogError, "Error sending data to server | Error: "+err.Error())
 	}
 }
 
@@ -123,10 +123,10 @@ func (client *WebSocketClient) Close() error {
 //	client.gotPing = false
 //	client.pingMessage = ""
 //	frame := PackWebSocketFrame("PING", 9)
-//	client.Logger.Log(1, "Sending ping to server.")
+//	client.Logger.Log(helpertools.LogInfo, "Sending ping to server.")
 //	_, err := client.connection.Write(frame)
 //	if err != nil {
-//		client.Logger.Log(3, "Error sending ping to server | Error: "+err.Error())
+//		client.Logger.Log(helpertools.LogError, "Error sending ping to server | Error: "+err.Error())
 //	}
 //
 //	for i := 0; i < 10; i++ {

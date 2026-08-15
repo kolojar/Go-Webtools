@@ -175,7 +175,7 @@ Handles and sorts HTTP requests
 func (sv *HTTPServer) httpHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		//Sort GET
-		sv.Logger.Log(1, "GET: "+r.URL.Path)
+		sv.Logger.Log(helpertools.LogInfo, "GET: "+r.URL.Path)
 
 		//Sort SSE
 		/*if r.URL.Path == "/sse" {
@@ -186,7 +186,7 @@ func (sv *HTTPServer) httpHandler(w http.ResponseWriter, r *http.Request) {
 		//Return if no valid function found
 		if sv.getViewsFunc == nil {
 			http.NotFound(w, r)
-			sv.Logger.Log(2, "GET - Not found: "+r.URL.Path)
+			sv.Logger.Log(helpertools.LogWarning, "GET - Not found: "+r.URL.Path)
 			return
 		}
 
@@ -196,7 +196,7 @@ func (sv *HTTPServer) httpHandler(w http.ResponseWriter, r *http.Request) {
 			css, err := sv.ReadSiteFileRelative(r.URL.Path)
 			if err != nil {
 				http.NotFound(w, r)
-				sv.Logger.Log(2, "GET - Not found: "+r.URL.Path)
+				sv.Logger.Log(helpertools.LogWarning, "GET - Not found: "+r.URL.Path)
 				return
 			}
 			w.Header().Set("Content-Type", "text/css")
@@ -210,7 +210,7 @@ func (sv *HTTPServer) httpHandler(w http.ResponseWriter, r *http.Request) {
 			js, err := sv.ReadSiteFileRelative(r.URL.Path)
 			if err != nil {
 				http.NotFound(w, r)
-				sv.Logger.Log(2, "GET - Not found: "+r.URL.Path)
+				sv.Logger.Log(helpertools.LogWarning, "GET - Not found: "+r.URL.Path)
 				return
 			}
 			w.Header().Set("Content-Type", "text/javascript")
@@ -224,7 +224,7 @@ func (sv *HTTPServer) httpHandler(w http.ResponseWriter, r *http.Request) {
 			js, err := sv.ReadSiteFileRelative(r.URL.Path)
 			if err != nil {
 				http.NotFound(w, r)
-				sv.Logger.Log(2, "GET - Not found: "+r.URL.Path)
+				sv.Logger.Log(helpertools.LogWarning, "GET - Not found: "+r.URL.Path)
 				return
 			}
 			w.Header().Set("Content-Type", "text/json")
@@ -238,7 +238,7 @@ func (sv *HTTPServer) httpHandler(w http.ResponseWriter, r *http.Request) {
 			js, err := sv.ReadSiteFileRelative(r.URL.Path)
 			if err != nil {
 				http.NotFound(w, r)
-				sv.Logger.Log(2, "GET - Not found: "+r.URL.Path)
+				sv.Logger.Log(helpertools.LogWarning, "GET - Not found: "+r.URL.Path)
 				return
 			}
 			w.Header().Set("Content-Type", "text/x.typescript")
@@ -252,7 +252,7 @@ func (sv *HTTPServer) httpHandler(w http.ResponseWriter, r *http.Request) {
 			js, err := sv.ReadSiteFileRelative(r.URL.Path)
 			if err != nil {
 				http.NotFound(w, r)
-				sv.Logger.Log(2, "GET - Not found: "+r.URL.Path)
+				sv.Logger.Log(helpertools.LogWarning, "GET - Not found: "+r.URL.Path)
 				return
 			}
 			w.Header().Set("Content-Type", "image/svg+xml")
@@ -264,7 +264,7 @@ func (sv *HTTPServer) httpHandler(w http.ResponseWriter, r *http.Request) {
 		// Return if no valid function found
 		if sv.postViewsFunc == nil {
 			http.NotFound(w, r)
-			sv.Logger.Log(2, "POST - Not found: "+r.URL.Path)
+			sv.Logger.Log(helpertools.LogWarning, "POST - Not found: "+r.URL.Path)
 			return
 		}
 
@@ -272,13 +272,13 @@ func (sv *HTTPServer) httpHandler(w http.ResponseWriter, r *http.Request) {
 		dataPost, err := io.ReadAll(r.Body)
 		if err != nil {
 			//Return error
-			sv.Logger.Log(2, "POST - Not found: "+r.URL.Path)
+			sv.Logger.Log(helpertools.LogWarning, "POST - Not found: "+r.URL.Path)
 			http.NotFound(w, r)
 			return
 		}
 
 		//Unpack post data
-		sv.Logger.Log(1, "POST: "+r.URL.Path+"; DATA: "+string(dataPost))
+		sv.Logger.Log(helpertools.LogInfo, "POST: "+r.URL.Path+"; DATA: "+string(dataPost))
 		sv.postViewsFunc(w, r, CreateParametersFromURL(string(dataPost)))
 	}
 }
@@ -287,7 +287,7 @@ func (sv *HTTPServer) httpHandler(w http.ResponseWriter, r *http.Request) {
 Starts WebBrowser on any system with specified address
 */
 func StartWebBrowser(address string, logger *ConsoleLogger) {
-	logger.Log(2, "Starting web browser at address: "+address)
+	logger.Log(helpertools.LogWarning, "Starting web browser at address: "+address)
 	time.Sleep(1000 * time.Microsecond)
 
 	var cmd string
@@ -301,7 +301,7 @@ func StartWebBrowser(address string, logger *ConsoleLogger) {
 	}
 	args = append(args, address)
 	exec.Command(cmd, args...).Start()
-	logger.Log(1, "Opened web browser!")
+	logger.Log(helpertools.LogInfo, "Opened web browser!")
 }
 
 /*
@@ -317,7 +317,7 @@ func (sv *HTTPServer) Start() {
 	}
 
 	//Starts WebBrowser if needed
-	sv.Logger.Log(2, "Started HTTP server at "+sv.address)
+	sv.Logger.Log(helpertools.LogWarning, "Started HTTP server at "+sv.address)
 	if sv.startWebBrowser {
 		go StartWebBrowser("http://"+sv.address, &sv.Logger)
 	}
@@ -326,10 +326,10 @@ func (sv *HTTPServer) Start() {
 	sv.isAlive = true
 	err := sv.httpServer.ListenAndServe()
 	if err != nil && err != http.ErrServerClosed {
-		sv.Logger.Log(3, "Exited with this error: "+err.Error())
+		sv.Logger.Log(helpertools.LogError, "Exited with this error: "+err.Error())
 	}
 	sv.isAlive = false
-	sv.Logger.Log(2, "Stopped!")
+	sv.Logger.Log(helpertools.LogWarning, "Stopped!")
 }
 
 func (sv *HTTPServer) Stop() {
@@ -338,10 +338,10 @@ func (sv *HTTPServer) Stop() {
 	}
 	err := sv.httpServer.Close()
 	if err != nil {
-		sv.Logger.Log(3, "Error stopping HTTP server: "+err.Error())
+		sv.Logger.Log(helpertools.LogError, "Error stopping HTTP server: "+err.Error())
 		return
 	}
-	//sv.Logger.Log(2, "Stopped!")
+	//sv.Logger.Log(helpertools.LogWarning, "Stopped!")
 }
 
 /*

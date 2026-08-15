@@ -20,7 +20,7 @@ Read data Handler for TCP
 */
 func (bridge *TCPBridge) readFuncTCP1(conn net.Conn, data string, ended bool) {
 	if bridge.connetionTCP1To2[conn] == nil {
-		bridge.Logger.Log(3, "Error writing to TCP Client - Connection does not exist!")
+		bridge.Logger.Log(helpertools.LogError, "Error writing to TCP Client - Connection does not exist!")
 		return
 	}
 	if !ended {
@@ -65,6 +65,6 @@ func MakeTCPBridge(tcpSourceServerAdress string, tcpClientAddress string) TCPBri
 Starts HTTPProxy server
 */
 func (bridge *TCPBridge) Start() {
-	bridge.Logger.Log(2, "Started bridging server from "+bridge.tcpSourceServerAdress+" to "+bridge.tcpServer.GetAddress())
+	bridge.Logger.Log(helpertools.LogWarning, "Started bridging server from "+bridge.tcpSourceServerAdress+" to "+bridge.tcpServer.GetAddress())
 	bridge.tcpServer.Start()
 }

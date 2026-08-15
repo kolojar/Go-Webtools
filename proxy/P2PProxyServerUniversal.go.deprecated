@@ -117,7 +117,7 @@ func NewP2PProxyServerUniversal(p2pCoordinatorAddress string, p2pPortForIncommin
 	return sv, nil
 }
 
-func (sv *P2PProxyServerUniversal) handleP2PReadFunc(_ *p2p.Client, sourceID []byte, frame []byte, ended bool, logger *helpertools.ConsoleLogger) {
+func (sv *P2PProxyServerUniversal) handleP2PReadFunc(_ *p2p.Client, sourceID []byte, frame []byte, ended bool, logger helpertools.ConsoleLogger) {
 	if ended {
 		//Close all connections with this P2P Conn - ISNT THIS AGAINST P2P LOGIC - WHEN MAIN SERVER DIES, IT KILLS ALL OTHERS
 		for _, d := range sv.idToClient.GetData() {
@@ -145,7 +145,7 @@ func (sv *P2PProxyServerUniversal) handleP2PReadFunc(_ *p2p.Client, sourceID []b
 				split := strings.Split(string(frame.Data), string(FrameSeparatorChar))
 				entry, ok := sv.ProxiedServices[split[0]]
 				if !ok {
-					sv.p2pClient.ClientCoordinator.Logger.Log(3, "Could not create find proxy service entry: "+string(frame.Data))
+					sv.p2pClient.ClientCoordinator.Logger.Log(helpertools.LogError, "Could not create find proxy service entry: "+string(frame.Data))
 					return
 				}
 
@@ -156,7 +156,7 @@ func (sv *P2PProxyServerUniversal) handleP2PReadFunc(_ *p2p.Client, sourceID []b
 					cl, err := udp.NewClient(entry.Value, sv.handleUDPReadFunc, sv.reportTrafic)
 					cl.Logger.Prefix = "P2PProxyServerUniversal - " + cl.Logger.Prefix
 					if err != nil {
-						cl.Logger.Log(3, "Could not create connection with ID: "+string(frame.ID)+" to server.")
+						cl.Logger.Log(helpertools.LogError, "Could not create connection with ID: "+string(frame.ID)+" to server.")
 						return
 					}
 					cl.Connect()
@@ -167,7 +167,7 @@ func (sv *P2PProxyServerUniversal) handleP2PReadFunc(_ *p2p.Client, sourceID []b
 					cl, err := tcp.NewClientSimple(entry.Value, -1, false, sv.handleTCPReadFunc, sv.reportTrafic)
 					cl.GetLogger().Prefix = "P2PProxyServerUniversal - " + cl.GetLogger().Prefix
 					if err != nil {
-						cl.GetLogger().Log(3, "Could not create connection with ID: "+string(frame.ID)+" to server.")
+						cl.GetLogger().Log(helpertools.LogError, "Could not create connection with ID: "+string(frame.ID)+" to server.")
 						return
 					}
 					cl.Connect()
@@ -182,18 +182,18 @@ func (sv *P2PProxyServerUniversal) handleP2PReadFunc(_ *p2p.Client, sourceID []b
 				//List connections
 				addrs, err := json.Marshal(sv.ProxiedServices)
 				if err != nil {
-					sv.p2pClient.ClientCoordinator.Logger.Log(3, "Could not create connection list: "+err.Error())
+					sv.p2pClient.ClientCoordinator.Logger.Log(helpertools.LogError, "Could not create connection list: "+err.Error())
 					return
 				}
 				sv.p2pClient.Send(sourceID, PackWebtoolsFrame(tcp.MergerFrameTypeListConnections, []byte{0}, addrs))
 				return
 			}
-			logger.Log(3, "Could not find connection to ID: "+string(frame.ID))
+			logger.Log(helpertools.LogError, "Could not find connection to ID: "+string(frame.ID))
 			return
 		}
 		cl := sv.idToClient.Get(string(frame.ID))
 		if !cl.IsAlive() {
-			logger.Log(3, "Connection with ID: "+string(frame.ID)+" connected to: "+string(sourceID)+" closed")
+			logger.Log(helpertools.LogError, "Connection with ID: "+string(frame.ID)+" connected to: "+string(sourceID)+" closed")
 			return
 		}
 
@@ -219,7 +219,7 @@ func (sv *P2PProxyServerUniversal) handleUDPReadFunc(udp *udp.Client, _ *net.UDP
 	//Get P2P client
 	if sv.clientUDPToID.Get(udp) == "" || sv.idToClient.Get(sv.clientUDPToID.Get(udp)) == nil {
 		//Connection does not exists
-		udp.Logger.Log(3, "Connection connected to: "+udp.Conn.RemoteAddr().String()+" not found")
+		udp.Logger.Log(helpertools.LogError, "Connection connected to: "+udp.Conn.RemoteAddr().String()+" not found")
 		return
 	}
 	ID := sv.clientUDPToID.Get(udp)
@@ -239,7 +239,7 @@ func (sv *P2PProxyServerUniversal) handleTCPReadFunc(tcp *tcp.ClientSimple, data
 	//Get P2P client
 	if sv.clientTCPToID.Get(tcp) == "" || sv.idToClient.Get(sv.clientTCPToID.Get(tcp)) == nil {
 		//Connection does not exists
-		tcp.GetLogger().Log(3, "Connection connected to: "+tcp.GetConn().RemoteAddr().String()+" not found")
+		tcp.GetLogger().Log(helpertools.LogError, "Connection connected to: "+tcp.GetConn().RemoteAddr().String()+" not found")
 		return
 	}
 	ID := sv.clientTCPToID.Get(tcp)

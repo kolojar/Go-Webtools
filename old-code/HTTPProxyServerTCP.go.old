@@ -34,7 +34,7 @@ Read data Handler for TCP
 */
 func (proxySv *HTTPProxyServerTCP) readFuncTCP(conn net.Conn, data string, ended bool) {
 	if proxySv.connetionTCPToWebSocketTranslator[conn] == nil {
-		proxySv.Logger.Log(3, "Error writing to WebSocket - Connection does not exist!")
+		proxySv.Logger.Log(helpertools.LogError, "Error writing to WebSocket - Connection does not exist!")
 		return
 	}
 	if !ended {
@@ -84,7 +84,7 @@ func MakeHTTPProxyServerTCP(tcpServerAdress string, proxyHostAddress string, dat
 Starts HTTPProxy server
 */
 func (proxySv *HTTPProxyServerTCP) Start() {
-	proxySv.Logger.Log(2, "Started proxying server from "+proxySv.tcpServerAdress+" to "+proxySv.webSocketServer.HttpServer.address)
+	proxySv.Logger.Log(helpertools.LogWarning, "Started proxying server from "+proxySv.tcpServerAdress+" to "+proxySv.webSocketServer.HttpServer.address)
 	proxySv.webSocketServer.Start()
 }
 

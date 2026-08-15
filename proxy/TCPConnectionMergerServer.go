@@ -96,7 +96,7 @@ func (sv *ConnectionMergerServer) handleMergedTCPReadFunc(conn *tcp.ServerConn, 
 	}
 
 	//Unpack frame
-	for _, frame := range UnpackWebtoolsFrame(frame, conn.GetOrigin().Logger) {
+	for _, frame := range UnpackWebtoolsFrame(frame, &conn.GetOrigin().Logger) {
 		if frame.Operation == 0 {
 			return
 		}
@@ -108,7 +108,7 @@ func (sv *ConnectionMergerServer) handleMergedTCPReadFunc(conn *tcp.ServerConn, 
 				//Get connection list id
 				i, err2 := strconv.Atoi(string(frame.ID))
 				if err2 != nil {
-					conn.GetOrigin().Logger.Log(3, "Could not find server list connection with id: "+string(frame.ID)+". Error: "+err2.Error())
+					conn.GetOrigin().Logger.Log(helpertools.LogError, "Could not find server list connection with id: "+string(frame.ID)+". Error: "+err2.Error())
 					return
 				}
 
@@ -117,7 +117,7 @@ func (sv *ConnectionMergerServer) handleMergedTCPReadFunc(conn *tcp.ServerConn, 
 				frame.ID = []byte(helpertools.GenerateRandomID())
 				cl.GetLogger().Prefix = "TCPConnMergerServer - " + cl.GetLogger().Prefix
 				if err != nil {
-					conn.GetOrigin().Logger.Log(3, "Could not create connection with id: "+string(frame.ID)+" to server. Error: "+err.Error())
+					conn.GetOrigin().Logger.Log(helpertools.LogError, "Could not create connection with id: "+string(frame.ID)+" to server. Error: "+err.Error())
 					return
 				}
 				cl.Connect()
@@ -129,20 +129,20 @@ func (sv *ConnectionMergerServer) handleMergedTCPReadFunc(conn *tcp.ServerConn, 
 				//List available connections on server
 				addrs, err := json.Marshal(sv.tcpServerAddresses)
 				if err != nil {
-					conn.GetOrigin().Logger.Log(3, "Could not create connection list: "+err.Error())
+					conn.GetOrigin().Logger.Log(helpertools.LogError, "Could not create connection list: "+err.Error())
 					return
 				}
 				conn.Send(PackWebtoolsFrame(MergerFrameTypeListConnections, []byte{0}, addrs))
 				return
 			default:
-				conn.GetOrigin().Logger.Log(3, "Could not find connection to id: "+string(frame.ID))
+				conn.GetOrigin().Logger.Log(helpertools.LogError, "Could not find connection to id: "+string(frame.ID))
 				return
 			}
 		}
 
 		cl := sv.idToClient.Get(string(frame.ID))
 		if !cl.tcpClient.IsAlive() {
-			conn.GetOrigin().Logger.Log(3, "Connection with id: "+string(frame.ID)+" connected to: "+conn.GetConn().RemoteAddr().String()+" connected locally to: "+conn.GetConn().LocalAddr().String()+" closed")
+			conn.GetOrigin().Logger.Log(helpertools.LogError, "Connection with id: "+string(frame.ID)+" connected to: "+conn.GetConn().RemoteAddr().String()+" connected locally to: "+conn.GetConn().LocalAddr().String()+" closed")
 			return
 		}
 
@@ -169,7 +169,7 @@ func (sv *ConnectionMergerServer) handleLocalTCPReadFunc(tcp *tcp.ClientSimple, 
 	//Get TCP remote client
 	if sv.clientToID.Get(tcp) == "" || sv.idToClient.Get(sv.clientToID.Get(tcp)) == nil {
 		//Connection does not exists
-		tcp.GetLogger().Log(3, "Connection connected to: "+tcp.GetConn().RemoteAddr().String()+" not found")
+		tcp.GetLogger().Log(helpertools.LogError, "Connection connected to: "+tcp.GetConn().RemoteAddr().String()+" not found")
 		return
 	}
 	id := sv.clientToID.Get(tcp)

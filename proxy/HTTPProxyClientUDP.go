@@ -57,7 +57,7 @@ func (cl *HTTPProxyClientUDP) handleWebTransportReadFunc(_ *httptools.WebSocketC
 	}
 
 	// Unpack
-	for _, frame := range UnpackWebtoolsFrame(frame, cl.httpClient.Logger) {
+	for _, frame := range UnpackWebtoolsFrame(frame, &cl.httpClient.Logger) {
 		if frame.Operation == 0 {
 			return
 		}
@@ -68,13 +68,13 @@ func (cl *HTTPProxyClientUDP) handleWebTransportReadFunc(_ *httptools.WebSocketC
 				// Confirmed connection
 				conn := cl.pendingConnections.Get(string(frame.Data))
 				if conn == nil {
-					cl.httpClient.Logger.Log(3, "Pending connection with temporary id: "+string(frame.Data)+" not found")
+					cl.httpClient.Logger.Log(helpertools.LogError, "Pending connection with temporary id: "+string(frame.Data)+" not found")
 					return
 				}
 				cl.pendingConnections.Delete(string(frame.Data))
 				cl.clientToID.Set(conn, string(frame.ID))
 				cl.idToClient.Set(string(frame.ID), conn)
-				cl.httpClient.Logger.Log(1, "Prepared new connection with temporary id: "+string(frame.Data)+" for connection connected to: "+conn.GetAddress().String()+" with new id: "+string(frame.ID))
+				cl.httpClient.Logger.Log(helpertools.LogInfo, "Prepared new connection with temporary id: "+string(frame.Data)+" for connection connected to: "+conn.GetAddress().String()+" with new id: "+string(frame.ID))
 
 				// Process pending data
 				for len(cl.pendingConnsData.Get(conn)) > 0 {
@@ -110,7 +110,7 @@ func (cl *HTTPProxyClientUDP) handleUDPReadFunc(udpConn *udp.ServerConn, data []
 		// No connection found, request new
 		tempID := helpertools.GenerateRandomID()
 		cl.pendingConnections.Set(tempID, udpConn)
-		cl.httpClient.Logger.Log(1, "Preparing new connection with temporary id: "+tempID+" for connection connected to: "+udpConn.GetAddress().String())
+		cl.httpClient.Logger.Log(helpertools.LogInfo, "Preparing new connection with temporary id: "+tempID+" for connection connected to: "+udpConn.GetAddress().String())
 		cl.httpClient.Send(PackWebtoolsFrame(FrameTypeConnect, []byte("0"), []byte(tempID)), 2)
 		cl.pendingConnsData.Set(udpConn, append(make([][]byte, 0), data))
 		return

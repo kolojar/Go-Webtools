@@ -88,7 +88,7 @@ func NewUDPFramerSimpleFromConfig(config *FramerConfig, failSendFunc FramerReadF
 Resolve resolves UDP frames
 Returns ACK frame
 */
-func (framer *Framer) Resolve(address *net.UDPAddr, data []byte, logger *helpertools.ConsoleLogger) []byte {
+func (framer *Framer) Resolve(address *net.UDPAddr, data []byte, logger helpertools.ConsoleLogger) []byte {
 	//Invalid frame
 	if len(data) == 0 {
 		return nil
@@ -96,12 +96,12 @@ func (framer *Framer) Resolve(address *net.UDPAddr, data []byte, logger *helpert
 
 	//Check size
 	if len(data) < 2 {
-		logger.Log(3, "Frame too short. | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data))
+		logger.Log(helpertools.LogError, "Frame too short. | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data))
 		return nil
 	}
 	typeOfFrame := data[0]
 	if data[1] != webtools.FrameSeparatorChar {
-		logger.Log(3, "Invalid frame at index 1. | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data))
+		logger.Log(helpertools.LogError, "Invalid frame at index 1. | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data))
 		return nil
 	}
 
@@ -124,19 +124,19 @@ func (framer *Framer) Resolve(address *net.UDPAddr, data []byte, logger *helpert
 			//Data
 			//Get sequence number
 			if len(data) == idEndIndex {
-				logger.Log(3, "Frame too short. | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data))
+				logger.Log(helpertools.LogError, "Frame too short. | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data))
 				return nil
 			}
 			var timeStamp uint64
 			if framer.config.IsOrganised {
 				timeStamp = binary.BigEndian.Uint64(data[idEndIndex+1 : idEndIndex+9])
 				if data[idEndIndex+9] != webtools.FrameSeparatorChar {
-					logger.Log(3, "Invalid frame at index "+strconv.Itoa(idEndIndex+9)+". | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data))
+					logger.Log(helpertools.LogError, "Invalid frame at index "+strconv.Itoa(idEndIndex+9)+". | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data))
 					return nil
 				}
-				logger.Log(0, "Latency: "+strconv.FormatInt(time.Since(time.Unix(0, int64(timeStamp))).Milliseconds(), 10)+" ms")
+				logger.Log(helpertools.LogTraffic, "Latency: "+strconv.FormatInt(time.Since(time.Unix(0, int64(timeStamp))).Milliseconds(), 10)+" ms")
 			}
-			logger.Log(0, "Got data frame.")
+			logger.Log(helpertools.LogTraffic, "Got data frame.")
 
 			//Send ACK
 			frame := make([]byte, 0)
@@ -164,7 +164,7 @@ func (framer *Framer) Resolve(address *net.UDPAddr, data []byte, logger *helpert
 	case '1':
 		{
 			//ACK
-			logger.Log(0, "Got ACK frame.")
+			logger.Log(helpertools.LogTraffic, "Got ACK frame.")
 			framer.gotResponce.Set(string(id), true)
 			framer.CleanupData(logger, false)
 			return nil
@@ -172,11 +172,11 @@ func (framer *Framer) Resolve(address *net.UDPAddr, data []byte, logger *helpert
 	case '2':
 		{
 			//Keep alive
-			logger.Log(0, "Got keep alive frame.")
+			logger.Log(helpertools.LogTraffic, "Got keep alive frame.")
 			return nil
 		}
 	default:
-		logger.Log(3, "Dropping frame with invalid frame.")
+		logger.Log(helpertools.LogError, "Dropping frame with invalid frame.")
 	}
 	return nil
 }
@@ -255,7 +255,7 @@ func (framer *Framer) ExportAllOrdered() {
 /*
 CleanupData removes old not used UDP read data
 */
-func (framer *Framer) CleanupData(logger *helpertools.ConsoleLogger, forceAll bool) {
+func (framer *Framer) CleanupData(logger helpertools.ConsoleLogger, forceAll bool) {
 	oldCount := framer.readData.Len()
 	if forceAll {
 		//Forced
@@ -273,13 +273,13 @@ func (framer *Framer) CleanupData(logger *helpertools.ConsoleLogger, forceAll bo
 	}
 	current := framer.readData.Len()
 	removed := oldCount - current
-	logger.Log(0, "Data cleanup done! Removed data: "+strconv.Itoa(removed)+" / "+strconv.Itoa(oldCount))
+	logger.Log(helpertools.LogTraffic, "Data cleanup done! Removed data: "+strconv.Itoa(removed)+" / "+strconv.Itoa(oldCount))
 }
 
 /*
 Processes all data incoming to this function and results are returned in readFunc
 */
-func processDataForUDP(address *net.UDPAddr, data []byte, ended bool, readFunc FramerReadFunc, logger *helpertools.ConsoleLogger, framer *Framer, isServer bool, listener *net.UDPConn) {
+func processDataForUDP(address *net.UDPAddr, data []byte, ended bool, readFunc FramerReadFunc, logger helpertools.ConsoleLogger, framer *Framer, isServer bool, listener *net.UDPConn) {
 	if framer == nil {
 		//No framing
 		if readFunc != nil {
@@ -307,7 +307,7 @@ func processDataForUDP(address *net.UDPAddr, data []byte, ended bool, readFunc F
 /*
 SendFrame sends data frame for UDP frame protocol, blocks execution thread
 */
-func (framer *Framer) SendFrame(isServer bool, listener *net.UDPConn, addr *net.UDPAddr, id string, sequenceNum uint, data []byte, logger *helpertools.ConsoleLogger) {
+func (framer *Framer) SendFrame(isServer bool, listener *net.UDPConn, addr *net.UDPAddr, id string, sequenceNum uint, data []byte, logger helpertools.ConsoleLogger) {
 	framer.AddListenerToKeepAlive(isServer, listener, addr, logger)
 	var resend = true
 	for resend {
@@ -332,7 +332,7 @@ func (framer *Framer) SendFrame(isServer bool, listener *net.UDPConn, addr *net.
 		frame = append(frame, data...)
 
 		//Log send
-		logger.Log(0, "Sending frame: "+id+" with sequence number: "+strconv.FormatUint(uint64(sequenceNum), 10))
+		logger.Log(helpertools.LogTraffic, "Sending frame: "+id+" with sequence number: "+strconv.FormatUint(uint64(sequenceNum), 10))
 
 		//Send
 		writeToUDP(isServer, listener, addr, frame, logger)
@@ -358,7 +358,7 @@ func (framer *Framer) SendFrame(isServer bool, listener *net.UDPConn, addr *net.
 	}
 }
 
-func processSendForUDP(isServer bool, listener *net.UDPConn, addr *net.UDPAddr, data []byte, logger *helpertools.ConsoleLogger, framer *Framer) {
+func processSendForUDP(isServer bool, listener *net.UDPConn, addr *net.UDPAddr, data []byte, logger helpertools.ConsoleLogger, framer *Framer) {
 	if framer == nil {
 		//No framing
 		writeToUDP(isServer, listener, addr, data, logger)
@@ -372,14 +372,14 @@ func processSendForUDP(isServer bool, listener *net.UDPConn, addr *net.UDPAddr, 
 /*
 AddListenerToKeepAlive adds listener to keep alive, listeners used in framer are added automatically on first use
 */
-func (framer *Framer) AddListenerToKeepAlive(isServer bool, listener *net.UDPConn, addr *net.UDPAddr, logger *helpertools.ConsoleLogger) {
+func (framer *Framer) AddListenerToKeepAlive(isServer bool, listener *net.UDPConn, addr *net.UDPAddr, logger helpertools.ConsoleLogger) {
 	if framer.keepAliveConns.Has(addr) {
 		return
 	}
 
 	//Add listener
 	framer.keepAliveConns.Set(addr, listener)
-	logger.Log(1, "KeepAlive for: "+addr.String()+" added.")
+	logger.Log(helpertools.LogInfo, "KeepAlive for: "+addr.String()+" added.")
 	go func() {
 		//Start time loop
 		lastUpdate := time.Unix(0, 0)
@@ -398,11 +398,11 @@ func (framer *Framer) AddListenerToKeepAlive(isServer bool, listener *net.UDPCon
 			frame = append(frame, webtools.FrameSeparatorChar)
 
 			//Send frame
-			logger.Log(0, "Sending keepAlive frame to: "+addr.String())
+			logger.Log(helpertools.LogTraffic, "Sending keepAlive frame to: "+addr.String())
 			writeToUDP(isServer, listener, addr, frame, logger)
 			lastUpdate = time.Now()
 		}
-		logger.Log(1, "KeepAlive for: "+addr.String()+" ended.")
+		logger.Log(helpertools.LogInfo, "KeepAlive for: "+addr.String()+" ended.")
 	}()
 }
 

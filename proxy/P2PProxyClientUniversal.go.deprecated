@@ -91,7 +91,7 @@ func NewP2PProxyClientUniversal(p2pCoordinatorAddress string, p2pPortForIncommin
 	return cl, nil
 }
 
-func (cl *P2PProxyClientUniversal) handleP2PReadFunc(_ *p2p.Client, sourceID []byte, frame []byte, ended bool, logger *helpertools.ConsoleLogger) {
+func (cl *P2PProxyClientUniversal) handleP2PReadFunc(_ *p2p.Client, sourceID []byte, frame []byte, ended bool, logger helpertools.ConsoleLogger) {
 	if ended {
 		//Close all connections
 		cl.p2pClient.Stop()
@@ -99,7 +99,7 @@ func (cl *P2PProxyClientUniversal) handleP2PReadFunc(_ *p2p.Client, sourceID []b
 	}
 	if !bytes.Equal(sourceID, cl.p2pServerID) {
 		//InvalID source ID
-		cl.p2pClient.ClientCoordinator.Logger.Log(3, "Invalid peer source ID: "+string(sourceID))
+		cl.p2pClient.ClientCoordinator.Logger.Log(helpertools.LogError, "Invalid peer source ID: "+string(sourceID))
 		return
 	}
 
@@ -115,7 +115,7 @@ func (cl *P2PProxyClientUniversal) handleP2PReadFunc(_ *p2p.Client, sourceID []b
 				//List remote TCP servers
 				err := json.Unmarshal(frame.Data, &cl.proxiedServicesFromServer)
 				if err != nil {
-					cl.p2pClient.ClientCoordinator.Logger.Log(3, "Error unmarshalling server list: "+err.Error())
+					cl.p2pClient.ClientCoordinator.Logger.Log(helpertools.LogError, "Error unmarshalling server list: "+err.Error())
 					return
 				}
 
@@ -123,7 +123,7 @@ func (cl *P2PProxyClientUniversal) handleP2PReadFunc(_ *p2p.Client, sourceID []b
 				for entryName, entryServerValue := range cl.proxiedServicesFromServer {
 					localAddr, ok := cl.proxiedServicesToLocalAddresses[entryName]
 					if !ok || localAddr == "" {
-						cl.p2pClient.ClientCoordinator.Logger.Log(3, "No local port found for remote IP address: "+entryName+". Stopping client...")
+						cl.p2pClient.ClientCoordinator.Logger.Log(helpertools.LogError, "No local port found for remote IP address: "+entryName+". Stopping client...")
 						cl.Stop()
 						return
 					}
@@ -132,7 +132,7 @@ func (cl *P2PProxyClientUniversal) handleP2PReadFunc(_ *p2p.Client, sourceID []b
 						//UDP Server
 						sv, err := udp.NewServer(localAddr, cl.handleUDPReadFunc, cl.reportTraffic)
 						if err != nil {
-							cl.p2pClient.ClientCoordinator.Logger.Log(3, "Error creating TCP server for remote IP address: "+entryName+" with local address: "+localAddr+". Stopping client...")
+							cl.p2pClient.ClientCoordinator.Logger.Log(helpertools.LogError, "Error creating TCP server for remote IP address: "+entryName+" with local address: "+localAddr+". Stopping client...")
 							cl.Stop()
 							return
 						}
@@ -143,7 +143,7 @@ func (cl *P2PProxyClientUniversal) handleP2PReadFunc(_ *p2p.Client, sourceID []b
 						//TCP Server
 						sv, err := tcp.NewServer(localAddr, cl.handleTCPReadFunc, cl.reportTraffic, false)
 						if err != nil {
-							cl.p2pClient.ClientCoordinator.Logger.Log(3, "Error creating TCP server for remote IP address: "+entryName+" with local address: "+localAddr+". Stopping client...")
+							cl.p2pClient.ClientCoordinator.Logger.Log(helpertools.LogError, "Error creating TCP server for remote IP address: "+entryName+" with local address: "+localAddr+". Stopping client...")
 							cl.Stop()
 							return
 						}
@@ -159,7 +159,7 @@ func (cl *P2PProxyClientUniversal) handleP2PReadFunc(_ *p2p.Client, sourceID []b
 				//Confirmed connection
 				conn := cl.pendingConnections.Get(string(frame.Data))
 				if conn == nil {
-					cl.p2pClient.ClientCoordinator.Logger.Log(3, "Pending connection with temporary ID: "+string(frame.Data)+" not found")
+					cl.p2pClient.ClientCoordinator.Logger.Log(helpertools.LogError, "Pending connection with temporary ID: "+string(frame.Data)+" not found")
 					return
 				}
 				cl.pendingConnections.Delete(string(frame.Data))
@@ -173,7 +173,7 @@ func (cl *P2PProxyClientUniversal) handleP2PReadFunc(_ *p2p.Client, sourceID []b
 
 				//Process pending data
 				if conn.udpServerConn != nil {
-					cl.p2pClient.ClientCoordinator.Logger.Log(1, "Prepared new connection with temporary ID: "+string(frame.Data)+" for connection connected to: "+conn.udpServerConn.GetAddress().String()+" with new ID: "+string(frame.ID))
+					cl.p2pClient.ClientCoordinator.Logger.Log(helpertools.LogInfo, "Prepared new connection with temporary ID: "+string(frame.Data)+" for connection connected to: "+conn.udpServerConn.GetAddress().String()+" with new ID: "+string(frame.ID))
 					for len(cl.pendingConnsDataUDP.Get(conn.udpServerConn)) > 0 {
 						//Resend data
 						cl.p2pClient.Send(cl.p2pServerID, PackWebtoolsFrame(FrameTypeData, frame.ID, cl.pendingConnsDataUDP.Get(conn.udpServerConn)[0]))
@@ -182,7 +182,7 @@ func (cl *P2PProxyClientUniversal) handleP2PReadFunc(_ *p2p.Client, sourceID []b
 					cl.pendingConnsDataUDP.Delete(conn.udpServerConn)
 				}
 				if conn.tcpServerConn != nil {
-					cl.p2pClient.ClientCoordinator.Logger.Log(1, "Prepared new connection with temporary ID: "+string(frame.Data)+" for connection connected to: "+conn.tcpServerConn.Client.GetConn().RemoteAddr().String()+" with new ID: "+string(frame.ID))
+					cl.p2pClient.ClientCoordinator.Logger.Log(helpertools.LogInfo, "Prepared new connection with temporary ID: "+string(frame.Data)+" for connection connected to: "+conn.tcpServerConn.Client.GetConn().RemoteAddr().String()+" with new ID: "+string(frame.ID))
 					for len(cl.pendingConnsDataTCP.Get(conn.tcpServerConn)) > 0 {
 						//Resend data
 						cl.p2pClient.Send(cl.p2pServerID, PackWebtoolsFrame(FrameTypeData, frame.ID, cl.pendingConnsDataTCP.Get(conn.tcpServerConn)[0]))
@@ -221,7 +221,7 @@ func (cl *P2PProxyClientUniversal) handleUDPReadFunc(udpConn *udp.ServerConn, da
 		//No connection found, request new
 		tempID := helpertools.GenerateRandomID()
 		cl.pendingConnections.Set(tempID, &P2PProxyClientUniversalConn{udpServerConn: udpConn, tcpServerConn: nil, origin: cl})
-		cl.p2pClient.ClientCoordinator.Logger.Log(1, "Preparing new connection with temporary ID: "+tempID+" for connection connected to: "+udpConn.GetAddress().String())
+		cl.p2pClient.ClientCoordinator.Logger.Log(helpertools.LogInfo, "Preparing new connection with temporary ID: "+tempID+" for connection connected to: "+udpConn.GetAddress().String())
 		cl.p2pClient.Send(cl.p2pServerID, PackWebtoolsFrame(FrameTypeConnect, []byte("0"), []byte(cl.serversUDP[udpConn.GetOrigin()]+string(FrameSeparatorChar)+tempID)))
 		cl.pendingConnsDataUDP.Set(udpConn, append(make([][]byte, 0), data))
 		return
@@ -249,7 +249,7 @@ func (cl *P2PProxyClientUniversal) handleTCPReadFunc(tcpConn *tcp.ServerConn, da
 		//No connection found, request new
 		tempID := helpertools.GenerateRandomID()
 		cl.pendingConnections.Set(tempID, &P2PProxyClientUniversalConn{udpServerConn: nil, tcpServerConn: tcpConn, origin: cl})
-		cl.p2pClient.ClientCoordinator.Logger.Log(1, "Preparing new connection with temporary ID: "+tempID+" for connection connected to: "+tcpConn.GetConn().RemoteAddr().String())
+		cl.p2pClient.ClientCoordinator.Logger.Log(helpertools.LogInfo, "Preparing new connection with temporary ID: "+tempID+" for connection connected to: "+tcpConn.GetConn().RemoteAddr().String())
 		cl.p2pClient.Send(cl.p2pServerID, PackWebtoolsFrame(FrameTypeConnect, []byte("0"), []byte(cl.serversTCP[tcpConn.GetOrigin()]+string(FrameSeparatorChar)+tempID)))
 		cl.pendingConnsDataTCP.Set(tcpConn, append(make([][]byte, 0), data))
 		return

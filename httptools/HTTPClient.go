@@ -19,7 +19,7 @@ Client is primitive HTTP client
 type Client struct {
 	client  *http.Client
 	address string
-	Logger  *helpertools.ConsoleLogger
+	Logger  helpertools.ConsoleLogger
 }
 
 /*
@@ -29,7 +29,7 @@ func NewClient(address string, timeout int64, reportTraffic bool) (*Client, erro
 	if !strings.HasPrefix(address, "http://") && !strings.HasPrefix(address, "https://") {
 		return nil, errors.New("invalid url format, must start with http:// or https://")
 	}
-	return &Client{client: &http.Client{Timeout: time.Duration(timeout) * time.Second}, address: address, Logger: helpertools.NewConsoleLoggerForTraffic("HTTPClient", reportTraffic)}, nil
+	return &Client{client: &http.Client{Timeout: time.Duration(timeout) * time.Second}, address: address, Logger: helpertools.MakeConsoleLoggerForTraffic("HTTPClient", reportTraffic)}, nil
 }
 
 /*
@@ -57,15 +57,15 @@ func (cl *Client) NewRequest(method string, contentType string, data []byte) (*h
 SendRequestRaw sends raw request
 */
 func (cl *Client) SendRequestRaw(request *http.Request) *http.Response {
-	cl.Logger.Log(1, "Sending - "+request.Method+" - "+request.URL.String())
+	cl.Logger.Log(helpertools.LogInfo, "Sending - "+request.Method+" - "+request.URL.String())
 	responce, err := cl.client.Do(request)
 	if err != nil {
-		cl.Logger.Log(3, "Error sending request: "+err.Error())
+		cl.Logger.Log(helpertools.LogError, "Error sending request: "+err.Error())
 		return nil
 	}
-	cl.Logger.Log(1, "Reading - "+responce.Request.Method+" - "+strconv.Itoa(responce.StatusCode)+" - "+responce.Request.URL.String())
+	cl.Logger.Log(helpertools.LogInfo, "Reading - "+responce.Request.Method+" - "+strconv.Itoa(responce.StatusCode)+" - "+responce.Request.URL.String())
 	if responce.StatusCode != 200 {
-		cl.Logger.Log(2, "Reading "+responce.Request.URL.String()+" returned non OK responce with code: "+responce.Status)
+		cl.Logger.Log(helpertools.LogWarning, "Reading "+responce.Request.URL.String()+" returned non OK responce with code: "+responce.Status)
 	}
 	return responce
 }
@@ -76,7 +76,7 @@ SendRequest sends request and returns responce. Do not forget to close body on r
 func (cl *Client) SendRequest(method string, contentType string, data []byte) *http.Response {
 	request, err := cl.NewRequest(method, contentType, data)
 	if err != nil {
-		cl.Logger.Log(3, "Error creating request: "+err.Error())
+		cl.Logger.Log(helpertools.LogError, "Error creating request: "+err.Error())
 		return nil
 	}
 
@@ -95,7 +95,7 @@ func (cl *Client) SendRequestData(method string, contentType string, data []byte
 	//Get data
 	body, err2 := io.ReadAll(responce.Body)
 	if err2 != nil {
-		cl.Logger.Log(3, "Error reading responce data: "+err2.Error())
+		cl.Logger.Log(helpertools.LogError, "Error reading responce data: "+err2.Error())
 		return nil
 	}
 	return body
@@ -105,22 +105,22 @@ func (cl *Client) SendRequestData(method string, contentType string, data []byte
 GetHijackAddress gets address for TCP client
 */
 func (cl *Client) GetHijackAddress() string {
-	cl.Logger.Log(2, "Getting host address...")
+	cl.Logger.Log(helpertools.LogWarning, "Getting host address...")
 	resp := cl.SendRequest("GET", "", nil)
 	host := resp.Request.URL.Hostname()
 	port := resp.Request.URL.Port()
 	if port == "" {
-		cl.Logger.Log(2, "Error getting host address, port not specified and could not be get from host, using default by protocol.")
+		cl.Logger.Log(helpertools.LogWarning, "Error getting host address, port not specified and could not be get from host, using default by protocol.")
 		switch resp.Request.URL.Scheme {
 		case "http":
 			port = "80"
 		case "https":
 			port = "443"
 		default:
-			cl.Logger.Log(3, "Error getting host address, port not specified and could not be get from host, protocol is invalid.")
+			cl.Logger.Log(helpertools.LogError, "Error getting host address, port not specified and could not be get from host, protocol is invalid.")
 			return ""
 		}
 	}
-	cl.Logger.Log(2, "Got host address")
+	cl.Logger.Log(helpertools.LogWarning, "Got host address")
 	return net.JoinHostPort(host, port)
 }

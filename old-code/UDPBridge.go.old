@@ -20,7 +20,7 @@ Read data Handler for TCP
 */
 func (bridge *UDPBridge) readFuncTCP1(client *UDPClient, addr *net.UDPAddr, data string, ended bool) {
 	if bridge.connetionUDP1To2[client] == nil {
-		bridge.Logger.Log(3, "Error writing to UDP Client - Connection does not exist!")
+		bridge.Logger.Log(helpertools.LogError, "Error writing to UDP Client - Connection does not exist!")
 		return
 	}
 	if !ended {
@@ -65,6 +65,6 @@ func MakeUDPBridge(tcpSourceServerAdress string, tcpClientAddress string) UDPBri
 Starts HTTPProxy server
 */
 func (bridge *UDPBridge) Start() {
-	bridge.Logger.Log(2, "Started bridging server from "+bridge.tcpSourceServerAdress+" to "+bridge.udpServer.GetAddress())
+	bridge.Logger.Log(helpertools.LogWarning, "Started bridging server from "+bridge.tcpSourceServerAdress+" to "+bridge.udpServer.GetAddress())
 	bridge.udpServer.Start()
 }

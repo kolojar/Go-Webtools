@@ -71,7 +71,7 @@ func (watcher *fileSystemWatcherInstance) watchingLoop() error {
 			nil, uintptr(0),
 		)
 		if err != nil {
-			watcher.mainParent.Logger.Log(1, "Got runtime error, continuing: "+err.Error())
+			watcher.mainParent.Logger.Log(helpertools.LogInfo, "Got runtime error, continuing: "+err.Error())
 			//return err
 			continue
 		}
@@ -92,7 +92,7 @@ func (watcher *fileSystemWatcherInstance) watchingLoop() error {
 			fileInfo, err := os.Stat(pathToFile)
 			isDir := false
 			if err == nil {
-				//watcher.mainParent.Logger.Log(1, "Got runtime error, continuing: "+err.Error())
+				//watcher.mainParent.Logger.Log(helpertools.LogInfo, "Got runtime error, continuing: "+err.Error())
 				//continue
 				//return err
 				isDir = fileInfo.IsDir()
@@ -151,12 +151,12 @@ func (watcher *fileSystemWatcherInstance) StartWatching() {
 	watcher.listDirsAndFiles(watcher.path)
 
 	//Start watcher
-	watcher.mainParent.Logger.Log(2, "Started watching in path: "+watcher.path)
+	watcher.mainParent.Logger.Log(helpertools.LogWarning, "Started watching in path: "+watcher.path)
 	err := watcher.watchingLoop()
 	if err != nil {
-		watcher.mainParent.Logger.Log(3, "Error while watching: "+err.Error())
+		watcher.mainParent.Logger.Log(helpertools.LogError, "Error while watching: "+err.Error())
 	}
-	watcher.mainParent.Logger.Log(1, "Watcher exited.")
+	watcher.mainParent.Logger.Log(helpertools.LogInfo, "Watcher exited.")
 	watcher.stopped = true
 }
 
@@ -171,20 +171,20 @@ func (watcher *fileSystemWatcherInstance) StopWatching() {
 	if watcher.isRunning == false {
 		return
 	}
-	watcher.mainParent.Logger.Log(2, "Requesting stop of watching for path: "+watcher.path)
+	watcher.mainParent.Logger.Log(helpertools.LogWarning, "Requesting stop of watching for path: "+watcher.path)
 	watcher.isRunning = false
 
 	//Stop
 	err := syscall.CloseHandle(watcher.handle)
 	time.Sleep(1 * time.Second)
 	if err != nil {
-		watcher.mainParent.Logger.Log(3, "Error stopping watcher for path: "+watcher.path+" | Error: "+err.Error())
+		watcher.mainParent.Logger.Log(helpertools.LogError, "Error stopping watcher for path: "+watcher.path+" | Error: "+err.Error())
 		watcher.stopped = true
 	}
 	for !watcher.stopped {
 		time.Sleep(1 * time.Second)
 	}
-	watcher.mainParent.Logger.Log(1, "Watching stopped for path: "+watcher.path)
+	watcher.mainParent.Logger.Log(helpertools.LogInfo, "Watching stopped for path: "+watcher.path)
 }
 
 func (watcher *fileSystemWatcherInstance) reportEvent(operation uint8, path string, isDir bool) {
@@ -207,7 +207,7 @@ func (watcher *fileSystemWatcherInstance) listDirsAndFiles(path string) {
 	//Get entries
 	entries, err := os.ReadDir(path)
 	if err != nil {
-		watcher.mainParent.Logger.Log(3, "Error listing directory: "+path+" | Error: "+err.Error())
+		watcher.mainParent.Logger.Log(helpertools.LogError, "Error listing directory: "+path+" | Error: "+err.Error())
 		return
 	}
 

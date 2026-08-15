@@ -502,11 +502,11 @@ func filesystemEvent(path string, operation filesystem.FileSystemEventType, isDi
 	//fmt.Println(path, operation, isDir, newPath)
 }
 
-/*func p2pReadFunc(client *p2p.Client, sourceID []byte, data []byte, _ bool, _ *helpertools.ConsoleLogger) {
+/*func p2pReadFunc(client *p2p.Client, sourceID []byte, data []byte, _ bool, _ helpertools.ConsoleLogger) {
 	client.Send(sourceID, data)
 }
 
-func p2pReadFunc2(_ *p2p.Client, _ []byte, data []byte, _ bool, _ *helpertools.ConsoleLogger) {
+func p2pReadFunc2(_ *p2p.Client, _ []byte, data []byte, _ bool, _ helpertools.ConsoleLogger) {
 	fmt.Println(string(data))
 	}*/
 

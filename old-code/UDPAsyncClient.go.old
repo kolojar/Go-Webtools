@@ -35,7 +35,7 @@ func (udp *UDPClient) Connect() *net.UDPConn {
 	var err2 error
 	udp.addressObject, err2 = net.ResolveUDPAddr("udp", udp.address)
 	if err2 != nil {
-		udp.Logger.Log(3, "Error listening to: "+err2.Error())
+		udp.Logger.Log(helpertools.LogError, "Error listening to: "+err2.Error())
 		return nil
 	}
 
@@ -43,12 +43,12 @@ func (udp *UDPClient) Connect() *net.UDPConn {
 	var err error
 	udp.connection, err = net.DialUDP("udp", nil, udp.addressObject)
 	if err != nil {
-		udp.Logger.Log(3, "Error connecting to: "+udp.address+" | Error: "+err.Error())
+		udp.Logger.Log(helpertools.LogError, "Error connecting to: "+udp.address+" | Error: "+err.Error())
 		return nil
 	}
 
 	//Handle connection
-	udp.Logger.Log(2, "Connected to server at "+udp.address+"!")
+	udp.Logger.Log(helpertools.LogWarning, "Connected to server at "+udp.address+"!")
 	go handleUDPRead(udp.connection, udp.handleRead, &udp.Logger, udp.useEncryption, udp.encryptionPassword)
 	return udp.connection
 }

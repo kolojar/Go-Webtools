@@ -46,7 +46,7 @@ func (br *TCPToUDPBridge) handleUDPReadFunc(udp *UDPServerConn, data []byte, end
 		var err error
 		tcp, err = NewTCPClient(br.tcpServerAddress, br.handleTCPReadFunc, br.reportTraffic, false)
 		if err != nil {
-			br.udpServer.Logger.Log(3, "Error creating new TCP connection to: "+br.tcpServerAddress+" | Error: "+err.Error())
+			br.udpServer.Logger.Log(helpertools.LogError, "Error creating new TCP connection to: "+br.tcpServerAddress+" | Error: "+err.Error())
 			return
 		}
 		tcp.Logger.Prefix = "TCPToUDPBridge - " + tcp.Logger.Prefix
@@ -65,7 +65,7 @@ func (br *TCPToUDPBridge) handleTCPReadFunc(tcp *TCPClient, data []byte, ended b
 	gudp, _ := br.tcpToUDP.Load(tcp)
 	if gudp == nil {
 		//Connection not found
-		br.udpServer.Logger.Log(3, "No UDP connection found for TCP connection connected to: "+tcp.Conn.RemoteAddr().String()+" connected locally to: "+tcp.Conn.LocalAddr().String())
+		br.udpServer.Logger.Log(helpertools.LogError, "No UDP connection found for TCP connection connected to: "+tcp.Conn.RemoteAddr().String()+" connected locally to: "+tcp.Conn.LocalAddr().String())
 		return
 	}
 	udp := gudp.(*UDPServerConn)

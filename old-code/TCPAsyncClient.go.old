@@ -25,7 +25,7 @@ func (tcp *TCPClient) Connect() net.Conn {
 	//Create TCP address
 	address, err2 := net.ResolveTCPAddr("tcp", tcp.address)
 	if err2 != nil {
-		tcp.Logger.Log(3, "Error listening to: "+err2.Error())
+		tcp.Logger.Log(helpertools.LogError, "Error listening to: "+err2.Error())
 		return nil
 	}
 
@@ -33,12 +33,12 @@ func (tcp *TCPClient) Connect() net.Conn {
 	var err error
 	tcp.connection, err = net.DialTCP("tcp", nil, address)
 	if err != nil {
-		tcp.Logger.Log(3, "Error connecting to: "+tcp.address+" | Error: "+err.Error())
+		tcp.Logger.Log(helpertools.LogError, "Error connecting to: "+tcp.address+" | Error: "+err.Error())
 		return nil
 	}
 
 	//Handle connection
-	tcp.Logger.Log(2, "Connected to server at "+tcp.address+"!")
+	tcp.Logger.Log(helpertools.LogWarning, "Connected to server at "+tcp.address+"!")
 	go handleTCPRead(tcp.connection, tcp.readFunc, &tcp.Logger, tcp.useEncryption, tcp.encryptionPassword)
 	return tcp.connection
 }

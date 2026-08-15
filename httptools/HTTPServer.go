@@ -47,7 +47,7 @@ type Server struct {
 	//This path is not handeled automatically
 	rootPath            string
 	address             string
-	Logger              *helpertools.ConsoleLogger
+	Logger              helpertools.ConsoleLogger
 	server              http.Server
 	onAccessFunc        AccessFunc
 	startWebBrowser     bool
@@ -100,7 +100,7 @@ func NewServer(address string, onAccessFunc AccessFunc, rootPath string, startWe
 	if !strings.HasSuffix(rootPath, "/") {
 		rootPath += "/"
 	}
-	return &Server{address: address, ErrorPages: map[int]string{}, HostPaths: map[string]string{}, Logger: helpertools.NewConsoleLoggerForTraffic("HTTPServer", reportHTTPTraffic), onAccessFunc: onAccessFunc, startWebBrowser: startWebBrowser, rootPath: rootPath, HandleExtensionsWithPriority: make([]string, 0)}
+	return &Server{address: address, ErrorPages: map[int]string{}, HostPaths: map[string]string{}, Logger: helpertools.MakeConsoleLoggerForTraffic("HTTPServer", reportHTTPTraffic), onAccessFunc: onAccessFunc, startWebBrowser: startWebBrowser, rootPath: rootPath, HandleExtensionsWithPriority: make([]string, 0)}
 }
 
 /*
@@ -114,14 +114,14 @@ func (sv *Server) Start() {
 	sv.server = http.Server{Addr: sv.address, Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		sv.httpHandler(w, r)
 	})}
-	sv.Logger.Log(2, "Started listening on: "+sv.address)
+	sv.Logger.Log(helpertools.LogWarning, "Started listening on: "+sv.address)
 	sv.isAlive = true
 	err := sv.server.ListenAndServe()
 	sv.isAlive = false
 	if err != nil {
-		sv.Logger.Log(3, "Error listening on: "+sv.address+" | Error: "+err.Error())
+		sv.Logger.Log(helpertools.LogError, "Error listening on: "+sv.address+" | Error: "+err.Error())
 	}
-	sv.Logger.Log(2, "Stopped listening on: "+sv.address)
+	sv.Logger.Log(helpertools.LogWarning, "Stopped listening on: "+sv.address)
 }
 
 /*
@@ -156,11 +156,11 @@ func (sv *Server) checkPriorityExtension(url string) bool {
 Handles and sorts HTTP requests
 */
 func (sv *Server) httpHandler(w http.ResponseWriter, r *http.Request) {
-	sv.Logger.Log(0, r.RemoteAddr+" - "+r.Method+" - "+r.URL.String())
+	sv.Logger.Log(helpertools.LogTraffic, r.RemoteAddr+" - "+r.Method+" - "+r.URL.String())
 	//Check name
 	err2 := CheckInvalidNames(r.URL.Path)
 	if err2 != nil {
-		sv.Logger.Log(3, "Error in request: "+r.URL.Path+" | Error: "+err2.Error())
+		sv.Logger.Log(helpertools.LogError, "Error in request: "+r.URL.Path+" | Error: "+err2.Error())
 		sv.HandleError(w, "Invalid request", http.StatusInternalServerError)
 		return
 	}
@@ -176,7 +176,7 @@ func (sv *Server) httpHandler(w http.ResponseWriter, r *http.Request) {
 				err := HandleHTTPGet(w, r, url, sv)
 				if err != nil && !errors.Is(err, os.ErrNotExist) {
 					//Invalid error
-					sv.Logger.Log(3, "Error in GET request for: "+r.URL.Path+" | Error: "+err.Error())
+					sv.Logger.Log(helpertools.LogError, "Error in GET request for: "+r.URL.Path+" | Error: "+err.Error())
 					sv.HandleError(w, "Invalid request", http.StatusInternalServerError)
 					return
 				}
@@ -205,7 +205,7 @@ func (sv *Server) httpHandler(w http.ResponseWriter, r *http.Request) {
 			err := HandleHTTPGet(w, r, url, sv)
 			if err != nil && !errors.Is(err, os.ErrNotExist) {
 				//Invalid error
-				sv.Logger.Log(3, "Error in GET request for: "+r.URL.Path+" | Error: "+err.Error())
+				sv.Logger.Log(helpertools.LogError, "Error in GET request for: "+r.URL.Path+" | Error: "+err.Error())
 				sv.HandleError(w, "Invalid request", http.StatusInternalServerError)
 				return
 			}
@@ -217,7 +217,7 @@ func (sv *Server) httpHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Not found
-	sv.Logger.Log(3, "NOT FOUND - "+r.RemoteAddr+" - "+r.Method+" - "+r.URL.String())
+	sv.Logger.Log(helpertools.LogError, "NOT FOUND - "+r.RemoteAddr+" - "+r.Method+" - "+r.URL.String())
 	sv.HandleError(w, "Not found", http.StatusNotFound)
 }
 
@@ -359,7 +359,7 @@ func (sv *Server) HandleHTTPGetRelative(w http.ResponseWriter, r *http.Request) 
 		err := HandleHTTPGet(w, r, url, sv)
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			//Invalid error
-			sv.Logger.Log(3, "Error in GET request for: "+r.URL.Path+" | Error: "+err.Error())
+			sv.Logger.Log(helpertools.LogError, "Error in GET request for: "+r.URL.Path+" | Error: "+err.Error())
 			sv.HandleError(w, "Invalid request", http.StatusInternalServerError)
 			return false
 		}
@@ -449,7 +449,7 @@ func (sv *Server) HandleError(w http.ResponseWriter, errText string, code int) {
 	//Get page location
 	location, has := sv.ErrorPages[code]
 	if !has {
-		sv.Logger.Log(2, "Error page for code: "+strconv.Itoa(code)+" not found.")
+		sv.Logger.Log(helpertools.LogWarning, "Error page for code: "+strconv.Itoa(code)+" not found.")
 		http.Error(w, errText, code)
 		return
 	}
@@ -457,14 +457,14 @@ func (sv *Server) HandleError(w http.ResponseWriter, errText string, code int) {
 	//Read data
 	data, isDir, err := ReadFileString(location)
 	if err != nil {
-		sv.Logger.Log(2, "Error page for code: "+strconv.Itoa(code)+" not found.")
+		sv.Logger.Log(helpertools.LogWarning, "Error page for code: "+strconv.Itoa(code)+" not found.")
 		http.Error(w, errText, code)
 		return
 	}
 
 	// Check dir
 	if isDir {
-		sv.Logger.Log(2, "Error page for code: "+strconv.Itoa(code)+" not found.")
+		sv.Logger.Log(helpertools.LogWarning, "Error page for code: "+strconv.Itoa(code)+" not found.")
 		http.Error(w, errText, code)
 		return
 	}
@@ -485,6 +485,6 @@ func (sv *Server) Stop() {
 	}
 	err := sv.server.Close()
 	if err != nil {
-		sv.Logger.Log(3, "Error stopping: "+err.Error())
+		sv.Logger.Log(helpertools.LogError, "Error stopping: "+err.Error())
 	}
 }

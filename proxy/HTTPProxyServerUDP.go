@@ -89,7 +89,7 @@ func (sv *HTTPProxyServerUDP) handleWebSocketReadFunc(conn *httptools.WebSocketS
 	}
 
 	//Unpack frame
-	for _, frame := range UnpackWebtoolsFrame(frame, conn.Client.Logger) {
+	for _, frame := range UnpackWebtoolsFrame(frame, &conn.Client.Logger) {
 		if frame.Operation == 0 {
 			return
 		}
@@ -102,7 +102,7 @@ func (sv *HTTPProxyServerUDP) handleWebSocketReadFunc(conn *httptools.WebSocketS
 				cl, err := udp.NewClient(sv.udpServerAddress, sv.handleUDPReadFunc, sv.reportTrafic)
 				cl.Logger.Prefix = "HTTPProxyServerUDP - " + cl.Logger.Prefix
 				if err != nil {
-					conn.Client.Logger.Log(3, "Could not create connection with id: "+string(frame.ID)+" to server.")
+					conn.Client.Logger.Log(helpertools.LogError, "Could not create connection with id: "+string(frame.ID)+" to server.")
 					return
 				}
 				cl.Connect()
@@ -111,12 +111,12 @@ func (sv *HTTPProxyServerUDP) handleWebSocketReadFunc(conn *httptools.WebSocketS
 				sv.idToClient.Get(string(frame.ID)).SendToHTTP(FrameTypeConnect, frame.Data)
 				return
 			}
-			conn.Client.Logger.Log(3, "Could not find connection to id: "+string(frame.ID))
+			conn.Client.Logger.Log(helpertools.LogError, "Could not find connection to id: "+string(frame.ID))
 			return
 		}
 		cl := sv.idToClient.Get(string(frame.ID))
 		if !cl.udpClient.IsAlive() {
-			conn.Client.Logger.Log(3, "Connection with id: "+string(frame.ID)+" connected to: "+conn.GetConn().RemoteAddr().String()+" connected locally to: "+conn.GetConn().LocalAddr().String()+" closed")
+			conn.Client.Logger.Log(helpertools.LogError, "Connection with id: "+string(frame.ID)+" connected to: "+conn.GetConn().RemoteAddr().String()+" connected locally to: "+conn.GetConn().LocalAddr().String()+" closed")
 			return
 		}
 
@@ -140,7 +140,7 @@ func (sv *HTTPProxyServerUDP) handleUDPReadFunc(udp *udp.Client, _ *net.UDPAddr,
 	//Get HTTP client
 	if sv.clientToID.Get(udp) == "" || sv.idToClient.Get(sv.clientToID.Get(udp)) == nil {
 		//Connection does not exists
-		udp.Logger.Log(3, "Connection connected to: "+udp.Conn.RemoteAddr().String()+" not found")
+		udp.Logger.Log(helpertools.LogError, "Connection connected to: "+udp.Conn.RemoteAddr().String()+" not found")
 		return
 	}
 	id := sv.clientToID.Get(udp)

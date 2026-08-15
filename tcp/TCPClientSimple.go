@@ -54,7 +54,7 @@ func NewClientSimple(address string, countOfNotFramedReads int, writeOneLastNoFr
 	if err != nil {
 		return nil, err
 	}
-	cl.universalClient.Logger = helpertools.NewConsoleLoggerForTraffic("TCPClientSimple", reportTraffic)
+	cl.universalClient.Logger = helpertools.MakeConsoleLoggerForTraffic("TCPClientSimple", reportTraffic)
 	cl.generateReadFuncStructure(countOfNotFramedReads, writeOneLastNoFrame)
 	return cl, nil
 }
@@ -75,7 +75,7 @@ func NewClientSimpleFromConnection(conn *net.TCPConn, countOfNotFramedReads int,
 /*
 SetLogger sets logger
 */
-func (cl *ClientSimple) SetLogger(logger *helpertools.ConsoleLogger) {
+func (cl *ClientSimple) SetLogger(logger helpertools.ConsoleLogger) {
 	cl.universalClient.Logger = logger
 }
 
@@ -83,7 +83,7 @@ func (cl *ClientSimple) SetLogger(logger *helpertools.ConsoleLogger) {
 GetLogger gets logger
 */
 func (cl *ClientSimple) GetLogger() *helpertools.ConsoleLogger {
-	return cl.universalClient.Logger
+	return &cl.universalClient.Logger
 }
 
 /*
@@ -127,7 +127,7 @@ func (cl *ClientSimple) Connect() bool {
 HandleTCPRead handles TCP Read
 Implements this function: type TCPClientUniversalReadHandlerFunc func(conn *net.TCPConn, limit int, logger *ConsoleLogger, readFunc TCPClientUniversalOnReadFuncIntenal) (bool, error)
 */
-func HandleTCPRead(cl *ClientUniversal, limit int, _ *helpertools.ConsoleLogger, readFunc ClientUniversalOnReadFuncIntenal) (bool, error) {
+func HandleTCPRead(cl *ClientUniversal, limit int, _ helpertools.ConsoleLogger, readFunc ClientUniversalOnReadFuncIntenal) (bool, error) {
 	for i := 0; i < limit || limit < 0; i++ {
 		buffer := make([]byte, webtools.BufferSize)
 		n, err := cl.GetConn().Read(buffer)
@@ -147,7 +147,7 @@ func HandleTCPRead(cl *ClientUniversal, limit int, _ *helpertools.ConsoleLogger,
 HandleTCPReadFramed handles TCP Read with frame support
 Implements this function: type TCPClientUniversalReadHandlerFunc func(conn *net.TCPConn, limit int, logger *ConsoleLogger, readFunc TCPClientUniversalOnReadFuncIntenal) (bool, error)
 */
-func HandleTCPReadFramed(cl *ClientUniversal, limit int, _ *helpertools.ConsoleLogger, readFunc ClientUniversalOnReadFuncIntenal) (bool, error) {
+func HandleTCPReadFramed(cl *ClientUniversal, limit int, _ helpertools.ConsoleLogger, readFunc ClientUniversalOnReadFuncIntenal) (bool, error) {
 	var data []byte
 	var n int
 	for i := 0; i < limit || limit < 0; i++ {

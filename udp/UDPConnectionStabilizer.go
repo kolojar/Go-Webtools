@@ -258,28 +258,28 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 		{
 			//Ping frame = reply with pong
 			if len(framedData) == 8 {
-				conn.GetLogger().Log(1, "Got ping from: "+conn.GetAddress().String()+", Time: "+strconv.FormatInt(time.Since(time.UnixMicro(int64(binary.LittleEndian.Uint64(framedData)))).Milliseconds(), 10)+" ms")
+				conn.GetLogger().Log(helpertools.LogInfo, "Got ping from: "+conn.GetAddress().String()+", Time: "+strconv.FormatInt(time.Since(time.UnixMicro(int64(binary.LittleEndian.Uint64(framedData)))).Milliseconds(), 10)+" ms")
 				stabilizer.HandleWrite(conn, stablePongFrame, framedData)
 			} else {
-				conn.GetLogger().Log(3, "Got invalid ping from: "+conn.GetAddress().String())
+				conn.GetLogger().Log(helpertools.LogError, "Got invalid ping from: "+conn.GetAddress().String())
 			}
 		}
 	case stablePongFrame:
 		{
 			//Pong frame - check frame
 			if len(framedData) != 8 {
-				conn.GetLogger().Log(3, "Got invalid pong from: "+conn.GetAddress().String())
+				conn.GetLogger().Log(helpertools.LogError, "Got invalid pong from: "+conn.GetAddress().String())
 				return
 			}
 
 			//Calculate RTO
 			sConn := stabilizer.conns.Get(conn)
 			if sConn == nil {
-				conn.GetLogger().Log(3, "Invalid connection for: "+conn.GetAddress().String())
+				conn.GetLogger().Log(helpertools.LogError, "Invalid connection for: "+conn.GetAddress().String())
 				return
 			}
 			delta := time.Since(time.UnixMicro(int64(binary.LittleEndian.Uint64(framedData))))
-			conn.GetLogger().Log(1, "Got pong from: "+conn.GetAddress().String()+", 2*Time: "+strconv.FormatInt(delta.Milliseconds(), 10)+" ms")
+			conn.GetLogger().Log(helpertools.LogInfo, "Got pong from: "+conn.GetAddress().String()+", 2*Time: "+strconv.FormatInt(delta.Milliseconds(), 10)+" ms")
 			sConn.rttCalculator.CalculateRTT(delta)
 			if stabilizer.settings.KeepAliveTriesBeforeError != -1 {
 				sConn.missingPingPackets.Store(0)
@@ -291,10 +291,10 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 			delta := time.Since(time.UnixMicro(int64(binary.LittleEndian.Uint64(framedData))))
 			sConn := stabilizer.conns.Get(conn)
 			if sConn == nil {
-				conn.GetLogger().Log(3, "Invalid connection for: "+conn.GetAddress().String())
+				conn.GetLogger().Log(helpertools.LogError, "Invalid connection for: "+conn.GetAddress().String())
 				return
 			}
-			conn.GetLogger().Log(1, "Got ACK frame from: "+conn.GetAddress().String()+", Time: "+strconv.FormatInt(delta.Milliseconds(), 10)+" ms")
+			conn.GetLogger().Log(helpertools.LogInfo, "Got ACK frame from: "+conn.GetAddress().String()+", Time: "+strconv.FormatInt(delta.Milliseconds(), 10)+" ms")
 			sConn.rttCalculator.CalculateRTT(delta)
 			framedData = framedData[8:]
 
@@ -304,11 +304,11 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 	case StableDataFrame:
 		{
 			//Data frame - no checking applied = pass to read func
-			conn.GetLogger().Log(1, "Got data frame from: "+conn.GetAddress().String())
+			conn.GetLogger().Log(helpertools.LogInfo, "Got data frame from: "+conn.GetAddress().String())
 			if stabilizer.readFunc != nil {
 				sConn := stabilizer.conns.Get(conn)
 				if sConn == nil {
-					conn.GetLogger().Log(3, "Invalid connection for: "+conn.GetAddress().String())
+					conn.GetLogger().Log(helpertools.LogError, "Invalid connection for: "+conn.GetAddress().String())
 					return
 				}
 				stabilizer.readFunc(sConn, framedData)
@@ -320,7 +320,7 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 			delta := time.Since(time.UnixMicro(int64(binary.LittleEndian.Uint64(framedData))))
 			sConn := stabilizer.conns.Get(conn)
 			if sConn == nil {
-				conn.GetLogger().Log(3, "Invalid connection for: "+conn.GetAddress().String())
+				conn.GetLogger().Log(helpertools.LogError, "Invalid connection for: "+conn.GetAddress().String())
 				return
 			}
 			sConn.incomingLatencyRTTCalculator.CalculateRTT(delta)
@@ -328,7 +328,7 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 
 			//Apply window
 			seqNum, readBytes := helpertools.ParseGenericLitteEndian[sequenceNumberType](framedData)
-			conn.GetLogger().Log(1, "Got data frame with resend from: "+conn.GetAddress().String()+" with sequence number: "+strconv.FormatUint(uint64(seqNum), 10)+", Time: "+strconv.FormatInt(delta.Milliseconds(), 10)+" ms")
+			conn.GetLogger().Log(helpertools.LogInfo, "Got data frame with resend from: "+conn.GetAddress().String()+" with sequence number: "+strconv.FormatUint(uint64(seqNum), 10)+", Time: "+strconv.FormatInt(delta.Milliseconds(), 10)+" ms")
 			if sConn.incomingPacketsWindow.ApplyWindowCheck(seqNum) {
 				//Pass to read func
 				if stabilizer.readFunc != nil {
@@ -344,11 +344,11 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 			//Data frame with instant ordering function - apply simple orderer
 			sConn := stabilizer.conns.Get(conn)
 			if sConn == nil {
-				conn.GetLogger().Log(3, "Invalid connection for: "+conn.GetAddress().String())
+				conn.GetLogger().Log(helpertools.LogError, "Invalid connection for: "+conn.GetAddress().String())
 				return
 			}
 			orderNum, readBytes := helpertools.ParseGenericLitteEndian[orderNumberType](framedData)
-			conn.GetLogger().Log(1, "Got data frame with instant order from: "+conn.GetAddress().String()+" with order number: "+strconv.FormatUint(uint64(orderNum), 10))
+			conn.GetLogger().Log(helpertools.LogInfo, "Got data frame with instant order from: "+conn.GetAddress().String()+" with order number: "+strconv.FormatUint(uint64(orderNum), 10))
 			for _, v := range sConn.ordererSimple.Push(orderNum, framedData[readBytes:]) {
 				if stabilizer.readFunc != nil {
 					stabilizer.readFunc(sConn, v)
@@ -360,11 +360,11 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 			//Data frame with instant ordering function - apply simple orderer
 			sConn := stabilizer.conns.Get(conn)
 			if sConn == nil {
-				conn.GetLogger().Log(3, "Invalid connection for: "+conn.GetAddress().String())
+				conn.GetLogger().Log(helpertools.LogError, "Invalid connection for: "+conn.GetAddress().String())
 				return
 			}
 			orderNum, readBytes := helpertools.ParseGenericLitteEndian[orderNumberType](framedData)
-			conn.GetLogger().Log(1, "Got data frame with timeout order from: "+conn.GetAddress().String()+" with order number: "+strconv.FormatUint(uint64(orderNum), 10))
+			conn.GetLogger().Log(helpertools.LogInfo, "Got data frame with timeout order from: "+conn.GetAddress().String()+" with order number: "+strconv.FormatUint(uint64(orderNum), 10))
 			for _, v := range sConn.ordererSimple.PushWithMissingPacketOption(orderNum, framedData[readBytes:], helpertools.AllowNone) {
 				if stabilizer.readFunc != nil {
 					stabilizer.readFunc(sConn, v)
@@ -386,7 +386,7 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 			delta := time.Since(time.UnixMicro(int64(binary.LittleEndian.Uint64(framedData))))
 			sConn := stabilizer.conns.Get(conn)
 			if sConn == nil {
-				conn.GetLogger().Log(3, "Invalid connection for: "+conn.GetAddress().String())
+				conn.GetLogger().Log(helpertools.LogError, "Invalid connection for: "+conn.GetAddress().String())
 				return
 			}
 			sConn.incomingLatencyRTTCalculator.CalculateRTT(delta)
@@ -396,7 +396,7 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 			seqNum, readBytes := helpertools.ParseGenericLitteEndian[sequenceNumberType](framedData)
 			framedData = framedData[readBytes:]
 			orderNum, readBytes := helpertools.ParseGenericLitteEndian[orderNumberType](framedData)
-			conn.GetLogger().Log(1, "Got data frame with resend and order from: "+conn.GetAddress().String()+" with sequence number: "+strconv.FormatUint(uint64(seqNum), 10)+" and order number: "+strconv.FormatUint(uint64(orderNum), 10)+", Time: "+strconv.FormatInt(delta.Milliseconds(), 10)+" ms")
+			conn.GetLogger().Log(helpertools.LogInfo, "Got data frame with resend and order from: "+conn.GetAddress().String()+" with sequence number: "+strconv.FormatUint(uint64(seqNum), 10)+" and order number: "+strconv.FormatUint(uint64(orderNum), 10)+", Time: "+strconv.FormatInt(delta.Milliseconds(), 10)+" ms")
 			if sConn.incomingPacketsWindow.ApplyWindowCheck(seqNum) {
 				for _, v := range sConn.ordererPrecise.Push(orderNum, framedData[readBytes:]) {
 					//Pass to read func
@@ -412,13 +412,13 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 	case stableDisconnectFrame:
 		{
 			//Handle disconnect
-			conn.GetLogger().Log(2, "Got disconnect from: "+conn.GetAddress().String())
+			conn.GetLogger().Log(helpertools.LogWarning, "Got disconnect from: "+conn.GetAddress().String())
 			stabilizer.CleanupConnection(conn)
 			conn.Close()
 		}
 	default:
 		{
-			conn.GetLogger().Log(3, "Invalid frame type: "+strconv.FormatUint(uint64(frameType), 10)+" for: "+conn.GetAddress().String())
+			conn.GetLogger().Log(helpertools.LogError, "Invalid frame type: "+strconv.FormatUint(uint64(frameType), 10)+" for: "+conn.GetAddress().String())
 		}
 	}
 }
@@ -427,7 +427,7 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumberType, windowWordType]) handleACKSend(conn connType, sConn *connectionStabilizerConn[sequenceNumberType, orderNumberType, windowWordType], seqNum sequenceNumberType, loop bool) {
 	//Check for validity
 	if sConn == nil {
-		conn.GetLogger().Log(3, "Invalid connection for: "+conn.GetAddress().String())
+		conn.GetLogger().Log(helpertools.LogError, "Invalid connection for: "+conn.GetAddress().String())
 		return
 	}
 
@@ -467,7 +467,7 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 	if frameType != StableDataFrame && frameType != StableDataWithOrderInstantFrame && frameType != StableDataWithOrderTimeoutFrame && frameType != stableDataRecievedFrame {
 		sConn = stabilizer.conns.Get(conn)
 		if sConn == nil {
-			conn.GetLogger().Log(3, "Invalid connection for: "+conn.GetAddress().String())
+			conn.GetLogger().Log(helpertools.LogError, "Invalid connection for: "+conn.GetAddress().String())
 			return
 		}
 		sConn.lastACKTimestampsUnixNano[len(sConn.lastACKTimestampsUnixNano)-1].Store(time.Now().UnixNano())
@@ -481,7 +481,7 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 			//Ping frame
 			if stabilizer.settings.KeepAliveTriesBeforeError == -1 || sConn.missingPingPackets.Load() < uint32(stabilizer.settings.KeepAliveTriesBeforeError) {
 				//Can send ping packet
-				conn.GetLogger().Log(1, "Sending ping to: "+conn.GetAddress().String())
+				conn.GetLogger().Log(helpertools.LogInfo, "Sending ping to: "+conn.GetAddress().String())
 				buffer = binary.LittleEndian.AppendUint64(buffer, uint64(time.Now().UnixMicro()))
 				conn.Send(buffer)
 				if stabilizer.settings.KeepAliveTriesBeforeError != -1 {
@@ -489,20 +489,20 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 				}
 			} else {
 				//To much missing packets
-				conn.GetLogger().Log(3, "Too much missing ping packets with: "+conn.GetAddress().String())
+				conn.GetLogger().Log(helpertools.LogError, "Too much missing ping packets with: "+conn.GetAddress().String())
 				conn.Close()
 			}
 		}
 	case stablePongFrame:
 		{
 			//Pong frame
-			conn.GetLogger().Log(1, "Sending pong to: "+conn.GetAddress().String())
+			conn.GetLogger().Log(helpertools.LogInfo, "Sending pong to: "+conn.GetAddress().String())
 			conn.Send(append(buffer, data...))
 		}
 	case stableDataRecievedFrame:
 		{
 			//Data recieved frame - ACK frame
-			conn.GetLogger().Log(1, "Sending ACK frame to: "+conn.GetAddress().String()+" with word limit: "+strconv.FormatUint(uint64(uint8(data[0])), 10))
+			conn.GetLogger().Log(helpertools.LogInfo, "Sending ACK frame to: "+conn.GetAddress().String()+" with word limit: "+strconv.FormatUint(uint64(uint8(data[0])), 10))
 			sConn = stabilizer.conns.Get(conn)
 			for i := range uint8(data[0]) {
 				sConn.lastACKTimestampsUnixNano[uint8(len(sConn.lastACKTimestampsUnixNano)-1)-i].Store(time.Now().UnixNano())
@@ -513,7 +513,7 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 	case StableDataFrame:
 		{
 			//Data frame - no checking applied
-			conn.GetLogger().Log(1, "Sending pure data frame to: "+conn.GetAddress().String())
+			conn.GetLogger().Log(helpertools.LogInfo, "Sending pure data frame to: "+conn.GetAddress().String())
 			conn.Send(append(buffer, data...))
 		}
 	case StableDataWithResendFrame:
@@ -528,7 +528,7 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 			//Data frame with order function (instant / timeout) - add order number and data and send
 			sConn = stabilizer.conns.Get(conn)
 			if sConn == nil {
-				conn.GetLogger().Log(3, "Invalid connection for: "+conn.GetAddress().String())
+				conn.GetLogger().Log(helpertools.LogError, "Invalid connection for: "+conn.GetAddress().String())
 				return
 			}
 			sConn.sendPacketOrderSimpleMutex.Lock()
@@ -537,7 +537,7 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 			sConn.sendPacketOrderSimpleMutex.Unlock()
 
 			//Add all bytes
-			conn.GetLogger().Log(1, "Sending ordered data frame with order number: "+strconv.FormatUint(uint64(orderNumber), 10)+" to: "+conn.GetAddress().String())
+			conn.GetLogger().Log(helpertools.LogInfo, "Sending ordered data frame with order number: "+strconv.FormatUint(uint64(orderNumber), 10)+" to: "+conn.GetAddress().String())
 			buffer, _ = helpertools.AppendGenericLitteEndian(buffer, orderNumber)
 			conn.Send(append(buffer, data...))
 		}
@@ -556,12 +556,12 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 	case stableDisconnectFrame:
 		{
 			//Disconnect frame
-			conn.GetLogger().Log(1, "Sending disconnect frame to: "+conn.GetAddress().String())
+			conn.GetLogger().Log(helpertools.LogInfo, "Sending disconnect frame to: "+conn.GetAddress().String())
 			conn.Send(buffer)
 		}
 	default:
 		{
-			conn.GetLogger().Log(3, "Invalid frame type: "+strconv.FormatUint(uint64(frameType), 10)+" for: "+conn.GetAddress().String())
+			conn.GetLogger().Log(helpertools.LogError, "Invalid frame type: "+strconv.FormatUint(uint64(frameType), 10)+" for: "+conn.GetAddress().String())
 		}
 	}
 }
@@ -570,7 +570,7 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumberType, windowWordType]) resendWrite(conn connType, sConn *connectionStabilizerConn[sequenceNumberType, orderNumberType, windowWordType], sequenceNumber sequenceNumberType, data []byte, infiniteSend bool, try uint8) {
 	//Check for validity
 	if sConn == nil {
-		conn.GetLogger().Log(3, "Invalid connection for: "+conn.GetAddress().String())
+		conn.GetLogger().Log(helpertools.LogError, "Invalid connection for: "+conn.GetAddress().String())
 		return
 	}
 
@@ -585,7 +585,7 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 
 	//Send
 	if stabilizer.settings.ResendRetries == 0 || infiniteSend || try <= min(stabilizer.settings.ResendRetries, 254) {
-		conn.GetLogger().Log(1, "Sending resend data frame with sequence number: "+strconv.FormatUint(uint64(sequenceNumber), 10)+" to: "+conn.GetAddress().String()+" with try: "+strconv.FormatUint(uint64(try), 10))
+		conn.GetLogger().Log(helpertools.LogInfo, "Sending resend data frame with sequence number: "+strconv.FormatUint(uint64(sequenceNumber), 10)+" to: "+conn.GetAddress().String()+" with try: "+strconv.FormatUint(uint64(try), 10))
 		conn.Send(data)
 		time.AfterFunc(sConn.rttCalculator.GetRTO(), func() {
 			if !sConn.sendedPacketsACKsWindow.CheckValue(sequenceNumber) {
@@ -596,7 +596,7 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 			}
 		})
 	} else {
-		conn.GetLogger().Log(2, "Failed sending resend data frame to: "+conn.GetAddress().String()+" for sequence number: "+strconv.FormatUint(uint64(sequenceNumber), 10))
+		conn.GetLogger().Log(helpertools.LogWarning, "Failed sending resend data frame to: "+conn.GetAddress().String()+" for sequence number: "+strconv.FormatUint(uint64(sequenceNumber), 10))
 	}
 }
 

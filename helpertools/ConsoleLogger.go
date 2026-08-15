@@ -1,6 +1,3 @@
-/*
-Package webtools provides generic tools for working with subpackages. The main thing of this package are the subpackages
-*/
 package helpertools
 
 import (
@@ -11,73 +8,83 @@ import (
 	"time"
 )
 
-/*
-ANSIITotalResetSequence is total reset sequence for all text formating
-*/
+// LogType is type of log
+type LogType uint8
+
+// LogNonspecific is nonspecific log (green)
+const LogNonspecific LogType = 0
+
+// LogTraffic is log for traffic (green)
+const LogTraffic LogType = 1
+
+// LogInfo is log for informations (blue)
+const LogInfo LogType = 2
+
+// LogWarning is log for warnings (yellow)
+const LogWarning LogType = 3
+
+// LogError is log for errors (red)
+const LogError LogType = 4
+
+// ANSIITotalResetSequence is total reset sequence for all text formating
 const ANSIITotalResetSequence = "\033[0m"
 
-/*
-ANSIISetTextColorSequence issequence for setting text color, do not forget to add m at the end
-*/
+// ANSIISetTextColorSequence issequence for setting text color, do not forget to add m at the end
 const ANSIISetTextColorSequence = "\033[38;5;"
 
-/*
-ANSIISetBackgroundColorSequence issequence for setting background color, do not forget to add m at the end
-*/
+// ANSIISetBackgroundColorSequence issequence for setting background color, do not forget to add m at the end
 const ANSIISetBackgroundColorSequence = "\033[48;5;"
 
-/*
-LogReportFunc used for event reporting of Logger: 0 = Nonspecific log; 1 = Information; 2 = Warning; 3 = Error;
-*/
-type LogReportFunc func(eventType uint8, message string, formatedMessage string, sourceId string)
+// LogReportFunc used for event reporting of Logger: 0 = Nonspecific log; 1 = Information; 2 = Warning; 3 = Error;
+type LogReportFunc func(logType LogType, message string, formatedMessage string, sourceId string)
 
-/*
-ConsoleLogger is simple logger
-*/
+// ConsoleLogger is simple logger
 type ConsoleLogger struct {
 	LogReportFunction LogReportFunc
 	// saveToFile        bool
-	Prefix        string
-	Preprefix     string
-	minPrintLevel uint8
+	Prefix      string
+	Preprefix   string
+	IgnoredLogs map[LogType]struct{}
 }
 
-/*
-NewConsoleLogger creates new logger class. Report error level: 0 = Nonspecific log; 1 = Information; 2 = Warning; 3 = Error;
-*/
-func NewConsoleLogger(Prefix string, minPrintLevel uint8) *ConsoleLogger {
-	return &ConsoleLogger{Prefix: Prefix, LogReportFunction: nil, minPrintLevel: minPrintLevel}
+// MakeConsoleLogger creates new logger class.
+//
+// Set LogToConsole to false to disable logging to Console.
+//
+// To ignore specific LogType use IgnoredLogs
+func MakeConsoleLogger(Prefix string) ConsoleLogger {
+	return ConsoleLogger{Prefix: Prefix, LogReportFunction: nil, IgnoredLogs: make(map[LogType]struct{})}
 }
 
-/*
-Log logs message, logType -> 0 = Nonspecific log; 1 = Information; 2 = Warning; 3 = Error
-*/
-func (logger *ConsoleLogger) Log(logType uint8, message string) {
+// Log logs message
+func (logger *ConsoleLogger) Log(logType LogType, message string) {
 	logger.LogWithSourceID(logType, message, "")
 }
 
-/*
-LogWithSourceID logs message, logType -> 0 = Nonspecific log; 1 = Information; 2 = Warning; 3 = Error
-*/
-func (logger *ConsoleLogger) LogWithSourceID(logType uint8, message string, sourceID string) {
+// LogWithSourceID logs message, logType -> 0 = Nonspecific log; 1 = Information; 2 = Warning; 3 = Error
+func (logger *ConsoleLogger) LogWithSourceID(logType LogType, message string, sourceID string) {
 	colorlogTypePrefix := ""
 	logTypePrefix := ""
 	switch logType {
-	case 1:
+	case LogInfo:
 		logTypePrefix = "INFO"
 		colorlogTypePrefix = ANSIISetTextColorSequence + "27m"
-	case 2:
+	case LogWarning:
 		logTypePrefix = "WARN"
 		colorlogTypePrefix = ANSIISetTextColorSequence + "214m"
-	case 3:
+	case LogError:
 		logTypePrefix = "ERROR"
 		colorlogTypePrefix = ANSIISetTextColorSequence + "15m" + ANSIISetBackgroundColorSequence + "9m"
+	case LogTraffic:
+		logTypePrefix = "TRAFFIC"
+		colorlogTypePrefix = ANSIISetTextColorSequence + "34m"
 	default:
-		logTypePrefix = "GENERAL"
+		logTypePrefix = "GENERIC"
 		colorlogTypePrefix = ANSIISetTextColorSequence + "34m"
 	}
 	logMsg := "[" + time.Now().Format("02/01/2006 15:04:05.000") + " - " + logTypePrefix + " - " + FormatByBool(logger.Preprefix != "", logger.Preprefix+" - ", "") + logger.Prefix + "]: " + message
-	if logType >= logger.minPrintLevel {
+	_, ignore := logger.IgnoredLogs[logType]
+	if !ignore {
 		fmt.Println(colorlogTypePrefix + logMsg + ANSIITotalResetSequence)
 	}
 	if logger.LogReportFunction != nil {
@@ -85,9 +92,7 @@ func (logger *ConsoleLogger) LogWithSourceID(logType uint8, message string, sour
 	}
 }
 
-/*
-FormatByBool returns value by bool
-*/
+// FormatByBool returns value by bool
 func FormatByBool[T any](b bool, trueVal T, falseVal T) T {
 	if b {
 		return trueVal
@@ -95,9 +100,7 @@ func FormatByBool[T any](b bool, trueVal T, falseVal T) T {
 	return falseVal
 }
 
-/*
-MapToString converts map to string
-*/
+// MapToString converts map to string
 func MapToString[K comparable, V any](m map[K]V) string {
 	result := "{"
 	for k, v := range m {
@@ -108,16 +111,16 @@ func MapToString[K comparable, V any](m map[K]V) string {
 	return result
 }
 
-/*
-NewConsoleLoggerForTraffic creates new ConsoleLogger with option to disable traffic report. Traffic reports are reports with 0 level
-*/
-func NewConsoleLoggerForTraffic(prefix string, reportTraffic bool) *ConsoleLogger {
-	return NewConsoleLogger(prefix, FormatByBool[uint8](reportTraffic, 0, 1))
+// MakeConsoleLoggerForTraffic creates new ConsoleLogger with option to disable traffic report.
+func MakeConsoleLoggerForTraffic(prefix string, reportTraffic bool) ConsoleLogger {
+	logger := MakeConsoleLogger(prefix)
+	if !reportTraffic {
+		logger.IgnoredLogs[LogTraffic] = struct{}{}
+	}
+	return logger
 }
 
-/*
-ReadLineFromConsole reads line from console
-*/
+// ReadLineFromConsole reads line from console
 func ReadLineFromConsole(message string) ([]byte, error) {
 	reader := bufio.NewReader(os.Stdin)
 	fmt.Print(message)

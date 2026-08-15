@@ -125,7 +125,7 @@ func (cl *ClientStable[sequenceNumberType, orderNumberType, windowWordType]) Clo
 
 // GetLogger gets logger of client
 func (cl *ClientStable[sequenceNumberType, orderNumberType, windowWordType]) GetLogger() *helpertools.ConsoleLogger {
-	return cl.client.Logger
+	return &cl.client.Logger
 }
 
 // IsAlive checks if client is alive

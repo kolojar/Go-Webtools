@@ -232,7 +232,7 @@ func (sv *WebSocketInstanceServer) accessFuncLocal(server *Server, w http.Respon
 	if r.URL.Path == "/instanceServerWebsocketNewInstance" && r.Method == http.MethodPost {
 		//Generate new ID
 		id := helpertools.GenerateRandomID()
-		sv.wsServer.httpServer.Logger.Log(2, "Creating new instance for: "+r.RemoteAddr+" with id: "+id)
+		sv.wsServer.httpServer.Logger.Log(helpertools.LogWarning, "Creating new instance for: "+r.RemoteAddr+" with id: "+id)
 
 		//Set cookies
 		http.SetCookie(w, &http.Cookie{
@@ -282,7 +282,7 @@ func (sv *WebSocketInstanceServer) accessFuncLocal(server *Server, w http.Respon
 			v.Close()
 		}
 		sv.instances.Delete(instanceIDCookie.Value)
-		sv.wsServer.httpServer.Logger.Log(2, "Removed instance for: "+r.RemoteAddr+" with id: "+instanceIDCookie.Value)
+		sv.wsServer.httpServer.Logger.Log(helpertools.LogWarning, "Removed instance for: "+r.RemoteAddr+" with id: "+instanceIDCookie.Value)
 		fmt.Fprint(w, "Instance removed")
 		return true
 	}

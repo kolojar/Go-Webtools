@@ -25,7 +25,7 @@ type FileSystemWatcher struct {
 	eventFunc FileSystemWatcherEventFunc
 	isRunning bool
 	recursive bool
-	Logger    *helpertools.ConsoleLogger
+	Logger    helpertools.ConsoleLogger
 	watcher   *fileSystemWatcherInstance
 
 	fileMoveEvent     bool
@@ -38,7 +38,7 @@ type FileSystemWatcher struct {
 }
 
 func NewFileSystemWatcher(path string, eventFunc FileSystemWatcherEventFunc, recursive bool, logEvents bool) *FileSystemWatcher {
-	fsWatch := &FileSystemWatcher{path: path, eventFunc: eventFunc, isRunning: false, Logger: helpertools.NewConsoleLoggerForTraffic("FSWatcher", logEvents), recursive: recursive}
+	fsWatch := &FileSystemWatcher{path: path, eventFunc: eventFunc, isRunning: false, Logger: helpertools.MakeConsoleLoggerForTraffic("FSWatcher", logEvents), recursive: recursive}
 	fsWatch.watcher = newFileSystemWatcherInstance(path, fsWatch, recursive)
 	fsWatch.ignoredEvents = helpertools.MakeSafeMap[string, FileSystemEventType]()
 	return fsWatch
@@ -72,7 +72,7 @@ func (watcher *FileSystemWatcher) reportFunc(path string, operation FileSystemEv
 	get, has := watcher.ignoredEvents.GetHas(path)
 	if has {
 		if get == operation {
-			watcher.Logger.Log(1, "Ignoring operation "+strconv.FormatUint(uint64(operation), 10)+" for file: "+path)
+			watcher.Logger.Log(helpertools.LogInfo, "Ignoring operation "+strconv.FormatUint(uint64(operation), 10)+" for file: "+path)
 			watcher.ignoredEvents.Delete(path)
 			return
 		}
@@ -81,7 +81,7 @@ func (watcher *FileSystemWatcher) reportFunc(path string, operation FileSystemEv
 }
 
 func (watcher *FileSystemWatcher) reportEvent(event uint8, filePath string, isDir bool) {
-	watcher.Logger.Log(0, "Got event: "+strconv.FormatUint(uint64(event), 10)+" for "+helpertools.FormatByBool(isDir, "folder", "file")+": "+filePath)
+	watcher.Logger.Log(helpertools.LogTraffic, "Got event: "+strconv.FormatUint(uint64(event), 10)+" for "+helpertools.FormatByBool(isDir, "folder", "file")+": "+filePath)
 	if event == 100 {
 		//Begin move
 		if isDir {

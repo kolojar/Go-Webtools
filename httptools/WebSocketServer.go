@@ -134,7 +134,7 @@ func (sv *WebSocketServer) GetAddress() string {
 GetLogger gets logger
 */
 func (sv *WebSocketServer) GetLogger() *helpertools.ConsoleLogger {
-	return sv.httpServer.Logger
+	return &sv.httpServer.Logger
 }
 
 /*
@@ -178,7 +178,7 @@ func (sv *WebSocketServer) GetHTTPServer() *Server {
 func (sv *WebSocketServer) handleHTTPAccess(_ *Server, w http.ResponseWriter, r *http.Request, params map[string]string) bool {
 	if r.Method == http.MethodGet && slices.Contains(sv.websocketURLsAndReadFuncs.GetKeys(), r.URL.Path) {
 		//Websocket request - Correct URL and Method
-		sv.httpServer.Logger.Log(1, "Preparing connection from: "+r.RemoteAddr)
+		sv.httpServer.Logger.Log(helpertools.LogInfo, "Preparing connection from: "+r.RemoteAddr)
 
 		//Verify if connection wants WebSocket
 		if !strings.Contains(r.Header.Get("Upgrade"), "websocket") || !strings.Contains(r.Header.Get("Connection"), "Upgrade") {
@@ -207,7 +207,7 @@ func (sv *WebSocketServer) handleHTTPAccess(_ *Server, w http.ResponseWriter, r 
 		//Hijack connection
 		conn, _, err := w.(http.Hijacker).Hijack()
 		if err != nil {
-			sv.httpServer.Logger.Log(3, "Failed to hijact connection from: "+r.RemoteAddr+" | Error: "+err.Error())
+			sv.httpServer.Logger.Log(helpertools.LogError, "Failed to hijact connection from: "+r.RemoteAddr+" | Error: "+err.Error())
 			return true
 		}
 
@@ -225,7 +225,7 @@ func (sv *WebSocketServer) handleHTTPAccess(_ *Server, w http.ResponseWriter, r 
 		sv.conns.Set(cl, &WebSocketServerConn{origin: sv, Client: cl, urlParams: params, IsBinary: false, firstRead: true, sourceURL: r.URL.Path, Cookies: r.Cookies()})
 		cl.Connect()
 
-		//sv.Logger.Log(2, "Connection from: "+conn.RemoteAddr().String()+" connected locally to: "+conn.LocalAddr().String())
+		//sv.Logger.Log(helpertools.LogWarning, "Connection from: "+conn.RemoteAddr().String()+" connected locally to: "+conn.LocalAddr().String())
 		//go handleWebSocketFrameRead(conn.(*net.TCPConn), sv.Logger, sv.readFuncLocal)
 		return true
 	}
@@ -240,7 +240,7 @@ func (sv *WebSocketServer) handleHTTPAccess(_ *Server, w http.ResponseWriter, r 
 /*
 HandleWebSocketFrameRead handles reading of WebSocket frame, is used in TCPClientUniversal
 */
-func HandleWebSocketFrameRead(cl *tcp.ClientUniversal, limit int, logger *helpertools.ConsoleLogger, readFunc tcp.ClientUniversalOnReadFuncIntenal) (bool, error) {
+func HandleWebSocketFrameRead(cl *tcp.ClientUniversal, limit int, logger helpertools.ConsoleLogger, readFunc tcp.ClientUniversalOnReadFuncIntenal) (bool, error) {
 	for i := 0; i < limit || limit < 0; i++ {
 		//Read header of frame
 		header := make([]byte, 2)
@@ -320,16 +320,16 @@ func HandleWebSocketFrameRead(cl *tcp.ClientUniversal, limit int, logger *helper
 		//Sort opcodes
 		if opcode == 9 {
 			//Ping -> Send pong
-			logger.Log(1, "Got ping - Sending pong responce...")
+			logger.Log(helpertools.LogInfo, "Got ping - Sending pong responce...")
 			err := WriteToWebSocketFrameHandler(cl, payload, map[string]any{"opcode": uint8(10)})
 			if err != nil {
-				logger.Log(3, "Error sending pong: "+err.Error())
+				logger.Log(helpertools.LogError, "Error sending pong: "+err.Error())
 			}
 			continue
 		}
 		if opcode == 10 {
 			//Got pong
-			logger.Log(1, "Got pong - Ignoring read")
+			logger.Log(helpertools.LogInfo, "Got pong - Ignoring read")
 			continue
 		}
 
@@ -350,10 +350,10 @@ Sources: https://en.wikipedia.org/wiki/WebSocket#Opcodes
 Some fixes applied from ChatGPT (big payloads)
 OpCode must be in range form 0 to 16 (from Wikipedia) in hex format
 */
-func PackWebSocketFrame(payload []byte, opcode uint8, logger *helpertools.ConsoleLogger) []byte {
+func PackWebSocketFrame(payload []byte, opcode uint8, logger helpertools.ConsoleLogger) []byte {
 	//Check opcode size
 	if opcode >= 16 {
-		logger.Log(3, "Opcode must be in range from 0 to 15 (less than 16), ignoring...")
+		logger.Log(helpertools.LogError, "Opcode must be in range from 0 to 15 (less than 16), ignoring...")
 		return nil
 	}
 
@@ -409,7 +409,7 @@ func (sv *WebSocketServer) readFuncLocal(cl *tcp.ClientUniversal, data []byte, s
 	var httpConn *WebSocketServerConn = sv.conns.Get(cl)
 	if httpConn == nil {
 		if status != webtools.DisconnectStatus {
-			sv.httpServer.Logger.Log(3, "Connection for client connected from: "+cl.GetConn().RemoteAddr().String()+" connected locally to: "+cl.GetConn().LocalAddr().String()+" not found!")
+			sv.httpServer.Logger.Log(helpertools.LogError, "Connection for client connected from: "+cl.GetConn().RemoteAddr().String()+" connected locally to: "+cl.GetConn().LocalAddr().String()+" not found!")
 		}
 		return
 	}
@@ -431,7 +431,7 @@ func (sv *WebSocketServer) readFuncLocal(cl *tcp.ClientUniversal, data []byte, s
 	//Get isBinary
 	isBinaryRaw := otherData["isBinary"]
 	if isBinaryRaw == nil || isBinaryRaw == "" {
-		sv.httpServer.Logger.Log(3, "No property 'isBinary' found in otherData")
+		sv.httpServer.Logger.Log(helpertools.LogError, "No property 'isBinary' found in otherData")
 		return
 	}
 	isBinary := isBinaryRaw.(bool)
@@ -444,7 +444,7 @@ func (sv *WebSocketServer) readFuncLocal(cl *tcp.ClientUniversal, data []byte, s
 
 	// Check type
 	if isBinary != httpConn.IsBinary {
-		sv.httpServer.Logger.Log(2, "Connection from: "+cl.GetConn().RemoteAddr().String()+" connected locally to: "+cl.GetConn().LocalAddr().String()+" has got data that are marked as "+helpertools.FormatByBool(isBinary, "binary", "text")+" but this connection is marked as "+helpertools.FormatByBool(httpConn.IsBinary, "binary", "text")+". Consilider changing properties of websocketConnection.")
+		sv.httpServer.Logger.Log(helpertools.LogWarning, "Connection from: "+cl.GetConn().RemoteAddr().String()+" connected locally to: "+cl.GetConn().LocalAddr().String()+" has got data that are marked as "+helpertools.FormatByBool(isBinary, "binary", "text")+" but this connection is marked as "+helpertools.FormatByBool(httpConn.IsBinary, "binary", "text")+". Consilider changing properties of websocketConnection.")
 	}
 
 	//Process read

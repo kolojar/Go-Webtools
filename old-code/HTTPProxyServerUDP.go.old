@@ -47,7 +47,7 @@ Read data Handler for TCP
 */
 func (proxySv *HTTPProxyServerUDP) readFuncUDP(client *UDPClient, addr *net.UDPAddr, data string, ended bool) {
 	if proxySv.connetionUDPToWebSocketTranslator[client] == nil {
-		proxySv.Logger.Log(3, "Error writing to WebSocket - Connection does not exist! Looking for address: "+addr.String())
+		proxySv.Logger.Log(helpertools.LogError, "Error writing to WebSocket - Connection does not exist! Looking for address: "+addr.String())
 		return
 	}
 	if !ended {
@@ -100,7 +100,7 @@ func MakeHTTPProxyServerUDP(udpServerAdress string, proxyHostAddress string, dat
 Starts HTTPProxy server
 */
 func (proxySv *HTTPProxyServerUDP) Start() {
-	proxySv.Logger.Log(2, "Started proxying server from "+proxySv.udpServerAdress+" to "+proxySv.webSocketServer.HttpServer.address)
+	proxySv.Logger.Log(helpertools.LogWarning, "Started proxying server from "+proxySv.udpServerAdress+" to "+proxySv.webSocketServer.HttpServer.address)
 	proxySv.webSocketServer.Start()
 }
 

@@ -66,7 +66,7 @@ func (cl *HTTPWebTransportClient) Connect() {
 	cl.tcpClient.Connect()
 
 	//Reset ready state
-	cl.tcpClient.GetLogger().Log(1, "Upgrading connection with: "+cl.tcpClient.universalClient.address.String())
+	cl.tcpClient.GetLogger().Log(helpertools.LogInfo, "Upgrading connection with: "+cl.tcpClient.universalClient.address.String())
 	cl.awaitingReady = true
 	cl.hijacked = false
 
@@ -87,9 +87,9 @@ func (cl *HTTPWebTransportClient) Connect() {
 	if cl.awaitingStatus {
 		//Successfully connected
 		cl.hijacked = true
-		cl.tcpClient.GetLogger().Log(1, "Upgraded connection with: "+cl.tcpClient.universalClient.address.String())
+		cl.tcpClient.GetLogger().Log(helpertools.LogInfo, "Upgraded connection with: "+cl.tcpClient.universalClient.address.String())
 	} else {
-		cl.tcpClient.GetLogger().Log(3, "Failed to upgrade connection with: "+cl.tcpClient.universalClient.address.String())
+		cl.tcpClient.GetLogger().Log(helpertools.LogError, "Failed to upgrade connection with: "+cl.tcpClient.universalClient.address.String())
 		cl.tcpClient.Stop()
 	}
 }

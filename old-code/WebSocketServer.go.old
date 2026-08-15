@@ -75,7 +75,7 @@ func (ws *WebSocketHTTPServer) getViewsFunc(w http.ResponseWriter, r *http.Reque
 		//Setup connection
 		conn, cookies, err := prepareWebSocketConnection(w, r, &ws.Logger)
 		if err != nil {
-			ws.Logger.Log(3, err.Error())
+			ws.Logger.Log(helpertools.LogError, err.Error())
 		}
 
 		//Generate new ID
@@ -125,7 +125,7 @@ func (ws *WebSocketHTTPServer) readRoutine(conn net.Conn, webSocket *HTTPServerW
 Prepares secured WebSocket connection to meet standards
 */
 func prepareWebSocketConnection(w http.ResponseWriter, r *http.Request, logger *ConsoleLogger) (net.Conn, []*http.Cookie, error) {
-	logger.Log(1, "Preparing connection from: "+r.RemoteAddr)
+	logger.Log(helpertools.LogInfo, "Preparing connection from: "+r.RemoteAddr)
 
 	//Verify if connection wants WebSocket
 	if !strings.Contains(r.Header.Get("Upgrade"), "websocket") || !strings.Contains(r.Header.Get("Connection"), "Upgrade") {
@@ -158,7 +158,7 @@ func prepareWebSocketConnection(w http.ResponseWriter, r *http.Request, logger *
 	}
 
 	//Return connection
-	logger.Log(1, "WebSocketServer: Prepared connection from: "+r.RemoteAddr)
+	logger.Log(helpertools.LogInfo, "WebSocketServer: Prepared connection from: "+r.RemoteAddr)
 	return conn, r.Cookies(), nil
 }
 
@@ -181,7 +181,7 @@ Handles WebSocket message
 Returns if message was ping and message
 */
 func HandleWebSocketRead(conn net.Conn, logger *ConsoleLogger, readFunc TCPReadFunc) {
-	logger.Log(1, "Connection from: "+(conn).RemoteAddr().String())
+	logger.Log(helpertools.LogInfo, "Connection from: "+(conn).RemoteAddr().String())
 	//Read data
 	for {
 		//Unpack frame
@@ -189,18 +189,18 @@ func HandleWebSocketRead(conn net.Conn, logger *ConsoleLogger, readFunc TCPReadF
 		if err != nil {
 			fmt.Println("Err: ", err.Error())
 			if err.Error() != "EOF" && !strings.Contains(err.Error(), "use of closed network connection") {
-				logger.Log(3, "Error reading from: "+conn.RemoteAddr().String()+" | Error: "+err.Error())
+				logger.Log(helpertools.LogError, "Error reading from: "+conn.RemoteAddr().String()+" | Error: "+err.Error())
 			}
 			break
 		}
-		logger.Log(1, "Reading from: "+conn.RemoteAddr().String()+" | Data: "+msg)
+		logger.Log(helpertools.LogInfo, "Reading from: "+conn.RemoteAddr().String()+" | Data: "+msg)
 		if readFunc != nil {
 			readFunc(conn, msg, false)
 		}
 	}
 
 	//Report error
-	logger.Log(1, "Disconecting from: "+conn.RemoteAddr().String())
+	logger.Log(helpertools.LogInfo, "Disconecting from: "+conn.RemoteAddr().String())
 	if readFunc != nil {
 		readFunc(conn, "", true)
 	}
@@ -294,13 +294,13 @@ func UnpackWebSocketFrame(conn net.Conn, logger *ConsoleLogger) (string, error) 
 	//Sort opcodes
 	if opcode == 9 {
 		//Ping -> Send pong
-		logger.Log(1, "Got ping -> IGNORING.")
+		logger.Log(helpertools.LogInfo, "Got ping -> IGNORING.")
 		SendWebSocketPong(&conn, []byte(string(payload)), logger)
 		return "", errors.New("ignoring requested ping")
 	}
 	if opcode == 10 {
 		//Got pong
-		logger.Log(1, "Got pong -> IGNORING.")
+		logger.Log(helpertools.LogInfo, "Got pong -> IGNORING.")
 		return "", errors.New("ignoring requested ping")
 	}
 
@@ -319,9 +319,9 @@ func SendWebSocketPong(conn *net.Conn, data []byte, logger *ConsoleLogger) {
 
 	//Send frame
 	_, err := (*conn).Write(frame)
-	logger.Log(1, "Sending pong to: "+(*conn).RemoteAddr().String())
+	logger.Log(helpertools.LogInfo, "Sending pong to: "+(*conn).RemoteAddr().String())
 	if err != nil {
-		logger.Log(3, "Error sending pong to: "+(*conn).RemoteAddr().String()+" | Error: "+err.Error())
+		logger.Log(helpertools.LogError, "Error sending pong to: "+(*conn).RemoteAddr().String()+" | Error: "+err.Error())
 	}
 }
 
@@ -363,7 +363,7 @@ func PackWebSocketFrame(message string, opcode uint8) []byte {
 Starts WebSocket under HTTP server
 */
 func (ws *WebSocketHTTPServer) Start() {
-	ws.Logger.Log(2, "Started WebSocket server at "+ws.HttpServer.address)
+	ws.Logger.Log(helpertools.LogWarning, "Started WebSocket server at "+ws.HttpServer.address)
 	ws.HttpServer.Start()
 }
 
@@ -391,10 +391,10 @@ Writes to WebSocket
 */
 func (ws *HTTPServerWebSocketConnection) SendMessage(message string) {
 	frame := PackWebSocketFrame(message, 1)
-	ws.server.Logger.Log(1, "Sending to: "+ws.connection.RemoteAddr().String()+" | Data: "+message)
+	ws.server.Logger.Log(helpertools.LogInfo, "Sending to: "+ws.connection.RemoteAddr().String()+" | Data: "+message)
 	_, err := ws.connection.Write(frame)
 	if err != nil {
-		ws.server.Logger.Log(3, "Error sending to: "+ws.connection.RemoteAddr().String()+" | Error: "+err.Error())
+		ws.server.Logger.Log(helpertools.LogError, "Error sending to: "+ws.connection.RemoteAddr().String()+" | Error: "+err.Error())
 	}
 }
 
@@ -433,7 +433,7 @@ func (ws *HTTPServerWebSocketConnection) Close() {
 		}
 	}
 	ws.server.webSocketConnections = resultList
-	//ws.server.Logger.Log(1, "WebSocket connection ended!")
+	//ws.server.Logger.Log(helpertools.LogInfo, "WebSocket connection ended!")
 }
 
 /*
@@ -495,10 +495,10 @@ func SendWebSocketMessage(wsConns []*HTTPServerWebSocketConnection, message stri
 //	ws.gotPing = false
 //	ws.pingMessage = ""
 //	frame := PackWebSocketFrame("PING", 9)
-//	ws.server.Logger.Log(1, "Sending ping to client.")
+//	ws.server.Logger.Log(helpertools.LogInfo, "Sending ping to client.")
 //	_, err := ws.connection.Write(frame)
 //	if err != nil {
-//		ws.server.Logger.Log(3, "Error sending ping to server | Error: "+err.Error())
+//		ws.server.Logger.Log(helpertools.LogError, "Error sending ping to server | Error: "+err.Error())
 //	}
 //
 //	for i := 0; i < 10; i++ {
