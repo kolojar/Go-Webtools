@@ -1,0 +1,30 @@
+// Project-local debug tasks
+//
+// For more documentation on how to configure debug tasks,
+// see: https://zed.dev/docs/debugger
+[
+  {
+    "adapter": "Delve",
+    "label": "Debug UDP Stable Server",
+    "request": "launch",
+    "mode": "debug",
+    "program": "./main/main.go",
+    "cwd": "$ZED_DIRNAME",
+    "args": ["uss"],
+    "buildFlags": [],
+    "env": {},
+    "dlvFlags": ["--headless", "--api-version=2", "--check-go-version=false"]
+  },
+  {
+    "adapter": "Delve",
+    "label": "Debug UDP Stable Client",
+    "request": "launch",
+    "mode": "debug",
+    "program": "./main/main.go",
+    "cwd": "$ZED_DIRNAME",
+    "args": ["ucs"],
+    "buildFlags": [],
+    "env": {},
+    "dlvFlags": ["--headless", "--api-version=2", "--check-go-version=false"]
+  }
+]
