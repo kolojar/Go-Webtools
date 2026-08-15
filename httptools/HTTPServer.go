@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	webtools "github.com/kolojar/Go-Webtools"
+	"github.com/kolojar/Go-Webtools/helpertools"
 )
 
 /*
@@ -47,7 +47,7 @@ type Server struct {
 	//This path is not handeled automatically
 	rootPath            string
 	address             string
-	Logger              *webtools.ConsoleLogger
+	Logger              *helpertools.ConsoleLogger
 	server              http.Server
 	onAccessFunc        AccessFunc
 	startWebBrowser     bool
@@ -100,7 +100,7 @@ func NewServer(address string, onAccessFunc AccessFunc, rootPath string, startWe
 	if !strings.HasSuffix(rootPath, "/") {
 		rootPath += "/"
 	}
-	return &Server{address: address, ErrorPages: map[int]string{}, HostPaths: map[string]string{}, Logger: webtools.NewConsoleLoggerForTraffic("HTTPServer", reportHTTPTraffic), onAccessFunc: onAccessFunc, startWebBrowser: startWebBrowser, rootPath: rootPath, HandleExtensionsWithPriority: make([]string, 0)}
+	return &Server{address: address, ErrorPages: map[int]string{}, HostPaths: map[string]string{}, Logger: helpertools.NewConsoleLoggerForTraffic("HTTPServer", reportHTTPTraffic), onAccessFunc: onAccessFunc, startWebBrowser: startWebBrowser, rootPath: rootPath, HandleExtensionsWithPriority: make([]string, 0)}
 }
 
 /*

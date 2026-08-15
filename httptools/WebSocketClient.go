@@ -6,6 +6,7 @@ import (
 	"time"
 
 	webtools "github.com/kolojar/Go-Webtools"
+	"github.com/kolojar/Go-Webtools/helpertools"
 	"github.com/kolojar/Go-Webtools/tcp"
 )
 
@@ -72,7 +73,7 @@ WebSocketClient is WebSocket client struct
 */
 type WebSocketClient struct {
 	tcpClient      *tcp.ClientUniversal
-	Logger         *webtools.ConsoleLogger
+	Logger         *helpertools.ConsoleLogger
 	readFunc       WebSocketClientReadFunc
 	awaitingReady  bool
 	awaitingStatus bool
@@ -94,7 +95,7 @@ NewWebSocketClient creates new HTTP WebSocket Client but does not connects it, i
 */
 func NewWebSocketClient(address string, readFunc WebSocketClientReadFunc, reportTraffic bool) (*WebSocketClient, error) {
 	//Create client
-	cl := &WebSocketClient{Logger: webtools.NewConsoleLoggerForTraffic("HTTP-WSClient", reportTraffic), readFunc: readFunc, address: address}
+	cl := &WebSocketClient{Logger: helpertools.NewConsoleLoggerForTraffic("HTTP-WSClient", reportTraffic), readFunc: readFunc, address: address}
 	var err error
 	var tcpAddress string
 	tcpAddress, cl.pathForHTTP = WebSocketGetAddressAndTarget(address)
@@ -142,7 +143,7 @@ func (cl *WebSocketClient) Connect() {
 	host := strings.SplitN(cl.address, ":", 2)[0]
 
 	//Generate random key
-	cl.webSocketKey = base64.StdEncoding.EncodeToString([]byte(webtools.GenerateRandomString(24)))
+	cl.webSocketKey = base64.StdEncoding.EncodeToString([]byte(helpertools.GenerateRandomString(24)))
 
 	//Make handshake GET
 	request := "GET " + cl.pathForHTTP + " HTTP/1.1\r\n" +

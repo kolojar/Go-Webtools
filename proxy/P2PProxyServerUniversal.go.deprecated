@@ -9,6 +9,7 @@ import (
 	"time"
 
 	webtools "github.com/kolojar/Go-Webtools"
+	"github.com/kolojar/Go-Webtools/helpertools"
 	"github.com/kolojar/Go-Webtools/p2p"
 	"github.com/kolojar/Go-Webtools/tcp"
 	"github.com/kolojar/Go-Webtools/udp"
@@ -18,13 +19,13 @@ import (
 P2PProxyServerUniversal is universal P2P server for TCP and UDP, it provides support for multiple proxies per one peer id
 */
 type P2PProxyServerUniversal struct {
-	idToClient    webtools.SafeMap[string, *P2PProxyServerUniversalConn]
-	clientTCPToID webtools.SafeMap[*tcp.ClientSimple, string]
-	clientUDPToID webtools.SafeMap[*udp.Client, string]
+	idToClient    helpertools.SafeMap[string, *P2PProxyServerUniversalConn]
+	clientTCPToID helpertools.SafeMap[*tcp.ClientSimple, string]
+	clientUDPToID helpertools.SafeMap[*udp.Client, string]
 	p2pClient     *p2p.Client
 	reportTrafic  bool
 	//Key is service name, values are isUDP and address
-	ProxiedServices map[string]webtools.KeyValuePair[bool, string]
+	ProxiedServices map[string]helpertools.KeyValuePair[bool, string]
 }
 
 /*
@@ -42,7 +43,7 @@ type P2PProxyServerUniversalConn struct {
 SendToP2P creates frame and sends it to P2P
 */
 func (conn *P2PProxyServerUniversalConn) SendToP2P(operation uint8, data []byte) {
-	conn.origin.p2pClient.Send(conn.sourceID, webtools.PackWebtoolsFrame(operation, conn.ID, data))
+	conn.origin.p2pClient.Send(conn.sourceID, PackWebtoolsFrame(operation, conn.ID, data))
 }
 
 /*
@@ -68,7 +69,7 @@ func (conn *P2PProxyServerUniversalConn) Close(isInitiator bool) {
 	//Send to P2P
 	conn.origin.idToClient.Delete(string(conn.ID))
 	if isInitiator {
-		conn.SendToP2P(webtools.FrameTypeClose, nil)
+		conn.SendToP2P(FrameTypeClose, nil)
 	}
 
 	if conn.tcpClient != nil {
@@ -101,10 +102,10 @@ NewP2PProxyServerUniversal creates new P2P Proxy Server for ProxiedServices but 
 */
 func NewP2PProxyServerUniversal(p2pCoordinatorAddress string, p2pPortForIncommingConns int, reportTraffic bool) (*P2PProxyServerUniversal, error) {
 	sv := &P2PProxyServerUniversal{
-		ProxiedServices: map[string]webtools.KeyValuePair[bool, string]{},
-		clientTCPToID:   webtools.MakeSafeMap[*tcp.ClientSimple, string](),
-		clientUDPToID:   webtools.MakeSafeMap[*udp.Client, string](),
-		idToClient:      webtools.MakeSafeMap[string, *P2PProxyServerUniversalConn](),
+		ProxiedServices: map[string]helpertools.KeyValuePair[bool, string]{},
+		clientTCPToID:   helpertools.MakeSafeMap[*tcp.ClientSimple, string](),
+		clientUDPToID:   helpertools.MakeSafeMap[*udp.Client, string](),
+		idToClient:      helpertools.MakeSafeMap[string, *P2PProxyServerUniversalConn](),
 		reportTrafic:    reportTraffic,
 	}
 	var err error
@@ -116,7 +117,7 @@ func NewP2PProxyServerUniversal(p2pCoordinatorAddress string, p2pPortForIncommin
 	return sv, nil
 }
 
-func (sv *P2PProxyServerUniversal) handleP2PReadFunc(_ *p2p.Client, sourceID []byte, frame []byte, ended bool, logger *webtools.ConsoleLogger) {
+func (sv *P2PProxyServerUniversal) handleP2PReadFunc(_ *p2p.Client, sourceID []byte, frame []byte, ended bool, logger *helpertools.ConsoleLogger) {
 	if ended {
 		//Close all connections with this P2P Conn - ISNT THIS AGAINST P2P LOGIC - WHEN MAIN SERVER DIES, IT KILLS ALL OTHERS
 		for _, d := range sv.idToClient.GetData() {
@@ -131,7 +132,7 @@ func (sv *P2PProxyServerUniversal) handleP2PReadFunc(_ *p2p.Client, sourceID []b
 	}
 
 	//Unpack frame
-	for _, frame := range webtools.UnpackWebtoolsFrame(frame, logger) {
+	for _, frame := range UnpackWebtoolsFrame(frame, logger) {
 		if frame.Operation == 0 {
 			return
 		}
@@ -139,9 +140,9 @@ func (sv *P2PProxyServerUniversal) handleP2PReadFunc(_ *p2p.Client, sourceID []b
 		//Sort connections
 		if sv.idToClient.Get(string(frame.ID)) == nil {
 			switch frame.Operation {
-			case webtools.FrameTypeConnect:
+			case FrameTypeConnect:
 				//Get proxy entry
-				split := strings.Split(string(frame.Data), string(webtools.FrameSeparatorChar))
+				split := strings.Split(string(frame.Data), string(FrameSeparatorChar))
 				entry, ok := sv.ProxiedServices[split[0]]
 				if !ok {
 					sv.p2pClient.ClientCoordinator.Logger.Log(3, "Could not create find proxy service entry: "+string(frame.Data))
@@ -149,7 +150,7 @@ func (sv *P2PProxyServerUniversal) handleP2PReadFunc(_ *p2p.Client, sourceID []b
 				}
 
 				//Create new connection
-				frame.ID = []byte(webtools.GenerateRandomID())
+				frame.ID = []byte(helpertools.GenerateRandomID())
 				if entry.Key {
 					//UDP Connection
 					cl, err := udp.NewClient(entry.Value, sv.handleUDPReadFunc, sv.reportTrafic)
@@ -175,7 +176,7 @@ func (sv *P2PProxyServerUniversal) handleP2PReadFunc(_ *p2p.Client, sourceID []b
 				}
 
 				//Send data using P2P
-				sv.idToClient.Get(string(frame.ID)).SendToP2P(webtools.FrameTypeConnect, []byte(split[1]))
+				sv.idToClient.Get(string(frame.ID)).SendToP2P(FrameTypeConnect, []byte(split[1]))
 				return
 			case tcp.MergerFrameTypeListConnections:
 				//List connections
@@ -184,7 +185,7 @@ func (sv *P2PProxyServerUniversal) handleP2PReadFunc(_ *p2p.Client, sourceID []b
 					sv.p2pClient.ClientCoordinator.Logger.Log(3, "Could not create connection list: "+err.Error())
 					return
 				}
-				sv.p2pClient.Send(sourceID, webtools.PackWebtoolsFrame(tcp.MergerFrameTypeListConnections, []byte{0}, addrs))
+				sv.p2pClient.Send(sourceID, PackWebtoolsFrame(tcp.MergerFrameTypeListConnections, []byte{0}, addrs))
 				return
 			}
 			logger.Log(3, "Could not find connection to ID: "+string(frame.ID))
@@ -198,12 +199,12 @@ func (sv *P2PProxyServerUniversal) handleP2PReadFunc(_ *p2p.Client, sourceID []b
 
 		//Sort operations
 		switch frame.Operation {
-		case webtools.FrameTypeClose:
+		case FrameTypeClose:
 			{
 				//Close connection
 				cl.Close(false)
 			}
-		case webtools.FrameTypeData:
+		case FrameTypeData:
 			{
 				//Send to UDP
 				fmt.Println("FromP2P:", string(frame.Data))
@@ -230,7 +231,7 @@ func (sv *P2PProxyServerUniversal) handleUDPReadFunc(udp *udp.Client, _ *net.UDP
 	}
 
 	//Send to client
-	cl.SendToP2P(webtools.FrameTypeData, data)
+	cl.SendToP2P(FrameTypeData, data)
 }
 
 func (sv *P2PProxyServerUniversal) handleTCPReadFunc(tcp *tcp.ClientSimple, data []byte, status webtools.NetworkStatus) {
@@ -250,7 +251,7 @@ func (sv *P2PProxyServerUniversal) handleTCPReadFunc(tcp *tcp.ClientSimple, data
 	}
 
 	//Send to client
-	cl.SendToP2P(webtools.FrameTypeData, data)
+	cl.SendToP2P(FrameTypeData, data)
 }
 
 /*

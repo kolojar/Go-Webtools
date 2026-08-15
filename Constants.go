@@ -8,7 +8,7 @@ const BufferSize = 1024 * 16
 type NetworkStatus uint8
 
 /*
-ConnectStatus is status of connect
+NoneNetworkStatus is status of none
 */
 const NoneNetworkStatus NetworkStatus = 0
 
@@ -31,3 +31,13 @@ const DisconnectStatus NetworkStatus = 2
 FinishedReadFuncStatus is status of finished reading of one read function and switching to other
 */
 const FinishedReadFuncStatus NetworkStatus = 3
+
+/*
+AlphabetLetters are all English alphabet letters
+*/
+const AlphabetLetters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+
+/*
+NumberLetters are all number characters
+*/
+const NumberLetters = "0123456789"

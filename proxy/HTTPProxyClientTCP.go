@@ -5,6 +5,7 @@ package proxy
 
 import (
 	webtools "github.com/kolojar/Go-Webtools"
+	"github.com/kolojar/Go-Webtools/helpertools"
 	"github.com/kolojar/Go-Webtools/httptools"
 	"github.com/kolojar/Go-Webtools/tcp"
 )
@@ -13,12 +14,12 @@ import (
 HTTPProxyClientTCP is client for proxied TCP traffic over HTTP
 */
 type HTTPProxyClientTCP struct {
-	clientToID         webtools.SafeMap[*tcp.ServerConn, string]
-	idToClient         webtools.SafeMap[string, *tcp.ServerConn]
+	clientToID         helpertools.SafeMap[*tcp.ServerConn, string]
+	idToClient         helpertools.SafeMap[string, *tcp.ServerConn]
 	tcpServer          *tcp.Server
 	httpClient         *httptools.WebSocketClient
-	pendingConnections webtools.SafeMap[string, *tcp.ServerConn]
-	pendingConnsData   webtools.SafeMap[*tcp.ServerConn, [][]byte]
+	pendingConnections helpertools.SafeMap[string, *tcp.ServerConn]
+	pendingConnsData   helpertools.SafeMap[*tcp.ServerConn, [][]byte]
 }
 
 /*
@@ -32,7 +33,7 @@ func (cl *HTTPProxyClientTCP) IsAlive() bool {
 NewHTTPProxyClientTCP creates new HTTP Proxy Client for TCP but does not starts it, if you want to use default connection endpoint, add /websocket to end of address
 */
 func NewHTTPProxyClientTCP(httpProxyAddress string, tcpServerAddress string, reportTraffic bool) (*HTTPProxyClientTCP, error) {
-	cl := &HTTPProxyClientTCP{clientToID: webtools.MakeSafeMap[*tcp.ServerConn, string](), pendingConnections: webtools.MakeSafeMap[string, *tcp.ServerConn](), idToClient: webtools.MakeSafeMap[string, *tcp.ServerConn](), pendingConnsData: webtools.MakeSafeMap[*tcp.ServerConn, [][]byte]()}
+	cl := &HTTPProxyClientTCP{clientToID: helpertools.MakeSafeMap[*tcp.ServerConn, string](), pendingConnections: helpertools.MakeSafeMap[string, *tcp.ServerConn](), idToClient: helpertools.MakeSafeMap[string, *tcp.ServerConn](), pendingConnsData: helpertools.MakeSafeMap[*tcp.ServerConn, [][]byte]()}
 	var err error
 	cl.httpClient, err = httptools.NewWebSocketClient(httpProxyAddress, cl.handleWebTransportReadFunc, reportTraffic)
 	if err != nil {
@@ -59,13 +60,13 @@ func (cl *HTTPProxyClientTCP) handleWebTransportReadFunc(_ *httptools.WebSocketC
 	}
 
 	// Unpack
-	for _, frame := range webtools.UnpackWebtoolsFrame(frame, cl.httpClient.Logger) {
+	for _, frame := range UnpackWebtoolsFrame(frame, cl.httpClient.Logger) {
 		if frame.Operation == 0 {
 			return
 		}
 
 		switch frame.Operation {
-		case webtools.FrameTypeConnect:
+		case FrameTypeConnect:
 			{
 				// Confirmed connection
 				conn := cl.pendingConnections.Get(string(frame.Data))
@@ -81,18 +82,18 @@ func (cl *HTTPProxyClientTCP) handleWebTransportReadFunc(_ *httptools.WebSocketC
 				// Process pending data
 				for len(cl.pendingConnsData.Get(conn)) > 0 {
 					// Resend data
-					cl.httpClient.Send(webtools.PackWebtoolsFrame(webtools.FrameTypeData, frame.ID, cl.pendingConnsData.Get(conn)[0]), 2)
+					cl.httpClient.Send(PackWebtoolsFrame(FrameTypeData, frame.ID, cl.pendingConnsData.Get(conn)[0]), 2)
 					cl.pendingConnsData.Set(conn, cl.pendingConnsData.Get(conn)[1:])
 				}
 				cl.pendingConnsData.Delete(conn)
 				return
 			}
-		case webtools.FrameTypeClose:
+		case FrameTypeClose:
 			{
 				// Close connection
 				cl.idToClient.Get(string(frame.ID)).Close()
 			}
-		case webtools.FrameTypeData:
+		case FrameTypeData:
 			{
 				// Resend data
 				cl.idToClient.Get(string(frame.ID)).Send(frame.Data)
@@ -114,21 +115,21 @@ func (cl *HTTPProxyClientTCP) handleTCPReadFunc(tcpConn *tcp.ServerConn, data []
 	id := cl.clientToID.Get(tcpConn)
 	if id == "" {
 		// No connection found, request new
-		tempID := webtools.GenerateRandomID()
+		tempID := helpertools.GenerateRandomID()
 		cl.pendingConnections.Set(tempID, tcpConn)
 		cl.httpClient.Logger.Log(1, "Preparing new connection with temporary id: "+tempID+" for connection connected to: "+tcpConn.GetConn().RemoteAddr().String()+" connected locally to: "+tcpConn.GetConn().LocalAddr().String())
-		cl.httpClient.Send(webtools.PackWebtoolsFrame(webtools.FrameTypeConnect, []byte("0"), []byte(tempID)), 2)
+		cl.httpClient.Send(PackWebtoolsFrame(FrameTypeConnect, []byte("0"), []byte(tempID)), 2)
 		cl.pendingConnsData.Set(tcpConn, append(make([][]byte, 0), data))
 		return
 	}
 
 	if status == webtools.DisconnectStatus {
 		// Connection ennded
-		cl.httpClient.Send(webtools.PackWebtoolsFrame(webtools.FrameTypeClose, []byte(id), nil), 2)
+		cl.httpClient.Send(PackWebtoolsFrame(FrameTypeClose, []byte(id), nil), 2)
 		return
 	}
 	// Send data
-	cl.httpClient.Send(webtools.PackWebtoolsFrame(webtools.FrameTypeData, []byte(id), data), 2)
+	cl.httpClient.Send(PackWebtoolsFrame(FrameTypeData, []byte(id), data), 2)
 }
 
 /*

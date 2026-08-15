@@ -11,6 +11,7 @@ import (
 	"time"
 
 	webtools "github.com/kolojar/Go-Webtools"
+	"github.com/kolojar/Go-Webtools/helpertools"
 	"github.com/kolojar/Go-Webtools/tcp"
 	"github.com/kolojar/Go-Webtools/udp"
 )
@@ -27,7 +28,7 @@ const p2pCMDData uint8 = 51
 /*
 ClientReadFunc is function definition for reading data from Client
 */
-type ClientReadFunc func(client *Client, sourceID []byte, data []byte, ended bool, logger *webtools.ConsoleLogger)
+type ClientReadFunc func(client *Client, sourceID []byte, data []byte, ended bool, logger *helpertools.ConsoleLogger)
 
 /*
 Client is P2P client for accessing WebTools P2P server
@@ -40,9 +41,9 @@ type Client struct {
 	ID                        []byte
 	isConnecting              bool
 	targetIDThisConnecting    []byte
-	targetIDsConnectingStatus webtools.SafeMap[string, bool]
+	targetIDsConnectingStatus helpertools.SafeMap[string, bool]
 	reportTraffic             bool
-	allowRelay                webtools.SafeMap[string, bool]
+	allowRelay                helpertools.SafeMap[string, bool]
 	readFunc                  ClientReadFunc
 	port                      int
 	loggerPrefix              string
@@ -51,14 +52,14 @@ type Client struct {
 
 	//Server for incomming conns
 	udpIncommingConnsSv *udp.Server
-	udpIncommingConns   webtools.SafeMap[string, webtools.KeyValuePair[*udp.ServerConn, bool]]
+	udpIncommingConns   helpertools.SafeMap[string, helpertools.KeyValuePair[*udp.ServerConn, bool]]
 	tcpIncommingConnsSv *tcp.Server
-	tcpIncommingConns   webtools.SafeMap[string, webtools.KeyValuePair[*tcp.ServerConn, bool]]
+	tcpIncommingConns   helpertools.SafeMap[string, helpertools.KeyValuePair[*tcp.ServerConn, bool]]
 
 	//Clients for outcomming connections
 	udpFramer             *udp.Framer
-	udpOutcommingConnsCls webtools.SafeMap[string, webtools.KeyValuePair[*udp.Client, bool]]
-	tcpOutcommingConnsCls webtools.SafeMap[string, webtools.KeyValuePair[*tcp.ClientSimple, bool]]
+	udpOutcommingConnsCls helpertools.SafeMap[string, helpertools.KeyValuePair[*udp.Client, bool]]
+	tcpOutcommingConnsCls helpertools.SafeMap[string, helpertools.KeyValuePair[*tcp.ClientSimple, bool]]
 }
 
 /*
@@ -102,14 +103,14 @@ func NewP2PClient(coordinatorAddress string, portForIncommingConns int, readFunc
 		ID:                        nil,
 		isConnecting:              false,
 		reportTraffic:             reportTraffic,
-		udpOutcommingConnsCls:     webtools.MakeSafeMap[string, webtools.KeyValuePair[*udp.Client, bool]](),
-		udpIncommingConns:         webtools.MakeSafeMap[string, webtools.KeyValuePair[*udp.ServerConn, bool]](),
-		targetIDsConnectingStatus: webtools.MakeSafeMap[string, bool](),
-		allowRelay:                webtools.MakeSafeMap[string, bool](),
+		udpOutcommingConnsCls:     helpertools.MakeSafeMap[string, helpertools.KeyValuePair[*udp.Client, bool]](),
+		udpIncommingConns:         helpertools.MakeSafeMap[string, helpertools.KeyValuePair[*udp.ServerConn, bool]](),
+		targetIDsConnectingStatus: helpertools.MakeSafeMap[string, bool](),
+		allowRelay:                helpertools.MakeSafeMap[string, bool](),
 		readFunc:                  readFunc,
 		port:                      portForIncommingConns,
-		tcpIncommingConns:         webtools.MakeSafeMap[string, webtools.KeyValuePair[*tcp.ServerConn, bool]](),
-		tcpOutcommingConnsCls:     webtools.MakeSafeMap[string, webtools.KeyValuePair[*tcp.ClientSimple, bool]](),
+		tcpIncommingConns:         helpertools.MakeSafeMap[string, helpertools.KeyValuePair[*tcp.ServerConn, bool]](),
+		tcpOutcommingConnsCls:     helpertools.MakeSafeMap[string, helpertools.KeyValuePair[*tcp.ClientSimple, bool]](),
 		coordinatorAddress:        coordinatorAddress,
 	}
 
@@ -200,7 +201,7 @@ func (p2p *Client) readFuncCoordinatorTCP(_ *tcp.ClientSimple, data []byte, stat
 }
 
 func (p2p *Client) readFuncCoordinator(_ *udp.Client, _ *net.UDPAddr, data []byte, ended bool) {
-	for _, frame := range webtools.UnpackWebtoolsFrame(data, p2p.ClientCoordinator.Logger) {
+	for _, frame := range UnpackWebtoolsFrame(data, p2p.ClientCoordinator.Logger) {
 		switch frame.Operation {
 		case p2pCMDNewID:
 			{
@@ -218,7 +219,7 @@ func (p2p *Client) readFuncCoordinator(_ *udp.Client, _ *net.UDPAddr, data []byt
 				}
 				p2p.tcpClientCoordinator.GetLogger().Prefix = "P2PClientTCP - CoordinatorClient"
 				p2p.tcpClientCoordinator.Connect()
-				p2p.tcpClientCoordinator.Send(webtools.PackWebtoolsFrame(p2pCMDAssocateTCP, p2p.ID, []byte("0")))
+				p2p.tcpClientCoordinator.Send(PackWebtoolsFrame(p2pCMDAssocateTCP, p2p.ID, []byte("0")))
 				continue
 			}
 		case p2pCMDStartPunching:
@@ -252,13 +253,13 @@ func (p2p *Client) readFuncCoordinator(_ *udp.Client, _ *net.UDPAddr, data []byt
 				clientUDP.Logger.Preprefix = p2p.loggerPrefix
 				clientUDP.Logger.Prefix = "P2PClientUDP - PeerClientUDP for ID: " + string(frame.ID)
 
-				//p2p.clientIDsToConns.Set(args["targetID"], webtools.KeyValuePair[*udp.Client, bool]{Key: client, Value: false})
+				//p2p.clientIDsToConns.Set(args["targetID"], helpertools.KeyValuePair[*udp.Client, bool]{Key: client, Value: false})
 				//p2p.clientConnsToIDs.Set(client, args["targetID"])
 
 				//Wait for time
 				clientUDP.SetupFraming(udp.NewUDPFramerSimpleFromConfig(p2pFramerConfig, nil)) //WARNING: NIL MAY BE NOT ENOUGHT, ADD FUNCTION TO SEND OVER TCP WHEN FAILS, OR USING P2P - COMPLETLY REWORK THIS PUNCHING NONSENCE
-				p2p.udpOutcommingConnsCls.Set(string(frame.ID), webtools.KeyValuePair[*udp.Client, bool]{Key: clientUDP, Value: false})
-				p2p.tcpOutcommingConnsCls.Set(string(frame.ID), webtools.KeyValuePair[*tcp.ClientSimple, bool]{Key: nil, Value: false})
+				p2p.udpOutcommingConnsCls.Set(string(frame.ID), helpertools.KeyValuePair[*udp.Client, bool]{Key: clientUDP, Value: false})
+				p2p.tcpOutcommingConnsCls.Set(string(frame.ID), helpertools.KeyValuePair[*tcp.ClientSimple, bool]{Key: nil, Value: false})
 				p2p.targetIDsConnectingStatus.Set(string(frame.ID), true)
 				p2p.ClientCoordinator.Logger.Log(2, "Starting punching to: "+string(frame.ID)+" at: "+string(split[1]))
 				time.Sleep(time.Until(startTime))
@@ -268,7 +269,7 @@ func (p2p *Client) readFuncCoordinator(_ *udp.Client, _ *net.UDPAddr, data []byt
 					clientUDP.Logger.Log(1, "Connecting to target ID: "+string(frame.ID)+" attempt: "+strconv.Itoa(i+1)+"/"+strconv.Itoa(p2pPunchRetryCount))
 					err = clientUDP.Connect()
 					if err == nil {
-						clientUDP.Send(webtools.PackWebtoolsFrame(p2pCMDPunch, p2p.ID, frame.ID))
+						clientUDP.Send(PackWebtoolsFrame(p2pCMDPunch, p2p.ID, frame.ID))
 					} else {
 						clientUDP.Logger.Log(3, "Error connecting UDP to target IP: "+string(split[1])+" with error: "+err.Error())
 					}
@@ -287,9 +288,9 @@ func (p2p *Client) readFuncCoordinator(_ *udp.Client, _ *net.UDPAddr, data []byt
 								clientTCP.GetLogger().Preprefix = p2p.loggerPrefix
 								clientTCP.GetLogger().Prefix = "P2PClientUDP - PeerClientTCP for ID: " + string(frame.ID)
 								if clientTCP.Connect() {
-									clientTCP.Send(webtools.PackWebtoolsFrame(p2pCMDPunch, p2p.ID, frame.ID))
-									p2p.tcpOutcommingConnsCls.Set(string(frame.ID), webtools.KeyValuePair[*tcp.ClientSimple, bool]{Key: clientTCP, Value: false})
-									p2p.ClientCoordinator.Send(webtools.PackWebtoolsFrame(p2pCMDConnectStatusTCP, p2p.ID, frame.ID))
+									clientTCP.Send(PackWebtoolsFrame(p2pCMDPunch, p2p.ID, frame.ID))
+									p2p.tcpOutcommingConnsCls.Set(string(frame.ID), helpertools.KeyValuePair[*tcp.ClientSimple, bool]{Key: clientTCP, Value: false})
+									p2p.ClientCoordinator.Send(PackWebtoolsFrame(p2pCMDConnectStatusTCP, p2p.ID, frame.ID))
 								}
 
 							} else {
@@ -297,7 +298,7 @@ func (p2p *Client) readFuncCoordinator(_ *udp.Client, _ *net.UDPAddr, data []byt
 							}
 						}()
 					}
-					time.Sleep(time.Duration(webtools.FormatByBool(i < 10, 5, webtools.FormatByBool(i < 20, 50, 100))) * time.Millisecond)
+					time.Sleep(time.Duration(helpertools.FormatByBool(i < 10, 5, helpertools.FormatByBool(i < 20, 50, 100))) * time.Millisecond)
 					if !p2p.targetIDsConnectingStatus.Get(string(frame.ID)) {
 						//Connected to server
 						clientUDP.Logger.Log(1, "Connected to other peer, waiting for coordinator.")
@@ -433,14 +434,14 @@ func (p2p *Client) readFuncCoordinator(_ *udp.Client, _ *net.UDPAddr, data []byt
 }
 
 func (p2p *Client) readFuncOutcommingClientsUDP(client *udp.Client, _ *net.UDPAddr, data []byte, ended bool) {
-	for _, frame := range webtools.UnpackWebtoolsFrame(data, p2p.ClientCoordinator.Logger) {
+	for _, frame := range UnpackWebtoolsFrame(data, p2p.ClientCoordinator.Logger) {
 		switch frame.Operation {
 		case p2pCMDPunch:
 			{
 				//Got punch, process as OK
 				p2p.targetIDsConnectingStatus.Set(string(frame.Data), false)
-				p2p.udpOutcommingConnsCls.Set(string(frame.ID), webtools.KeyValuePair[*udp.Client, bool]{Key: client, Value: true})
-				p2p.ClientCoordinator.Send(webtools.PackWebtoolsFrame(p2pCMDConnectStatusUDP, frame.ID, frame.Data))
+				p2p.udpOutcommingConnsCls.Set(string(frame.ID), helpertools.KeyValuePair[*udp.Client, bool]{Key: client, Value: true})
+				p2p.ClientCoordinator.Send(PackWebtoolsFrame(p2pCMDConnectStatusUDP, frame.ID, frame.Data))
 				break
 			}
 		case p2pCMDData:
@@ -459,13 +460,13 @@ func (p2p *Client) readFuncOutcommingClientsUDP(client *udp.Client, _ *net.UDPAd
 }
 
 func (p2p *Client) readFuncIncommingServerUDP(conn *udp.ServerConn, data []byte, ended bool) {
-	for _, frame := range webtools.UnpackWebtoolsFrame(data, p2p.ClientCoordinator.Logger) {
+	for _, frame := range UnpackWebtoolsFrame(data, p2p.ClientCoordinator.Logger) {
 		switch frame.Operation {
 		case p2pCMDPunch:
 			{
 				//Got punch, just resend
 				p2p.udpIncommingConnsSv.Logger.Log(2, "Got punch from: "+string(frame.ID)+" at IP: "+conn.Address.String())
-				p2p.udpIncommingConns.Set(string(frame.ID), webtools.KeyValuePair[*udp.ServerConn, bool]{Key: conn, Value: false})
+				p2p.udpIncommingConns.Set(string(frame.ID), helpertools.KeyValuePair[*udp.ServerConn, bool]{Key: conn, Value: false})
 				conn.Send(data)
 				break
 			}
@@ -486,7 +487,7 @@ func (p2p *Client) readFuncIncommingServerUDP(conn *udp.ServerConn, data []byte,
 }
 
 func (p2p *Client) readFuncOutcommingClientsTCP(client *tcp.ClientSimple, data []byte, status webtools.NetworkStatus) {
-	for _, frame := range webtools.UnpackWebtoolsFrame(data, p2p.ClientCoordinator.Logger) {
+	for _, frame := range UnpackWebtoolsFrame(data, p2p.ClientCoordinator.Logger) {
 		if p2p.readFunc != nil {
 			p2p.readFunc(p2p, frame.ID, frame.Data, status == webtools.DisconnectStatus, client.GetLogger())
 		}
@@ -494,14 +495,14 @@ func (p2p *Client) readFuncOutcommingClientsTCP(client *tcp.ClientSimple, data [
 }
 
 func (p2p *Client) readFuncIncommingServerTCP(conn *tcp.ServerConn, data []byte, status webtools.NetworkStatus) {
-	for _, frame := range webtools.UnpackWebtoolsFrame(data, p2p.ClientCoordinator.Logger) {
+	for _, frame := range UnpackWebtoolsFrame(data, p2p.ClientCoordinator.Logger) {
 		switch frame.Operation {
 		case p2pCMDPunch:
 			{
 				//Got punch, just resend
 				p2p.tcpIncommingConnsSv.Logger.Log(2, "Got punch from: "+string(frame.ID)+" at IP: "+conn.GetConn().RemoteAddr().String())
-				p2p.tcpIncommingConns.Set(string(frame.ID), webtools.KeyValuePair[*tcp.ServerConn, bool]{Key: conn, Value: true})
-				p2p.ClientCoordinator.Send(webtools.PackWebtoolsFrame(p2pCMDConnectStatusTCP, frame.ID, frame.Data))
+				p2p.tcpIncommingConns.Set(string(frame.ID), helpertools.KeyValuePair[*tcp.ServerConn, bool]{Key: conn, Value: true})
+				p2p.ClientCoordinator.Send(PackWebtoolsFrame(p2pCMDConnectStatusTCP, frame.ID, frame.Data))
 				break
 			}
 		case p2pCMDData:
@@ -533,7 +534,7 @@ func (p2p *Client) ConnectToCoordinator() bool {
 		p2p.ClientCoordinator.Logger.Log(3, "Error connecting to coordinator server: "+err.Error())
 		return false
 	}
-	p2p.ClientCoordinator.Send(webtools.PackWebtoolsFrame(p2pCMDNewID, []byte{0}, []byte(strconv.Itoa(p2p.port))))
+	p2p.ClientCoordinator.Send(PackWebtoolsFrame(p2pCMDNewID, []byte{0}, []byte(strconv.Itoa(p2p.port))))
 	go p2p.udpIncommingConnsSv.Start()
 	go p2p.tcpIncommingConnsSv.Start()
 
@@ -555,7 +556,7 @@ func (p2p *Client) ConnectToPeer(targetID []byte) bool {
 	//Send request to Coordinator
 	p2p.isConnecting = true
 	p2p.targetIDThisConnecting = targetID
-	p2p.ClientCoordinator.Send(webtools.PackWebtoolsFrame(p2pCMDConnectToPeer, p2p.ID, targetID))
+	p2p.ClientCoordinator.Send(PackWebtoolsFrame(p2pCMDConnectToPeer, p2p.ID, targetID))
 
 	//Wait for connect
 	for p2p.isConnecting {
@@ -574,7 +575,7 @@ func (p2p *Client) Send(targetID []byte, data []byte) bool {
 	outcommingUDP, ok := p2p.udpOutcommingConnsCls.GetHas(string(targetID))
 	if ok && outcommingUDP.Value {
 		//Send using client
-		outcommingUDP.Key.Send(webtools.PackWebtoolsFrame(p2pCMDData, p2p.ID, data))
+		outcommingUDP.Key.Send(PackWebtoolsFrame(p2pCMDData, p2p.ID, data))
 		return true
 	}
 
@@ -582,7 +583,7 @@ func (p2p *Client) Send(targetID []byte, data []byte) bool {
 	incommingUDP, ok := p2p.udpIncommingConns.GetHas(string(targetID))
 	if ok && incommingUDP.Value {
 		//Send using server
-		incommingUDP.Key.Send(webtools.PackWebtoolsFrame(p2pCMDData, p2p.ID, data))
+		incommingUDP.Key.Send(PackWebtoolsFrame(p2pCMDData, p2p.ID, data))
 		return true
 	}
 
@@ -590,7 +591,7 @@ func (p2p *Client) Send(targetID []byte, data []byte) bool {
 	outcommingTCP, ok := p2p.tcpOutcommingConnsCls.GetHas(string(targetID))
 	if ok && outcommingTCP.Value {
 		//Send using client
-		outcommingTCP.Key.Send(webtools.PackWebtoolsFrame(p2pCMDData, p2p.ID, data))
+		outcommingTCP.Key.Send(PackWebtoolsFrame(p2pCMDData, p2p.ID, data))
 		return true
 	}
 
@@ -598,7 +599,7 @@ func (p2p *Client) Send(targetID []byte, data []byte) bool {
 	incommingTCP, ok := p2p.tcpIncommingConns.GetHas(string(targetID))
 	if ok && incommingTCP.Value {
 		//Send using server
-		incommingTCP.Key.Send(webtools.PackWebtoolsFrame(p2pCMDData, p2p.ID, data))
+		incommingTCP.Key.Send(PackWebtoolsFrame(p2pCMDData, p2p.ID, data))
 		return true
 	}
 
@@ -610,7 +611,7 @@ func (p2p *Client) Send(targetID []byte, data []byte) bool {
 		frameBuilder = append(frameBuilder, targetID...)
 		frameBuilder = append(frameBuilder, webtools.FrameSeparatorChar)
 		frameBuilder = append(frameBuilder, data...)
-		p2p.ClientCoordinator.Send(webtools.PackWebtoolsFrame(p2pCMDRelay, p2p.ID, frameBuilder))
+		p2p.ClientCoordinator.Send(PackWebtoolsFrame(p2pCMDRelay, p2p.ID, frameBuilder))
 		return true
 	}
 

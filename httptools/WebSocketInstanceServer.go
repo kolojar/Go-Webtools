@@ -11,6 +11,7 @@ import (
 	"time"
 
 	webtools "github.com/kolojar/Go-Webtools"
+	"github.com/kolojar/Go-Webtools/helpertools"
 )
 
 //go:embed views/WebSocketInstanceServerScript.js
@@ -25,7 +26,7 @@ type WebSocketInstanceServerInstance struct {
 	owner          *WebSocketInstanceServer
 	id             string
 	webSocketConns []*WebSocketServerConn
-	Parameters     webtools.SafeMap[string, any]
+	Parameters     helpertools.SafeMap[string, any]
 }
 
 /*
@@ -65,7 +66,7 @@ URL "/instanceServerWebsocketNewInstance" is reserved for server communication
 */
 type WebSocketInstanceServer struct {
 	wsServer                 *WebSocketServer
-	instances                webtools.SafeMap[string, *WebSocketInstanceServerInstance]
+	instances                helpertools.SafeMap[string, *WebSocketInstanceServerInstance]
 	id                       string
 	readFunc                 WebSocketInstanceServerReadFunc
 	accessFunc               WebSocketInstanceServerAccessFunc
@@ -73,7 +74,7 @@ type WebSocketInstanceServer struct {
 	htmlCreatorRedirectMutex *sync.RWMutex
 	htmlRedirectScript       IHTMLElement
 	noInstanceNeeded         []string
-	noInstanceNeededCache    webtools.SafeMap[string, bool]
+	noInstanceNeededCache    helpertools.SafeMap[string, bool]
 }
 
 /*
@@ -84,14 +85,14 @@ You can use URL "/instanceServerWebsocketNewInstance?action=delete" for instance
 func NewWebSocketInstanceServer(address string, readFunc WebSocketInstanceServerReadFunc, accessFunc WebSocketInstanceServerAccessFunc, rootPath string, startWebBrowser bool, reportHTTPTraffic bool, reportWebSocketTraffic bool) *WebSocketInstanceServer {
 	//Create instance server
 	sv := &WebSocketInstanceServer{
-		instances:                webtools.MakeSafeMap[string, *WebSocketInstanceServerInstance](),
-		id:                       webtools.GenerateRandomID(),
+		instances:                helpertools.MakeSafeMap[string, *WebSocketInstanceServerInstance](),
+		id:                       helpertools.GenerateRandomID(),
 		readFunc:                 readFunc,
 		accessFunc:               accessFunc,
 		htmlCreatorRedirectMutex: &sync.RWMutex{},
 		htmlCreatorRedirect:      NewHTMLCreator(true, "en", "New instance", true),
 		noInstanceNeeded:         make([]string, 0),
-		noInstanceNeededCache:    webtools.MakeSafeMap[string, bool](),
+		noInstanceNeededCache:    helpertools.MakeSafeMap[string, bool](),
 	}
 
 	//Create HTTP WS server
@@ -230,7 +231,7 @@ func (sv *WebSocketInstanceServer) accessFuncLocal(server *Server, w http.Respon
 	instanceIDCookie, err2 := r.Cookie("instanceServerInstanceId")
 	if r.URL.Path == "/instanceServerWebsocketNewInstance" && r.Method == http.MethodPost {
 		//Generate new ID
-		id := webtools.GenerateRandomID()
+		id := helpertools.GenerateRandomID()
 		sv.wsServer.httpServer.Logger.Log(2, "Creating new instance for: "+r.RemoteAddr+" with id: "+id)
 
 		//Set cookies
@@ -251,7 +252,7 @@ func (sv *WebSocketInstanceServer) accessFuncLocal(server *Server, w http.Respon
 			SameSite: http.SameSiteLaxMode,
 		})
 		time.Sleep(time.Second)
-		instance := &WebSocketInstanceServerInstance{Parameters: webtools.MakeSafeMap[string, any](), id: id, owner: sv, webSocketConns: make([]*WebSocketServerConn, 0)}
+		instance := &WebSocketInstanceServerInstance{Parameters: helpertools.MakeSafeMap[string, any](), id: id, owner: sv, webSocketConns: make([]*WebSocketServerConn, 0)}
 
 		//Read URL
 		nextURL, err := io.ReadAll(r.Body)

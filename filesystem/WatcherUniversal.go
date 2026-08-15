@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"time"
 
-	webtools "github.com/kolojar/Go-Webtools"
+	"github.com/kolojar/Go-Webtools/helpertools"
 )
 
 const MOVE_REQUEST_TIMEOUT = 1 //In seconds
@@ -25,7 +25,7 @@ type FileSystemWatcher struct {
 	eventFunc FileSystemWatcherEventFunc
 	isRunning bool
 	recursive bool
-	Logger    *webtools.ConsoleLogger
+	Logger    *helpertools.ConsoleLogger
 	watcher   *fileSystemWatcherInstance
 
 	fileMoveEvent     bool
@@ -34,13 +34,13 @@ type FileSystemWatcher struct {
 	dirMoveEvent      bool
 	dirPath           string
 	dirPathEventTime  time.Time
-	ignoredEvents     webtools.SafeMap[string, FileSystemEventType]
+	ignoredEvents     helpertools.SafeMap[string, FileSystemEventType]
 }
 
 func NewFileSystemWatcher(path string, eventFunc FileSystemWatcherEventFunc, recursive bool, logEvents bool) *FileSystemWatcher {
-	fsWatch := &FileSystemWatcher{path: path, eventFunc: eventFunc, isRunning: false, Logger: webtools.NewConsoleLoggerForTraffic("FSWatcher", logEvents), recursive: recursive}
+	fsWatch := &FileSystemWatcher{path: path, eventFunc: eventFunc, isRunning: false, Logger: helpertools.NewConsoleLoggerForTraffic("FSWatcher", logEvents), recursive: recursive}
 	fsWatch.watcher = newFileSystemWatcherInstance(path, fsWatch, recursive)
-	fsWatch.ignoredEvents = webtools.MakeSafeMap[string, FileSystemEventType]()
+	fsWatch.ignoredEvents = helpertools.MakeSafeMap[string, FileSystemEventType]()
 	return fsWatch
 }
 
@@ -81,7 +81,7 @@ func (watcher *FileSystemWatcher) reportFunc(path string, operation FileSystemEv
 }
 
 func (watcher *FileSystemWatcher) reportEvent(event uint8, filePath string, isDir bool) {
-	watcher.Logger.Log(0, "Got event: "+strconv.FormatUint(uint64(event), 10)+" for "+webtools.FormatByBool(isDir, "folder", "file")+": "+filePath)
+	watcher.Logger.Log(0, "Got event: "+strconv.FormatUint(uint64(event), 10)+" for "+helpertools.FormatByBool(isDir, "folder", "file")+": "+filePath)
 	if event == 100 {
 		//Begin move
 		if isDir {

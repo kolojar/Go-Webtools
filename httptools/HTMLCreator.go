@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	webtools "github.com/kolojar/Go-Webtools"
+	"github.com/kolojar/Go-Webtools/helpertools"
 )
 
 /*
@@ -142,7 +143,7 @@ func (base *HTMLElementBase) MoveScriptsToEnd() {
 
 	//Delete scripts
 	for _, element := range scripts {
-		base.HTMLElements = webtools.RemoveElement(base.HTMLElements, element)
+		base.HTMLElements = helpertools.RemoveElement(base.HTMLElements, element)
 	}
 
 	//Add scripts
@@ -255,7 +256,7 @@ type HTMLCreator struct {
 NewHTMLCreator creates new instance of HTML Creator
 */
 func NewHTMLCreator(generateStructure bool, lang string, title string, moveScriptsToEnd bool) *HTMLCreator {
-	return &HTMLCreator{GenerateStructure: generateStructure, Lang: lang, BodyElement: NewHTMLElementBase(webtools.FormatByBool(generateStructure, "body", "div")), HeadElements: make([]IHTMLElement, 0), Title: title, MoveScriptsToEnd: moveScriptsToEnd}
+	return &HTMLCreator{GenerateStructure: generateStructure, Lang: lang, BodyElement: NewHTMLElementBase(helpertools.FormatByBool(generateStructure, "body", "div")), HeadElements: make([]IHTMLElement, 0), Title: title, MoveScriptsToEnd: moveScriptsToEnd}
 }
 
 /*
@@ -309,5 +310,5 @@ func (creator *HTMLCreator) AddBodyElement(element IHTMLElement) {
 RemoveBodyElement removes element from body
 */
 func (creator *HTMLCreator) RemoveBodyElement(element IHTMLElement) {
-	creator.BodyElement.HTMLElements = webtools.RemoveElement(creator.BodyElement.HTMLElements, element)
+	creator.BodyElement.HTMLElements = helpertools.RemoveElement(creator.BodyElement.HTMLElements, element)
 }

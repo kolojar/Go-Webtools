@@ -2,6 +2,7 @@ package proxy
 
 import (
 	webtools "github.com/kolojar/Go-Webtools"
+	"github.com/kolojar/Go-Webtools/helpertools"
 	"github.com/kolojar/Go-Webtools/httptools"
 	"github.com/kolojar/Go-Webtools/tcp"
 )
@@ -10,8 +11,8 @@ import (
 HTTPProxyServerTCP is server for proxied TCP traffic over HTTP
 */
 type HTTPProxyServerTCP struct {
-	idToClient       webtools.SafeMap[string, *HTTPProxyServerTCPConn]
-	clientToID       webtools.SafeMap[*tcp.ClientSimple, string]
+	idToClient       helpertools.SafeMap[string, *HTTPProxyServerTCPConn]
+	clientToID       helpertools.SafeMap[*tcp.ClientSimple, string]
 	httpServer       *httptools.WebSocketServer
 	tcpServerAddress string
 	reportTrafic     bool
@@ -31,7 +32,7 @@ type HTTPProxyServerTCPConn struct {
 SendToHTTP creates frame and sends it to HTTP
 */
 func (cl *HTTPProxyServerTCPConn) SendToHTTP(operation uint8, data []byte) {
-	cl.source.Send(webtools.PackWebtoolsFrame(operation, cl.id, data))
+	cl.source.Send(PackWebtoolsFrame(operation, cl.id, data))
 }
 
 /*
@@ -51,7 +52,7 @@ func (cl *HTTPProxyServerTCPConn) Close(isInitiator bool) {
 	cl.tcpClient.Stop()
 	cl.origin.idToClient.Delete(string(cl.id))
 	if isInitiator {
-		cl.SendToHTTP(webtools.FrameTypeClose, nil)
+		cl.SendToHTTP(FrameTypeClose, nil)
 	}
 	cl.origin.clientToID.Delete(cl.tcpClient)
 }
@@ -60,7 +61,7 @@ func (cl *HTTPProxyServerTCPConn) Close(isInitiator bool) {
 NewHTTPProxyServerTCP creates new HTTP Proxy Server for TCP but does not starts it
 */
 func NewHTTPProxyServerTCP(httpProxyAddress string, tcpServerAddress string, reportTraffic bool) *HTTPProxyServerTCP {
-	sv := &HTTPProxyServerTCP{tcpServerAddress: tcpServerAddress, clientToID: webtools.MakeSafeMap[*tcp.ClientSimple, string](), idToClient: webtools.MakeSafeMap[string, *HTTPProxyServerTCPConn](), reportTrafic: reportTraffic}
+	sv := &HTTPProxyServerTCP{tcpServerAddress: tcpServerAddress, clientToID: helpertools.MakeSafeMap[*tcp.ClientSimple, string](), idToClient: helpertools.MakeSafeMap[string, *HTTPProxyServerTCPConn](), reportTrafic: reportTraffic}
 	sv.httpServer = httptools.NewWebSocketServer(httpProxyAddress, sv.handleWebSocketReadFunc, nil, "", false, false, reportTraffic)
 	sv.httpServer.GetLogger().Prefix = "HTTPProxyServerTCP - " + sv.httpServer.GetLogger().Prefix
 	return sv
@@ -89,16 +90,16 @@ func (sv *HTTPProxyServerTCP) handleWebSocketReadFunc(conn *httptools.WebSocketS
 	}
 
 	//Unpack frame
-	for _, frame := range webtools.UnpackWebtoolsFrame(frame, sv.httpServer.GetLogger()) {
+	for _, frame := range UnpackWebtoolsFrame(frame, sv.httpServer.GetLogger()) {
 		if frame.Operation == 0 {
 			return
 		}
 
 		//Sort connections
 		if sv.idToClient.Get(string(frame.ID)) == nil {
-			if frame.Operation == webtools.FrameTypeConnect {
+			if frame.Operation == FrameTypeConnect {
 				//Create new connection
-				frame.ID = []byte(webtools.GenerateRandomID())
+				frame.ID = []byte(helpertools.GenerateRandomID())
 				cl, err := tcp.NewClientSimple(sv.tcpServerAddress, -1, false, sv.handleTCPReadFunc, sv.reportTrafic)
 				cl.GetLogger().Prefix = "HTTPProxyServerTCP - " + cl.GetLogger().Prefix
 				if err != nil {
@@ -108,7 +109,7 @@ func (sv *HTTPProxyServerTCP) handleWebSocketReadFunc(conn *httptools.WebSocketS
 				cl.Connect()
 				sv.idToClient.Set(string(frame.ID), &HTTPProxyServerTCPConn{tcpClient: cl, id: frame.ID, source: conn, origin: sv})
 				sv.clientToID.Set(cl, string(frame.ID))
-				sv.idToClient.Get(string(frame.ID)).SendToHTTP(webtools.FrameTypeConnect, frame.Data)
+				sv.idToClient.Get(string(frame.ID)).SendToHTTP(FrameTypeConnect, frame.Data)
 				return
 			}
 			conn.Client.Logger.Log(3, "Could not find connection to id: "+string(frame.ID))
@@ -122,12 +123,12 @@ func (sv *HTTPProxyServerTCP) handleWebSocketReadFunc(conn *httptools.WebSocketS
 
 		//Sort operations
 		switch frame.Operation {
-		case webtools.FrameTypeClose:
+		case FrameTypeClose:
 			{
 				//Close connection
 				cl.Close(false)
 			}
-		case webtools.FrameTypeData:
+		case FrameTypeData:
 			{
 				//Send to TCP
 				cl.SendToTCP(frame.Data)
@@ -156,7 +157,7 @@ func (sv *HTTPProxyServerTCP) handleTCPReadFunc(tcp *tcp.ClientSimple, data []by
 	}
 
 	//Send to client
-	cl.SendToHTTP(webtools.FrameTypeData, data)
+	cl.SendToHTTP(FrameTypeData, data)
 }
 
 /*

@@ -1,4 +1,4 @@
-package webtools
+package helpertools
 
 import "sync"
 
@@ -38,17 +38,18 @@ type SafeMap[K comparable, V any] struct {
 	mutex *sync.RWMutex
 }
 
-// Has checks if value is in map
-func (m SafeMap[K, V]) Has(key K) bool {
-	m.mutex.RLock()
-	defer m.mutex.RUnlock()
-	_, ok := m.m[key]
-	return ok
+// MakeSafeMap creates new Safe Map
+func MakeSafeMap[K comparable, V any](size ...int) SafeMap[K, V] {
+	capacity := 0
+	if len(size) > 0 {
+		capacity = size[0]
+	}
+	return SafeMap[K, V]{m: make(map[K]V, capacity), mutex: &sync.RWMutex{}}
 }
 
-// MakeSafeMap creates new Safe Map
-func MakeSafeMap[K comparable, V any]() SafeMap[K, V] {
-	return SafeMap[K, V]{m: map[K]V{}, mutex: &sync.RWMutex{}}
+// IsNill checks if map is nil
+func (m *SafeMap[K, V]) IsNil() bool {
+	return m == nil || m.m == nil
 }
 
 // Get gets safely value from map
@@ -56,6 +57,14 @@ func (m *SafeMap[K, V]) Get(key K) V {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 	return m.m[key]
+}
+
+// Has checks if value is in map
+func (m *SafeMap[K, V]) Has(key K) bool {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+	_, ok := m.m[key]
+	return ok
 }
 
 // GetHas gets safely value from map and returns if value is in map
@@ -141,4 +150,37 @@ func (m *SafeMap[K, V]) SetMutex(mutex *sync.RWMutex) bool {
 // GetMutex gets Mutex
 func (m *SafeMap[K, V]) GetMutex() *sync.RWMutex {
 	return m.mutex
+}
+
+// Range iterates trought map keys and values without creating slice
+//
+// Map is locked, so no write operations involving the map should be called in rangeFunc
+func (m *SafeMap[K, V]) Range(rangeFunc func(key K, value V) (doBreak bool)) {
+	if rangeFunc == nil {
+		return
+	}
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+	for k, v := range m.m {
+		if rangeFunc(k, v) {
+			break
+		}
+	}
+}
+
+// RangeWithEmpty iterates trought map keys and values without creating slice but it removes values (goes from end).
+//
+// Map is locked, so no operations involving the map should be called in rangeFunc
+func (m *SafeMap[K, V]) RangeWithEmpty(rangeFunc func(key K, value V) (doBreak bool)) {
+	if rangeFunc == nil {
+		return
+	}
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	for k, v := range m.m {
+		delete(m.m, k)
+		if rangeFunc(k, v) {
+			break
+		}
+	}
 }

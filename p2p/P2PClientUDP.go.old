@@ -29,19 +29,19 @@ type P2PClientUDP struct {
 	targetId     string
 
 	//In format: ID - Is connected via Server / Client / Relay
-	peerStatuses webtools.SafeMap[string, webtools.ThreeValuePair[bool, bool, bool]]
+	peerStatuses helpertools.SafeMap[string, helpertools.ThreeValuePair[bool, bool, bool]]
 
 	//Server connections resolve
 	udpServerOther   *udpTools.UDPServer
-	serverConnsToIds webtools.SafeMap[*udpTools.UDPServerConn, string]
-	serverIdsToConns webtools.SafeMap[string, webtools.KeyValuePair[*udpTools.UDPServerConn, bool]]
+	serverConnsToIds helpertools.SafeMap[*udpTools.UDPServerConn, string]
+	serverIdsToConns helpertools.SafeMap[string, webtools.KeyValuePair[*udpTools.UDPServerConn, bool]]
 
 	//Client connection resolve
-	clientConnsToIds webtools.SafeMap[*udpTools.UDPClient, string]
-	clientIdsToConns webtools.SafeMap[string, webtools.KeyValuePair[*udpTools.UDPClient, bool]]
+	clientConnsToIds helpertools.SafeMap[*udpTools.UDPClient, string]
+	clientIdsToConns helpertools.SafeMap[string, webtools.KeyValuePair[*udpTools.UDPClient, bool]]
 
 	//Pending data
-	//pendingSendData webtools.SafeMap[string, [][]byte]
+	//pendingSendData helpertools.SafeMap[string, [][]byte]
 }
 
 /*
@@ -52,11 +52,11 @@ func NewP2PClientUDP(address string, serverPort int, readFunc P2PClientUDPReadFu
 	p2p := &P2PClientUDP{
 		reportTraffic:    reportTraffic,
 		readFunc:         readFunc,
-		peerStatuses:     webtools.MakeSafeMap[string, webtools.ThreeValuePair[bool, bool, bool]](),
-		serverConnsToIds: webtools.MakeSafeMap[*udpTools.UDPServerConn, string](),
-		serverIdsToConns: webtools.MakeSafeMap[string, webtools.KeyValuePair[*udpTools.UDPServerConn, bool]](),
-		clientConnsToIds: webtools.MakeSafeMap[*udpTools.UDPClient, string](),
-		clientIdsToConns: webtools.MakeSafeMap[string, webtools.KeyValuePair[*udpTools.UDPClient, bool]](),
+		peerStatuses:     helpertools.MakeSafeMap[string, helpertools.ThreeValuePair[bool, bool, bool]](),
+		serverConnsToIds: helpertools.MakeSafeMap[*udpTools.UDPServerConn, string](),
+		serverIdsToConns: helpertools.MakeSafeMap[string, webtools.KeyValuePair[*udpTools.UDPServerConn, bool]](),
+		clientConnsToIds: helpertools.MakeSafeMap[*udpTools.UDPClient, string](),
+		clientIdsToConns: helpertools.MakeSafeMap[string, webtools.KeyValuePair[*udpTools.UDPClient, bool]](),
 	}
 	var err error
 
@@ -157,7 +157,7 @@ func (p2p *P2PClientUDP) readFuncLocal(client *udpTools.UDPClient, sourceAddress
 					break
 				}
 			}
-			p2p.udpClientCoordinator.Send([]byte(httpTools.CreateURLFromParameters(P2P_CMD_CONNECT_STATUS, map[string]string{"id": p2p.id, "connId": args["connId"], "status": webtools.FormatByBool(p2p.gotConnected, "true", "false")})))
+			p2p.udpClientCoordinator.Send([]byte(httpTools.CreateURLFromParameters(P2P_CMD_CONNECT_STATUS, map[string]string{"id": p2p.id, "connId": args["connId"], "status": helpertools.FormatByBool(p2p.gotConnected, "true", "false")})))
 		}
 	case P2P_CMD_CONNECT_STATUS:
 		{
@@ -174,7 +174,7 @@ func (p2p *P2PClientUDP) readFuncLocal(client *udpTools.UDPClient, sourceAddress
 			//Decode data
 			if !p2p.peerStatuses.Has(args["id"]) {
 				println(args["id"])
-				p2p.peerStatuses.Set(args["id"], webtools.ThreeValuePair[bool, bool, bool]{A: false, B: false, C: false})
+				p2p.peerStatuses.Set(args["id"], helpertools.ThreeValuePair[bool, bool, bool]{A: false, B: false, C: false})
 			}
 			get := p2p.peerStatuses.Get(args["id"])
 			if args["connType"] == "server" {

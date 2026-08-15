@@ -16,7 +16,7 @@ import (
 	"os"
 	"time"
 
-	webtools "github.com/kolojar/Go-Webtools"
+	"github.com/kolojar/Go-Webtools/helpertools"
 )
 
 // timeoutLimitOfSignatureInMinutes tells how long will the signature be valid
@@ -74,7 +74,7 @@ func newAsymmetricEncryptionStruct(encryptStoredKeys bool) (*Asymmetric, error) 
 	}
 
 	// Get password
-	pass, err := webtools.ReadLineFromConsole("Enter password for keys: ")
+	pass, err := helpertools.ReadLineFromConsole("Enter password for keys: ")
 	if err != nil {
 		return nil, err
 	}

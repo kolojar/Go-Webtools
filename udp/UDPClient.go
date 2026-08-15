@@ -4,23 +4,23 @@ import (
 	"net"
 
 	webtools "github.com/kolojar/Go-Webtools"
+	"github.com/kolojar/Go-Webtools/helpertools"
 )
 
 /*
 ClientReadFunc is function definition for reading data from Client
 */
-type ClientReadFunc func(client *Client, sourceAddress *net.UDPAddr, data []byte, ended bool)
+type ClientReadFunc func(client *Client, sourceAddress *net.UDPAddr, data []byte, status webtools.NetworkStatus)
 
 /*
 Client is basic UDP Client
 */
 type Client struct {
-	readFunc  ClientReadFunc
-	Logger    *webtools.ConsoleLogger
-	Conn      *net.UDPConn
-	address   *net.UDPAddr
-	isAlive   bool
-	udpFramer *Framer
+	readFunc ClientReadFunc
+	Logger   *helpertools.ConsoleLogger
+	Conn     *net.UDPConn
+	address  *net.UDPAddr
+	isAlive  bool
 }
 
 /*
@@ -30,11 +30,8 @@ func (cl *Client) IsAlive() bool {
 	return cl.isAlive
 }
 
-/*
-SetupFraming setups UDP framer for client
-*/
-func (cl *Client) SetupFraming(framer *Framer) {
-	cl.udpFramer = framer
+func (cl *Client) GetAddress() *net.UDPAddr {
+	return cl.address
 }
 
 /*
@@ -48,7 +45,7 @@ func NewClient(address string, readFunc ClientReadFunc, reportTraffic bool) (*Cl
 	}
 
 	//Make client
-	return &Client{address: addressObj, Logger: webtools.NewConsoleLoggerForTraffic("UDPClient", reportTraffic), readFunc: readFunc}, nil
+	return &Client{address: addressObj, Logger: helpertools.NewConsoleLoggerForTraffic("UDPClient", reportTraffic), readFunc: readFunc}, nil
 }
 
 /*
@@ -66,14 +63,19 @@ func (cl *Client) Connect() error {
 		cl.Logger.Log(3, "Error connecting to: "+cl.address.String()+" | Error: "+err.Error())
 		return err
 	}
+
+	//Send event
+	if cl.readFunc != nil {
+		cl.readFunc(cl, cl.address, nil, webtools.ConnectStatus)
+	}
+
+	//Start read loop
 	go func() {
 		cl.isAlive = true
 		//Handle read
 		var ok = true
 		for ok {
-			ok = handleUDPRead(cl.Conn, cl.Logger, func(addrFrom *net.UDPAddr, data []byte, ended bool) {
-				processDataForUDP(addrFrom, data, ended, cl.readFuncLocal, cl.Logger, cl.udpFramer, false, cl.Conn)
-			})
+			ok = handleUDPRead(cl.Conn, cl.Logger, cl.readFuncLocal)
 		}
 		cl.isAlive = false
 		cl.readFuncLocal(nil, nil, true)
@@ -83,7 +85,7 @@ func (cl *Client) Connect() error {
 
 func (cl *Client) readFuncLocal(addrFrom *net.UDPAddr, data []byte, ended bool) {
 	if cl.readFunc != nil {
-		cl.readFunc(cl, addrFrom, data, ended)
+		cl.readFunc(cl, addrFrom, data, helpertools.FormatByBool(ended, webtools.DisconnectStatus, webtools.ReadDataStatus))
 	}
 	//Sort if framed
 
@@ -100,16 +102,13 @@ func (cl *Client) readFuncLocal(addrFrom *net.UDPAddr, data []byte, ended bool) 
 Send sends data to server
 */
 func (cl *Client) Send(data []byte) {
-	processSendForUDP(false, cl.Conn, cl.address, data, cl.Logger, cl.udpFramer)
+	writeToUDP(false, cl.Conn, cl.address, data, cl.Logger)
 }
 
 /*
-Stop stops TCP client
+Stop stops UDP client
 */
 func (cl *Client) Stop() {
-	if cl.udpFramer != nil {
-		cl.udpFramer.StopKeepAlive()
-	}
 	if cl.Conn == nil || !cl.isAlive {
 		//Invalid connection
 		return
@@ -121,4 +120,14 @@ func (cl *Client) Stop() {
 	if err != nil {
 		cl.Logger.Log(3, "Error disconnecting from: "+cl.address.String()+" | Error: "+err.Error())
 	}
+}
+
+// Close is alias for Stop
+func (cl *Client) Close() {
+	cl.Stop()
+}
+
+// GetLogger gets logger of client
+func (cl *Client) GetLogger() *helpertools.ConsoleLogger {
+	return cl.Logger
 }

@@ -5,7 +5,7 @@ import (
 	"os"
 	"reflect"
 
-	webtools "github.com/kolojar/Go-Webtools"
+	"github.com/kolojar/Go-Webtools/helpertools"
 )
 
 /*
@@ -14,9 +14,9 @@ RAMDatabase is database that is completly stored in RAM and loaded from disk on 
 type RAMDatabase[T any] struct {
 	//emptyObject T
 	//oneValueLength uint64
-	data                 webtools.SafeMap[string, T]
+	data                 helpertools.SafeMap[string, T]
 	path                 string
-	Logger               *webtools.ConsoleLogger
+	Logger               *helpertools.ConsoleLogger
 	convertToBytesDBFunc func(writer io.Writer, data T) error
 	parseDBFunc          func(reader io.Reader) (T, error)
 }
@@ -50,9 +50,9 @@ func NewRAMDatabase[T any](path string, convertToBytesDBFunc func(writer io.Writ
 	//Create object
 	var inst = RAMDatabase[T]{convertToBytesDBFunc: convertToBytesDBFunc, parseDBFunc: parseDBFunc}
 	//inst.oneValueLength = uint64(emptyObjectBytes.Len())
-	inst.data = webtools.MakeSafeMap[string, T]()
+	inst.data = helpertools.MakeSafeMap[string, T]()
 	inst.path = path
-	inst.Logger = webtools.NewConsoleLoggerForTraffic("RAMDB", false)
+	inst.Logger = helpertools.NewConsoleLoggerForTraffic("RAMDB", false)
 	return &inst, nil
 }
 
@@ -66,7 +66,7 @@ func (db *RAMDatabase[T]) Get(key string) T {
 /*
 GetData gets all data from database
 */
-func (db *RAMDatabase[T]) GetData() []webtools.KeyValuePair[string, T] {
+func (db *RAMDatabase[T]) GetData() []helpertools.KeyValuePair[string, T] {
 	return db.data.GetData()
 }
 

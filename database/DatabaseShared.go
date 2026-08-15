@@ -12,8 +12,8 @@ import (
 	"os"
 	"time"
 
-	webtools "github.com/kolojar/Go-Webtools"
 	"github.com/kolojar/Go-Webtools/encryption"
+	"github.com/kolojar/Go-Webtools/helpertools"
 )
 
 /*
@@ -27,7 +27,7 @@ DBField is field holder
 	Fields  []*DBField
 }*/
 
-//var DBFieldSchemas map[reflect.Type]webtools.KeyValuePair[DBField, string] = make(map[reflect.Type]webtools.KeyValuePair[DBField, string])
+//var DBFieldSchemas map[reflect.Type]helpertools.KeyValuePair[DBField, string] = make(map[reflect.Type]helpertools.KeyValuePair[DBField, string])
 
 /*func buildDBSchemaStringOLD(field *DBField) string {
 	//Resolve array
@@ -178,7 +178,7 @@ BuildDBSchema creates schema of object and saves it in cache
 	}
 	//Build string
 	schemaString := buildDBSchemaString(&schema)
-	DBFieldSchemas[t] = webtools.KeyValuePair[DBField, string]{Key: schema, Value: schemaString}
+	DBFieldSchemas[t] = helpertools.KeyValuePair[DBField, string]{Key: schema, Value: schemaString}
 	return &schema, schemaString
 }*/
 
@@ -391,7 +391,7 @@ func ConvertUintXToBytesDB(writer io.Writer, data uint64, size uint8) error {
 	//Write number
 	dataByte := make([]byte, 8)
 	binary.LittleEndian.PutUint64(dataByte, data)
-	_, err := writer.Write(dataByte[0:(webtools.CeilDivision(size, 8))])
+	_, err := writer.Write(dataByte[0:(helpertools.CeilDivision(size, 8))])
 	return err
 }
 
@@ -400,7 +400,7 @@ ParseUintXDB parses X/8 bytes from reader to uint64. Parameter size is X = 8 bit
 */
 func ParseUintXDB(reader io.Reader, size uint8) (uint64, error) {
 	//Read number
-	dataByte := make([]byte, webtools.CeilDivision(size, 8))
+	dataByte := make([]byte, helpertools.CeilDivision(size, 8))
 	_, err := reader.Read(dataByte)
 	if err != nil {
 		return 0, err
@@ -417,7 +417,7 @@ ConvertDynamicUintToBytesDB converts uint64 to dynamic count of bytes
 */
 func ConvertDynamicUintToBytesDB(writer io.Writer, data uint64) error {
 	//Get byte size
-	size := webtools.FormatByBool(data == 0, 0, calculateByteSizeFromInt(uint(data)))
+	size := helpertools.FormatByBool(data == 0, 0, calculateByteSizeFromInt(uint(data)))
 	if size == 255 {
 		return os.ErrInvalid
 	}
@@ -769,7 +769,7 @@ func ParseMapDB[K comparable, V any](reader io.Reader, keyParseDBFunc func(reade
 /*
 ConvertSafeMapToBytesDB converts safeMap to bytes
 */
-func ConvertSafeMapToBytesDB[K comparable, V any](writer io.Writer, data webtools.SafeMap[K, V], keyConvertDBFunc func(writer io.Writer, data K) error, valueConvertDBFunc func(writer io.Writer, data V) error) error {
+func ConvertSafeMapToBytesDB[K comparable, V any](writer io.Writer, data helpertools.SafeMap[K, V], keyConvertDBFunc func(writer io.Writer, data K) error, valueConvertDBFunc func(writer io.Writer, data V) error) error {
 	if keyConvertDBFunc == nil || valueConvertDBFunc == nil {
 		return os.ErrInvalid
 	}
@@ -793,8 +793,8 @@ func ConvertSafeMapToBytesDB[K comparable, V any](writer io.Writer, data webtool
 /*
 ParseSafeMapDB parses bytes from reader to safeMap
 */
-func ParseSafeMapDB[K comparable, V any](reader io.Reader, keyParseDBFunc func(reader io.Reader) (K, error), valueParseDBFunc func(reader io.Reader) (V, error)) (webtools.SafeMap[K, V], error) {
-	data := webtools.MakeSafeMap[K, V]()
+func ParseSafeMapDB[K comparable, V any](reader io.Reader, keyParseDBFunc func(reader io.Reader) (K, error), valueParseDBFunc func(reader io.Reader) (V, error)) (helpertools.SafeMap[K, V], error) {
+	data := helpertools.MakeSafeMap[K, V]()
 	if keyParseDBFunc == nil || valueParseDBFunc == nil {
 		return data, os.ErrInvalid
 	}

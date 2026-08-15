@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"slices"
 
-	webtools "github.com/kolojar/Go-Webtools"
+	"github.com/kolojar/Go-Webtools/helpertools"
 )
 
 //func ChangesInSequence(old []byte, new []byte) []webtools.KeyValuePair[int, FileSystemEventType] {
@@ -41,7 +41,7 @@ func appendAtTop[T comparable](slice []DifferenceEntry[T], item DifferenceEntry[
 	//Inserts value from the start - biggest position at the top
 	for i := 0; i < len(slice); i++ {
 		if slice[i].Position < item.Position {
-			return webtools.InsertElementAtIndex(slice, i, item)
+			return helpertools.InsertElementAtIndex(slice, i, item)
 		}
 	}
 	return append(slice, item)
@@ -51,10 +51,10 @@ func appendAtBottom[T comparable](slice []DifferenceEntry[T], item DifferenceEnt
 	//Insert value from the end - biggest position at the bottom
 	for i := len(slice) - 1; i >= 0; i-- {
 		if slice[i].Position < item.Position {
-			return webtools.InsertElementAtIndex(slice, i+1, item)
+			return helpertools.InsertElementAtIndex(slice, i+1, item)
 		}
 	}
-	return webtools.InsertElementAtIndex(slice, 0, item)
+	return helpertools.InsertElementAtIndex(slice, 0, item)
 }
 
 type differenceStaticLetter struct {
@@ -66,10 +66,10 @@ func appendAtBottomDiffrerenceLetter(slice []differenceStaticLetter, item differ
 	//Insert value from the end - biggest position at the bottom
 	for i := len(slice) - 1; i >= 0; i-- {
 		if slice[i].Index < item.Index {
-			return webtools.InsertElementAtIndex(slice, i+1, item)
+			return helpertools.InsertElementAtIndex(slice, i+1, item)
 		}
 	}
-	return webtools.InsertElementAtIndex(slice, 0, item)
+	return helpertools.InsertElementAtIndex(slice, 0, item)
 }
 
 /*
@@ -191,7 +191,7 @@ func DiffInStringLCS[T comparable](old []T, new []T) []DifferenceEntry[T] {
 	//OLD -> COLUMN
 	//NEW -> ROW
 	//MATRIX[y = ROW][x = COLUMN]
-	matrixResults := make([]webtools.ThreeValuePair[T, int, int], 0)
+	matrixResults := make([]helpertools.ThreeValuePair[T, int, int], 0)
 	//matrixResultLinking :=
 	y := len(matrix) - 1
 	x := len(matrix[y]) - 1
@@ -202,7 +202,7 @@ func DiffInStringLCS[T comparable](old []T, new []T) []DifferenceEntry[T] {
 		}
 		if new[y] == old[x] {
 			//Same letters
-			linked := webtools.ThreeValuePair[T, int, int]{A: old[x], B: x, C: y}
+			linked := helpertools.ThreeValuePair[T, int, int]{A: old[x], B: x, C: y}
 			matrixResults = append(matrixResults, linked)
 			x--
 			y--
@@ -250,7 +250,7 @@ func DiffInStringLCS[T comparable](old []T, new []T) []DifferenceEntry[T] {
 		if okNew < matrixItem.C {
 			//All items before this are new
 			for _ = okNew; okNew < matrixItem.C; okNew++ {
-				//resultAdd = append([]webtools.ThreeValuePair[int, rune, bool]{{A: okNew, B: rune(newRunes[okNew]), C: true}}, resultAdd...)
+				//resultAdd = append([]helpertools.ThreeValuePair[int, rune, bool]{{A: okNew, B: rune(newRunes[okNew]), C: true}}, resultAdd...)
 				result = append(result, DifferenceEntry[T]{Position: okNew + offset, Character: new[okNew], IsInsertion: true})
 			}
 			okNew++
@@ -266,7 +266,7 @@ func DiffInStringLCS[T comparable](old []T, new []T) []DifferenceEntry[T] {
 	for i := len(old) - 1; i >= okOld; i-- {
 		result = append(result, DifferenceEntry[T]{Position: i + offset, Character: old[i], IsInsertion: false})
 	}
-	for i := okNew + webtools.FormatByBool(checkedLast, 1, 0); i < len(new); i++ {
+	for i := okNew + helpertools.FormatByBool(checkedLast, 1, 0); i < len(new); i++ {
 		result = append(result, DifferenceEntry[T]{Position: i + offset, Character: new[i], IsInsertion: true})
 	}
 
@@ -379,7 +379,7 @@ func DiffInStringLCSAlt[T comparable](old []T, new []T) []DifferenceEntry[T] {
 	//OLD -> Placed in row = Identifies COLUMN -> X
 	//NEW -> Placed in column = Identifies ROW -> Y
 	//MATRIX[y = ROW][x = COLUMN]
-	matrixResults := make([]webtools.ThreeValuePair[T, int, int], 0)
+	matrixResults := make([]helpertools.ThreeValuePair[T, int, int], 0)
 	//matrixResultLinking :=
 	x := uint32(len(old) - 1)
 	y := uint32(len(new) - 1)
@@ -395,7 +395,7 @@ func DiffInStringLCSAlt[T comparable](old []T, new []T) []DifferenceEntry[T] {
 				//Only value, jump to it
 				pointX := uint32(matrixValuesByLetterValues[letterCount][0] >> 32)
 				pointY := uint32(matrixValuesByLetterValues[letterCount][0] & 0xFFFFFFFF)
-				matrixResults = append(matrixResults, webtools.ThreeValuePair[T, int, int]{A: old[pointX], B: int(pointX), C: int(pointY)})
+				matrixResults = append(matrixResults, helpertools.ThreeValuePair[T, int, int]{A: old[pointX], B: int(pointX), C: int(pointY)})
 				x = pointX - 1
 				y = pointY - 1
 				continue
@@ -417,7 +417,7 @@ func DiffInStringLCSAlt[T comparable](old []T, new []T) []DifferenceEntry[T] {
 			}
 
 			//Jump to best point
-			matrixResults = append(matrixResults, webtools.ThreeValuePair[T, int, int]{A: old[bestPointX], B: int(bestPointX), C: int(bestPointY)})
+			matrixResults = append(matrixResults, helpertools.ThreeValuePair[T, int, int]{A: old[bestPointX], B: int(bestPointX), C: int(bestPointY)})
 			x = bestPointX - 1
 			y = bestPointY - 1
 		}
@@ -447,7 +447,7 @@ func DiffInStringLCSAlt[T comparable](old []T, new []T) []DifferenceEntry[T] {
 		if okNew < matrixItem.C {
 			//All items before this are new
 			for _ = okNew; okNew < matrixItem.C; okNew++ {
-				//resultAdd = append([]webtools.ThreeValuePair[int, rune, bool]{{A: okNew, B: rune(newRunes[okNew]), C: true}}, resultAdd...)
+				//resultAdd = append([]helpertools.ThreeValuePair[int, rune, bool]{{A: okNew, B: rune(newRunes[okNew]), C: true}}, resultAdd...)
 				result = append(result, DifferenceEntry[T]{Position: okNew + offset, Character: new[okNew], IsInsertion: true})
 			}
 			okNew++
@@ -463,7 +463,7 @@ func DiffInStringLCSAlt[T comparable](old []T, new []T) []DifferenceEntry[T] {
 	for i := len(old) - 1; i >= okOld; i-- {
 		result = append(result, DifferenceEntry[T]{Position: i + offset, Character: old[i], IsInsertion: false})
 	}
-	for i := okNew + webtools.FormatByBool(checkedLast, 1, 0); i < len(new); i++ {
+	for i := okNew + helpertools.FormatByBool(checkedLast, 1, 0); i < len(new); i++ {
 		result = append(result, DifferenceEntry[T]{Position: i + offset, Character: new[i], IsInsertion: true})
 	}
 
@@ -486,7 +486,7 @@ func DiffInStringLCSAlt[T comparable](old []T, new []T) []DifferenceEntry[T] {
 //	kLinesForX := make(map[int]map[int]int)
 //	kLinesForX[-1] = make(map[int]int)
 //	kLinesForX[-1][1] = 0
-//	matrixResults := make([]webtools.ThreeValuePair[rune, int, int], 0)
+//	matrixResults := make([]helpertools.ThreeValuePair[rune, int, int], 0)
 //	for differences := 0; differences <= (len(oldRunes) + len(newRunes)); differences++ {
 //		kLinesForX[differences] = make(map[int]int, 0)
 //		//Tells how many edits can be done
@@ -586,7 +586,7 @@ func DiffInStringLCSAlt[T comparable](old []T, new []T) []DifferenceEntry[T] {
 //		//Source string do not match at all
 //		result := make([]DifferenceEntry, 0)
 //		for i := 0; i < len(oldRunes); i++ {
-//			result = webtools.InsertElementAtIndex(result, 0, DifferenceEntry{Position: i, Character: rune(oldRunes[i]), IsInsertion: false})
+//			result = helpertools.InsertElementAtIndex(result, 0, DifferenceEntry{Position: i, Character: rune(oldRunes[i]), IsInsertion: false})
 //		}
 //		for i := 0; i < len(newRunes); i++ {
 //			result = append(result, DifferenceEntry{Position: i, Character: rune(newRunes[i]), IsInsertion: true})
@@ -613,7 +613,7 @@ func DiffInStringLCSAlt[T comparable](old []T, new []T) []DifferenceEntry[T] {
 //		if okNew < matrixItem.C {
 //			//All items before this are new
 //			for _ = okNew; okNew < matrixItem.C; okNew++ {
-//				//resultAdd = append([]webtools.ThreeValuePair[int, rune, bool]{{A: okNew, B: rune(newRunes[okNew]), C: true}}, resultAdd...)
+//				//resultAdd = append([]helpertools.ThreeValuePair[int, rune, bool]{{A: okNew, B: rune(newRunes[okNew]), C: true}}, resultAdd...)
 //				resultAdd = append(resultAdd, DifferenceEntry{Position: okNew, Character: rune(newRunes[okNew]), IsInsertion: true})
 //			}
 //			okNew++
@@ -629,7 +629,7 @@ func DiffInStringLCSAlt[T comparable](old []T, new []T) []DifferenceEntry[T] {
 //	for i := len(oldRunes) - 1; i >= okOld; i-- {
 //		resultDelete = appendAtTop(resultDelete, DifferenceEntry{Position: i, Character: rune(oldRunes[i]), IsInsertion: false})
 //	}
-//	for i := okNew + webtools.FormatByBool(checkedLast, 1, 0); i < len(newRunes); i++ {
+//	for i := okNew + helpertools.FormatByBool(checkedLast, 1, 0); i < len(newRunes); i++ {
 //		resultAdd = append(resultAdd, DifferenceEntry{Position: i, Character: rune(newRunes[i]), IsInsertion: true})
 //	}
 //
@@ -669,13 +669,13 @@ https://blog.robertelder.org/diff-algorithm/
 //	targetY := len(newRunes)
 //	iteration := 0
 //	furthestOnKLines := make(map[int]int, 0)
-//	backtrace := make(map[int]map[int]webtools.ThreeValuePair[int, int, int], 0)
+//	backtrace := make(map[int]map[int]helpertools.ThreeValuePair[int, int, int], 0)
 //	var ended bool
 //	var differences int
 //
 //	//Do simulations
 //	for differences = 0; differences <= (len(oldRunes) + len(newRunes)); differences++ {
-//		backtrace[differences] = make(map[int]webtools.ThreeValuePair[int, int, int], 0)
+//		backtrace[differences] = make(map[int]helpertools.ThreeValuePair[int, int, int], 0)
 //		for kLineIndex := -(differences - 2*max(0, differences-targetX)); kLineIndex <= (differences - 2*max(0, differences-targetY)); kLineIndex += 2 {
 //			iteration++
 //			var x int
@@ -713,7 +713,7 @@ https://blog.robertelder.org/diff-algorithm/
 //				y++
 //			}
 //			furthestOnKLines[kLineIndex] = x
-//			backtrace[differences][kLineIndex] = webtools.ThreeValuePair[int, int, int]{A: x, B: y, C: prevKLineIndex}
+//			backtrace[differences][kLineIndex] = helpertools.ThreeValuePair[int, int, int]{A: x, B: y, C: prevKLineIndex}
 //		}
 //		if ended {
 //			break
@@ -943,11 +943,11 @@ func PatchUsingChanges[T comparable](old []T, changes []DifferenceEntry[T]) []T 
 
 	//Process
 	for _, v := range deletions {
-		old = webtools.RemoveElementAtIndex(old, v.Position)
+		old = helpertools.RemoveElementAtIndex(old, v.Position)
 		fmt.Println(old)
 	}
 	for _, v := range insertions {
-		old = webtools.InsertElementAtIndex(old, v.Position, v.Character)
+		old = helpertools.InsertElementAtIndex(old, v.Position, v.Character)
 		fmt.Println(old)
 	}
 	return old

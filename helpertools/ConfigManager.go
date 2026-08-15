@@ -1,4 +1,4 @@
-package webtools
+package helpertools
 
 import (
 	"encoding/json"
