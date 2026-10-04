@@ -481,6 +481,17 @@ func main() {
 				time.Sleep(1 * time.Second)
 			}
 		}
+	case "journalDB":
+		{
+			//Create new journal DB
+			db, _ := database.NewJournalingRAMDatabase("./journalDB.db", 2, database.ConvertDynamicUintToBytesDB, database.ParseDynamicUintBytesDB)
+			db.Load()
+			db.Set("abc", 5)
+			db.Set("cde", 6)
+			//db.Set("abc", 3)
+			//db.Save()
+			fmt.Println(db.GetData())
+		}
 	}
 }
 
