@@ -37,6 +37,14 @@ func HandleDirectoryListingHTTP(w http.ResponseWriter, realPath string, urlPath 
 	creator.AddBodyElement(NewHTMLHxElement(1, "Current directory: "+urlPath))
 	list := NewHTMLListElement()
 
+	//Trim path
+	if len(urlPath) > 1 {
+		urlPath = strings.TrimSuffix(urlPath, "/")
+	}
+	if len(urlPath) == 0 {
+		urlPath = "/"
+	}
+
 	//Create up folder
 	split := strings.Split(urlPath, "/")
 	if len(split) > 1 && len(split[1]) > 0 {
