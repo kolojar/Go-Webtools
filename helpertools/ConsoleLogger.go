@@ -52,8 +52,8 @@ type ConsoleLogger struct {
 // Set LogToConsole to false to disable logging to Console.
 //
 // To ignore specific LogType use IgnoredLogs
-func MakeConsoleLogger(Prefix string) ConsoleLogger {
-	return ConsoleLogger{Prefix: Prefix, LogReportFunction: nil, IgnoredLogs: make(map[LogType]struct{})}
+func MakeConsoleLogger(prefix string) ConsoleLogger {
+	return ConsoleLogger{Prefix: prefix, LogReportFunction: nil, IgnoredLogs: make(map[LogType]struct{})}
 }
 
 // Log logs message

@@ -661,9 +661,9 @@ func getSeekPos(reader io.ReadSeeker) {
 	fmt.Println("Pos at file:", seek)
 }
 
-func readDataDBAny(reader io.ReadSeeker, schemaString string, schemaStringPos int, interactiveRepair bool) (int, any, error) {
+func readDataDBAny(reader io.Reader, schemaString string, schemaStringPos int, interactiveRepair bool) (int, any, error) {
 	fmt.Println("Reading data any:", schemaString, schemaStringPos)
-	getSeekPos(reader)
+	//getSeekPos(reader)
 	if schemaString[schemaStringPos] == '[' {
 		// Is array
 		schemaStringPos += 2
@@ -672,7 +672,7 @@ func readDataDBAny(reader io.ReadSeeker, schemaString string, schemaStringPos in
 			return schemaStringPos, true, err
 		}
 		fmt.Println("Reading array any:", count)
-		getSeekPos(reader)
+		//getSeekPos(reader)
 
 		// Read items
 		newPos := schemaStringPos
@@ -753,14 +753,14 @@ func readDataDBAny(reader io.ReadSeeker, schemaString string, schemaStringPos in
 		// Normal type - do parse by string
 		fmt.Println("Reading any value:", schemaString)
 		val, err := parseAnyValueToBytesDBValue(reader, split[0], nil, true, interactiveRepair)
-		getSeekPos(reader)
+		//getSeekPos(reader)
 		return len(schemaString), val, err
 	}
 }
 
-func readDataDB(reader io.ReadSeeker, target *reflect.Value, schemaString string, schemaStringPos int, createdNew bool, interactiveRepair bool) (int, error) {
+func readDataDB(reader io.Reader, target *reflect.Value, schemaString string, schemaStringPos int, createdNew bool, interactiveRepair bool) (int, error) {
 	fmt.Println("Reading data:", schemaString, schemaStringPos)
-	getSeekPos(reader)
+	//getSeekPos(reader)
 	if schemaString[schemaStringPos] == '[' {
 		//Target is nil
 		if target == nil {
@@ -777,7 +777,7 @@ func readDataDB(reader io.ReadSeeker, target *reflect.Value, schemaString string
 			return schemaStringPos, err
 		}
 		fmt.Println("Reading array:", count)
-		getSeekPos(reader)
+		//getSeekPos(reader)
 
 		//Create slice
 		slice := *target
@@ -965,7 +965,7 @@ func readDataDB(reader io.ReadSeeker, target *reflect.Value, schemaString string
 /*
 ParseAnyDB parses bytes to generic T object (can parse any type)
 */
-func ParseAnyDB[T any](reader io.ReadSeeker, interactiveRepair bool) (T, error) {
+func ParseAnyDB[T any](reader io.Reader, interactiveRepair bool) (T, error) {
 	// Try to convert some basic type
 	val, err := parseAnyValueKindToBytesDBValue(reader, reflect.TypeFor[T]().Kind(), nil, true, interactiveRepair)
 	if err == nil {
@@ -988,7 +988,7 @@ func ParseAnyDB[T any](reader io.ReadSeeker, interactiveRepair bool) (T, error) 
 /*
 ParseAnyToObjectDB parses bytes to generic target object (can parse only complex types)
 */
-func ParseAnyToObjectDB(reader io.ReadSeeker, target any, interactiveRepair bool) error {
+func ParseAnyToObjectDB(reader io.Reader, target any, interactiveRepair bool) error {
 	// Check if target is pointer
 	if target == nil {
 		return os.ErrInvalid

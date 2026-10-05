@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"sync/atomic"
+	"time"
 
 	"github.com/kolojar/Go-Webtools/helpertools"
 )
@@ -20,11 +21,13 @@ type journalEntry[T any] struct {
 }
 
 /*
-JournalingRAMDatabase is database that is completly stored in RAM and loaded from disk on start. Data is saved only after amount of operations or on save. Otherwise everything is stored in Journal.
+JournalingDatabase is database that is completly stored in RAM and loaded from disk on start (if lazyLoading is false). After inactivity is offloaded to disk. Data is saved only after amount of operations or on save. Otherwise everything is stored in Journal.
 */
-type JournalingRAMDatabase[T any] struct {
+type JournalingDatabase[T any] struct {
 	//emptyObject T
 	//oneValueLength uint64
+	lazyLoading                    bool
+	automaticUnload                time.Duration
 	journalItemCountBeforeAutosave uint32
 	journalLen                     atomic.Uint32
 	data                           helpertools.SafeMap[string, T]
@@ -37,7 +40,7 @@ type JournalingRAMDatabase[T any] struct {
 /*
 NewJournalingRAMDatabase creates new Journaling RAM Database. Set journalItemCountBeforeAutosave to 0 for disabled autosave
 */
-func NewJournalingRAMDatabase[T any](path string, journalItemCountBeforeAutosave uint32, convertToBytesDBFunc func(writer io.Writer, data T) error, parseDBFunc func(reader io.Reader) (T, error)) (*JournalingRAMDatabase[T], error) {
+func NewJournalingRAMDatabase[T any](path string, journalItemCountBeforeAutosave uint32, convertToBytesDBFunc func(writer io.Writer, data T) error, parseDBFunc func(reader io.Reader) (T, error)) (*JournalingDatabase[T], error) {
 	//Calculate one valueLength
 	//emptyObjectBytes := bytes.NewBuffer(nil)
 	//err := emptyObject.ConvertToBytesDB(emptyObjectBytes)
@@ -50,7 +53,7 @@ func NewJournalingRAMDatabase[T any](path string, journalItemCountBeforeAutosave
 	}
 
 	//Create object
-	var inst = JournalingRAMDatabase[T]{convertToBytesDBFunc: convertToBytesDBFunc, parseDBFunc: parseDBFunc, journalItemCountBeforeAutosave: journalItemCountBeforeAutosave}
+	var inst = JournalingDatabase[T]{convertToBytesDBFunc: convertToBytesDBFunc, parseDBFunc: parseDBFunc, journalItemCountBeforeAutosave: journalItemCountBeforeAutosave}
 	//inst.oneValueLength = uint64(emptyObjectBytes.Len())
 	inst.data = helpertools.MakeSafeMap[string, T]()
 	inst.path = path
@@ -62,21 +65,21 @@ func NewJournalingRAMDatabase[T any](path string, journalItemCountBeforeAutosave
 /*
 Get gets value from database
 */
-func (db *JournalingRAMDatabase[T]) Get(key string) T {
+func (db *JournalingDatabase[T]) Get(key string) T {
 	return db.data.Get(key)
 }
 
 /*
 GetData gets all data from database
 */
-func (db *JournalingRAMDatabase[T]) GetData() []helpertools.KeyValuePair[string, T] {
+func (db *JournalingDatabase[T]) GetData() []helpertools.KeyValuePair[string, T] {
 	return db.data.GetData()
 }
 
 /*
 Set set value to database
 */
-func (db *JournalingRAMDatabase[T]) Set(key string, value T) {
+func (db *JournalingDatabase[T]) Set(key string, value T) {
 	db.data.Set(key, value)
 	db.appendToJournal(journalEntry[T]{isDelete: false, key: key, value: value})
 }
@@ -84,7 +87,7 @@ func (db *JournalingRAMDatabase[T]) Set(key string, value T) {
 /*
 Delete deletes value from database
 */
-func (db *JournalingRAMDatabase[T]) Delete(key string) {
+func (db *JournalingDatabase[T]) Delete(key string) {
 	db.data.Delete(key)
 	db.appendToJournal(journalEntry[T]{isDelete: true, key: key})
 }
@@ -92,14 +95,14 @@ func (db *JournalingRAMDatabase[T]) Delete(key string) {
 /*
 Len gets lenght of database
 */
-func (db *JournalingRAMDatabase[T]) Len() int {
+func (db *JournalingDatabase[T]) Len() int {
 	return db.data.Len()
 }
 
 /*
  * appendToJournal appends to journal and autosaves if needed
  */
-func (db *JournalingRAMDatabase[T]) appendToJournal(operation journalEntry[T]) {
+func (db *JournalingDatabase[T]) appendToJournal(operation journalEntry[T]) {
 	//Open journal
 	journal, err := os.OpenFile(db.path+".journal", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -155,7 +158,7 @@ func (db *JournalingRAMDatabase[T]) appendToJournal(operation journalEntry[T]) {
 /*
 Save saves data of database to disk and clears journal
 */
-func (db *JournalingRAMDatabase[T]) Save() error {
+func (db *JournalingDatabase[T]) Save() error {
 	//Delete file if exists
 	path := db.path + ".tmp"
 	db.Logger.Log(helpertools.LogWarning, "Saving database, please wait...")
@@ -198,7 +201,7 @@ func (db *JournalingRAMDatabase[T]) Save() error {
 /*
 Load loads data of database from disk and checks journal
 */
-func (db *JournalingRAMDatabase[T]) Load() error {
+func (db *JournalingDatabase[T]) Load() error {
 	//Open DB file
 	db.Logger.Log(helpertools.LogWarning, "Loading database, please wait...")
 	file, err := os.Open(db.path)
