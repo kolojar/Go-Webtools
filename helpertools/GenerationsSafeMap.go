@@ -1,6 +1,11 @@
 package helpertools
 
-import "sync"
+import (
+	"context"
+	"maps"
+	"sync"
+	"time"
+)
 
 // GenerationsSafeMapPreserveLevel is level of automatic preservence in map (sets what triggers presistence in map)
 type GenerationsSafeMapPreserveLevel uint8
@@ -26,11 +31,13 @@ const CopyOnSwapPreserveGenerationsSafeMapPreserveLevel GenerationsSafeMapPreser
 //
 // Warning: Map can delete values if not configured correctly!
 type GenerationsSafeMap[K comparable, V any] struct {
-	capacity      int
-	current       map[K]V
-	next          map[K]V
-	mutex         *sync.RWMutex
-	PresenceLevel GenerationsSafeMapPreserveLevel
+	capacity          int
+	current           map[K]V
+	next              map[K]V
+	mutex             *sync.RWMutex
+	PresenceLevel     GenerationsSafeMapPreserveLevel
+	ticker            *time.Ticker
+	contextCancelFunc context.CancelFunc
 }
 
 // MakeGenerationsSafeMap creates new Safe Map with generations (minimum is 2) for better RAM usage. Total usage is: 2 * size (or current len()) * sizePerObject - it is recommended to use pointers
@@ -38,7 +45,7 @@ type GenerationsSafeMap[K comparable, V any] struct {
 // Warning: Map can delete values if not configured correctly!
 func MakeGenerationsSafeMap[K comparable, V any](presenceLevel GenerationsSafeMapPreserveLevel, size ...int) GenerationsSafeMap[K, V] {
 	//Create map
-	result := GenerationsSafeMap[K, V]{mutex: &sync.RWMutex{}, PresenceLevel: presenceLevel}
+	result := GenerationsSafeMap[K, V]{mutex: &sync.RWMutex{}, PresenceLevel: presenceLevel, ticker: nil}
 
 	//Create capacity
 	result.capacity = 0
@@ -127,7 +134,6 @@ func (m *GenerationsSafeMap[K, V]) Delete(key K) {
 
 	//Check if preserve on SET
 	if CheckBinaryContains(m.PresenceLevel, SetPreserveGenerationsSafeMapPreserveLevel) {
-		//Should be useless, but for safety
 		delete(m.next, key)
 	}
 
@@ -142,7 +148,7 @@ func (m *GenerationsSafeMap[K, V]) GetKeys(deleteListedKeys bool) []K {
 	defer m.mutex.Unlock()
 
 	//Range map
-	result := make([]K, len(m.m))
+	result := make([]K, len(m.current))
 	m.rangeLocal(func(key K) (doBreak bool, delete bool) {
 		result = append(result, key)
 		return false, deleteListedKeys
@@ -151,53 +157,55 @@ func (m *GenerationsSafeMap[K, V]) GetKeys(deleteListedKeys bool) []K {
 }
 
 // GetValues gets values safely value to map
-func (m *SafeMap[K, V]) GetValues(deleteListedValues bool) []V {
+func (m *GenerationsSafeMap[K, V]) GetValues(deleteListedValues bool) []V {
 	//Lock
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
 	//Range map
-	result := make([]V, len(m.m))
+	result := make([]V, len(m.current))
 	m.rangeLocal(func(key K) (doBreak bool, delete bool) {
-		result = append(result, m.m[key])
+		result = append(result, m.current[key])
 		return false, deleteListedValues
 	})
 	return result
 }
 
 // Len retuns lenght of map
-func (m *SafeMap[K, V]) Len() int {
+func (m *GenerationsSafeMap[K, V]) Len() int {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
-	return len(m.m)
+	return len(m.current)
 }
 
 // Clear clears map
-func (m *SafeMap[K, V]) Clear() {
+func (m *GenerationsSafeMap[K, V]) Clear() {
+	//Lock
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
-	for k := range m.m {
-		delete(m.m, k)
-	}
+
+	//Clear
+	clear(m.current)
+	clear(m.next)
 }
 
 // GetData gets keys and values safely value to map
-func (m *SafeMap[K, V]) GetData(deleteListedKeyValues bool) []KeyValuePair[K, V] {
+func (m *GenerationsSafeMap[K, V]) GetData(deleteListedKeyValues bool) []KeyValuePair[K, V] {
 	//Lock
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
 	//Range map
-	result := make([]KeyValuePair[K, V], len(m.m))
+	result := make([]KeyValuePair[K, V], len(m.current))
 	m.rangeLocal(func(key K) (doBreak bool, delete bool) {
-		result = append(result, KeyValuePair[K, V]{Key: key, Value: m.m[key]})
+		result = append(result, KeyValuePair[K, V]{Key: key, Value: m.current[key]})
 		return false, deleteListedKeyValues
 	})
 	return result
 }
 
 // SetMutex sets new Mutex
-func (m *SafeMap[K, V]) SetMutex(mutex *sync.RWMutex) bool {
+func (m *GenerationsSafeMap[K, V]) SetMutex(mutex *sync.RWMutex) bool {
 	if mutex == nil {
 		return false
 	}
@@ -206,20 +214,31 @@ func (m *SafeMap[K, V]) SetMutex(mutex *sync.RWMutex) bool {
 }
 
 // GetMutex gets Mutex
-func (m *SafeMap[K, V]) GetMutex() *sync.RWMutex {
+func (m *GenerationsSafeMap[K, V]) GetMutex() *sync.RWMutex {
 	return m.mutex
 }
 
 // rangeLocal is local function for range over map. It should not be used externally
-func (m *SafeMap[K, V]) rangeLocal(rangeFunc func(key K) (doBreak bool, delete bool)) {
+func (m *GenerationsSafeMap[K, V]) rangeLocal(rangeFunc func(key K) (doBreak bool, delete bool)) {
 	//Range map
-	for k, _ := range m.m {
+	for k, v := range m.current {
+		//Check if preserve on GET
+		if CheckBinaryContains(m.PresenceLevel, GetPreserveGenerationsSafeMapPreserveLevel) {
+			m.next[k] = v
+		}
+
 		//Call rangeFunc
 		doBreak, del := rangeFunc(k)
 
 		//Delete if needed
 		if del {
-			delete(m.m, k)
+			//Check if preserve on SET
+			if CheckBinaryContains(m.PresenceLevel, GetPreserveGenerationsSafeMapPreserveLevel) {
+				delete(m.next, k)
+			}
+
+			//Delete
+			delete(m.current, k)
 		}
 
 		//Break if needed
@@ -232,7 +251,7 @@ func (m *SafeMap[K, V]) rangeLocal(rangeFunc func(key K) (doBreak bool, delete b
 // RangeKeys iterates trought map keys without creating slice
 //
 // Map is locked, so no write operations involving the map should be called in rangeFunc
-func (m *SafeMap[K, V]) RangeKeys(rangeFunc func(key K) (doBreak bool, delete bool)) {
+func (m *GenerationsSafeMap[K, V]) RangeKeys(rangeFunc func(key K) (doBreak bool, delete bool)) {
 	//Check if can run
 	if rangeFunc == nil {
 		return
@@ -249,7 +268,7 @@ func (m *SafeMap[K, V]) RangeKeys(rangeFunc func(key K) (doBreak bool, delete bo
 // RangeValues iterates trought map values without creating slice
 //
 // Map is locked, so no write operations involving the map should be called in rangeFunc
-func (m *SafeMap[K, V]) RangeValues(rangeFunc func(value V) (doBreak bool, delete bool)) {
+func (m *GenerationsSafeMap[K, V]) RangeValues(rangeFunc func(value V) (doBreak bool, delete bool)) {
 	//Check if can run
 	if rangeFunc == nil {
 		return
@@ -261,14 +280,14 @@ func (m *SafeMap[K, V]) RangeValues(rangeFunc func(value V) (doBreak bool, delet
 
 	//Range
 	m.rangeLocal(func(key K) (doBreak bool, delete bool) {
-		return rangeFunc(m.m[key])
+		return rangeFunc(m.current[key])
 	})
 }
 
 // RangeData iterates trought map keys and values without creating slice
 //
 // Map is locked, so no write operations involving the map should be called in rangeFunc
-func (m *SafeMap[K, V]) RangeData(rangeFunc func(key K, value V) (doBreak bool, delete bool)) {
+func (m *GenerationsSafeMap[K, V]) RangeData(rangeFunc func(key K, value V) (doBreak bool, delete bool)) {
 	//Check if can run
 	if rangeFunc == nil {
 		return
@@ -280,6 +299,63 @@ func (m *SafeMap[K, V]) RangeData(rangeFunc func(key K, value V) (doBreak bool, 
 
 	//Range
 	m.rangeLocal(func(key K) (doBreak bool, delete bool) {
-		return rangeFunc(key, m.m[key])
+		return rangeFunc(key, m.current[key])
 	})
+}
+
+// StartGenerationTimer stars generation timer (generation switching and map sweeping). Locks exection thread
+//
+// Warning: If map is configured wrongly it can cause loose of data
+func (m *GenerationsSafeMap[K, V]) StartGenerationTimer(interval time.Duration) bool {
+	//Check if can start new
+	if m.ticker != nil {
+		return false
+	}
+
+	//Start timer
+	m.ticker = time.NewTicker(interval)
+	var ctx context.Context
+	ctx, m.contextCancelFunc = context.WithCancel(context.Background())
+	defer m.ticker.Stop()
+
+	//Run loop
+	for {
+		select {
+		case <-m.ticker.C:
+			m.NewGeneration()
+		case <-ctx.Done():
+			return true
+		}
+	}
+}
+
+// StopGenerationTimer stops generation timer
+func (m *GenerationsSafeMap[K, V]) StopGenerationTimer() {
+	//Check if can stop
+	if m.ticker == nil {
+		return
+	}
+
+	//Stop
+	m.ticker.Stop()
+	m.ticker = nil
+	if m.contextCancelFunc != nil {
+		m.contextCancelFunc()
+	}
+}
+
+// NewGeneration switches maps to new generation
+func (m *GenerationsSafeMap[K, V]) NewGeneration() {
+	//Lock
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
+	//Copy when needed
+	if CheckBinaryContains(m.PresenceLevel, CopyOnSwapPreserveGenerationsSafeMapPreserveLevel) {
+		maps.Copy(m.next, m.current)
+	}
+
+	//Swap
+	m.current = m.next
+	m.next = make(map[K]V, m.capacity)
 }
