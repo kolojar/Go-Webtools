@@ -267,3 +267,10 @@ func CalculateCountOfUsedBytesOfNumber[valueType ~uint8 | ~uint16 | ~uint32 | ~u
 	//Ceil division
 	return (uint8(bits.Len64(uint64(uValue))) + 7) >> 3
 }
+
+// CheckBinaryContains checks if value has set all bits for check.
+//
+// Example: value = 3, check = 1 -> true, value = 2, check = 1 -> false
+func CheckBinaryContains[valueType ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uint | ~int8 | ~int16 | ~int32 | ~int64 | ~int](value valueType, check valueType) bool {
+	return value&check == check
+}
