@@ -777,7 +777,7 @@ func ConvertSafeMapToBytesDB[K comparable, V any](writer io.Writer, data helpert
 	if err != nil {
 		return err
 	}
-	for _, v := range data.GetData() {
+	for _, v := range data.GetData(false) {
 		err = keyConvertDBFunc(writer, v.Key)
 		if err != nil {
 			return err

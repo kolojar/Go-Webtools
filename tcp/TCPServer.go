@@ -93,7 +93,7 @@ func (sv *Server) GetAddress() string {
 GetConns gets all connections on server
 */
 func (sv *Server) GetConns() []*ServerConn {
-	return sv.conns.GetValues()
+	return sv.conns.GetValues(false)
 }
 
 /*

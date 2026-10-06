@@ -20,17 +20,33 @@ type journalEntry[T any] struct {
 	value    T
 }
 
+// LazyLoading is option for database. It sets when it should load data to RAM and when it should save them do disk and clear RAM.
+type LazyLoading uint8
+
+// LazyLoadingNone loads all to RAM and keeps all data in RAM (overwrites timeout)
+const LazyLoadingNone LazyLoading = 0
+
+// LazyLoadingAllOnDisk loads data to RAM only for processing and clears them istantly after operation is done. (overwrites timeout)
+const LazyLoadingAllOnDisk LazyLoading = 1
+
+// LazyLoadingOnGet loads data to RAM on GET and keeps them in RAM until timeout is reached (only GET updates timeout)
+const LazyLoadingOnGet LazyLoading = 2
+
+// LazyLoadingOnSet loads data to RAM on SET and keeps them in RAM until timeout is reached (only SET updates timeout)
+const LazyLoadingOnSet LazyLoading = 4
+
+// LazyLoadingBoth loads data to RAM on GET or on SET and keeps tehm in RAM until timeout is reached
+const LazyLoadingBoth LazyLoading = 6
+
 /*
-JournalingDatabase is database that is completly stored in RAM and loaded from disk on start (if lazyLoading is false). After inactivity is offloaded to disk. Data is saved only after amount of operations or on save. Otherwise everything is stored in Journal.
+JournalingDatabase is database that is completly stored in RAM and loaded from disk on start (if lazyLoading is false). After inactivity set in automaticUnload is offloaded to disk. Data is saved only after amount of operations or on save. Otherwise everything is stored in Journal.
 */
 type JournalingDatabase[T any] struct {
-	//emptyObject T
-	//oneValueLength uint64
-	lazyLoading                    bool
+	lazyLoading                    LazyLoading
 	automaticUnload                time.Duration
 	journalItemCountBeforeAutosave uint32
 	journalLen                     atomic.Uint32
-	data                           helpertools.SafeMap[string, T]
+	data                           helpertools.SafeMapWithIndexSlice[string, T]
 	path                           string
 	Logger                         helpertools.ConsoleLogger
 	convertToBytesDBFunc           func(writer io.Writer, data T) error
@@ -55,7 +71,7 @@ func NewJournalingRAMDatabase[T any](path string, journalItemCountBeforeAutosave
 	//Create object
 	var inst = JournalingDatabase[T]{convertToBytesDBFunc: convertToBytesDBFunc, parseDBFunc: parseDBFunc, journalItemCountBeforeAutosave: journalItemCountBeforeAutosave}
 	//inst.oneValueLength = uint64(emptyObjectBytes.Len())
-	inst.data = helpertools.MakeSafeMap[string, T]()
+	inst.data = helpertools.MakeSafeMapWithIndexSlice[string, T]()
 	inst.path = path
 	inst.Logger = helpertools.MakeConsoleLoggerForTraffic("JRAMDB", false)
 	inst.journalLen.Store(0)

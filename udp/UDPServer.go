@@ -266,7 +266,7 @@ CleanupConnections removes old not used UDP connections
 */
 func (udp *Server) CleanupConnections(forceAll bool) {
 	oldCount := udp.conns.Len()
-	for _, d := range udp.conns.GetData() {
+	for _, d := range udp.conns.GetData(false) {
 		k := d.Key
 		v := d.Value
 		if v == nil {

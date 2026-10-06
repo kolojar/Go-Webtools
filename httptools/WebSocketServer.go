@@ -176,7 +176,7 @@ func (sv *WebSocketServer) GetHTTPServer() *Server {
 }
 
 func (sv *WebSocketServer) handleHTTPAccess(_ *Server, w http.ResponseWriter, r *http.Request, params map[string]string) bool {
-	if r.Method == http.MethodGet && slices.Contains(sv.websocketURLsAndReadFuncs.GetKeys(), r.URL.Path) {
+	if r.Method == http.MethodGet && slices.Contains(sv.websocketURLsAndReadFuncs.GetKeys(false), r.URL.Path) {
 		//Websocket request - Correct URL and Method
 		sv.httpServer.Logger.Log(helpertools.LogInfo, "Preparing connection from: "+r.RemoteAddr)
 
@@ -493,7 +493,7 @@ BroadcastToClients broadcasts data to clients with specific url parameter/s supp
 */
 func (sv *WebSocketServer) BroadcastToClients(filterURLParams map[string]string, data []byte) {
 	if sv != nil {
-		BroadcastToWebSocketClients(sv.conns.GetValues(), filterURLParams, data)
+		BroadcastToWebSocketClients(sv.conns.GetValues(false), filterURLParams, data)
 	}
 }
 
@@ -501,7 +501,7 @@ func (sv *WebSocketServer) BroadcastToClients(filterURLParams map[string]string,
 FilterClients filters WebSocket connections matching URL parameters
 */
 func (sv *WebSocketServer) FilterClients(filterURLParams map[string]string) []*WebSocketServerConn {
-	return FilterWebSocketClients(sv.conns.GetValues(), filterURLParams)
+	return FilterWebSocketClients(sv.conns.GetValues(false), filterURLParams)
 }
 
 /*

@@ -76,7 +76,7 @@ func NewTCPProxyServerUDP(tcpProxyAddress string, udpServerAddress string, repor
 func (sv *TCPProxyServerUDP) handleTCPReadFunc(conn *tcp.ServerConn, frame []byte, status webtools.NetworkStatus) {
 	if status == webtools.DisconnectStatus {
 		//Close all connections with this HTTP WebTransport Conn
-		for _, d := range sv.idToClient.GetData() {
+		for _, d := range sv.idToClient.GetData(false) {
 			if d.Value == nil {
 				continue
 			}

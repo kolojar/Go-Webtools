@@ -74,7 +74,7 @@ func (sv *HTTPProxyServerUDP) handleWebSocketReadFunc(conn *httptools.WebSocketS
 	}
 	if status == webtools.DisconnectStatus {
 		//Close all connections with this HTTP WebTransport Conn
-		for _, v := range sv.idToClient.GetValues() {
+		for _, v := range sv.idToClient.GetValues(false) {
 			if v == nil {
 				continue
 			}

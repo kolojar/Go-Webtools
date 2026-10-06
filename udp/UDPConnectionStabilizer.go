@@ -649,9 +649,9 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 
 // CleanupConnections removes all connections
 func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumberType, windowWordType]) CleanupConnections() {
-	stabilizer.conns.RangeWithEmpty(func(key connType, value *connectionStabilizerConn[sequenceNumberType, orderNumberType, windowWordType]) (doBreak bool) {
+	stabilizer.conns.RangeData(func(key connType, value *connectionStabilizerConn[sequenceNumberType, orderNumberType, windowWordType]) (doBreak bool, delete bool) {
 		stabilizer.cleanupConnection(value)
-		return false
+		return false, true
 	})
 }
 
@@ -670,9 +670,9 @@ func (stabilizer *connectionStabilizer[connType, sequenceNumberType, orderNumber
 			}
 		case <-ticker.C:
 			{
-				stabilizer.conns.Range(func(conn connType, _ *connectionStabilizerConn[sequenceNumberType, orderNumberType, windowWordType]) (doBreak bool) {
+				stabilizer.conns.RangeData(func(conn connType, _ *connectionStabilizerConn[sequenceNumberType, orderNumberType, windowWordType]) (doBreak bool, delete bool) {
 					stabilizer.HandleWrite(conn, stablePingFrame, nil)
-					return false
+					return false, false
 				})
 				return
 			}

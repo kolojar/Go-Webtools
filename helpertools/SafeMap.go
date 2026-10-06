@@ -90,24 +90,32 @@ func (m *SafeMap[K, V]) Delete(key K) {
 }
 
 // GetKeys gets keys safely value to map
-func (m *SafeMap[K, V]) GetKeys() []K {
+func (m *SafeMap[K, V]) GetKeys(deleteListedKeys bool) []K {
+	//Lock
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
-	result := make([]K, 0)
-	for k := range m.m {
-		result = append(result, k)
-	}
+
+	//Range map
+	result := make([]K, len(m.m))
+	m.rangeLocal(func(key K) (doBreak bool, delete bool) {
+		result = append(result, key)
+		return false, deleteListedKeys
+	})
 	return result
 }
 
 // GetValues gets values safely value to map
-func (m *SafeMap[K, V]) GetValues() []V {
+func (m *SafeMap[K, V]) GetValues(deleteListedValues bool) []V {
+	//Lock
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
-	result := make([]V, 0)
-	for _, v := range m.m {
-		result = append(result, v)
-	}
+
+	//Range map
+	result := make([]V, len(m.m))
+	m.rangeLocal(func(key K) (doBreak bool, delete bool) {
+		result = append(result, m.m[key])
+		return false, deleteListedValues
+	})
 	return result
 }
 
@@ -128,13 +136,17 @@ func (m *SafeMap[K, V]) Clear() {
 }
 
 // GetData gets keys and values safely value to map
-func (m *SafeMap[K, V]) GetData() []KeyValuePair[K, V] {
+func (m *SafeMap[K, V]) GetData(deleteListedKeyValues bool) []KeyValuePair[K, V] {
+	//Lock
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
-	result := make([]KeyValuePair[K, V], 0)
-	for k, v := range m.m {
-		result = append(result, KeyValuePair[K, V]{Key: k, Value: v})
-	}
+
+	//Range map
+	result := make([]KeyValuePair[K, V], len(m.m))
+	m.rangeLocal(func(key K) (doBreak bool, delete bool) {
+		result = append(result, KeyValuePair[K, V]{Key: key, Value: m.m[key]})
+		return false, deleteListedKeyValues
+	})
 	return result
 }
 
@@ -152,35 +164,76 @@ func (m *SafeMap[K, V]) GetMutex() *sync.RWMutex {
 	return m.mutex
 }
 
-// Range iterates trought map keys and values without creating slice
-//
-// Map is locked, so no write operations involving the map should be called in rangeFunc
-func (m *SafeMap[K, V]) Range(rangeFunc func(key K, value V) (doBreak bool)) {
-	if rangeFunc == nil {
-		return
-	}
-	m.mutex.RLock()
-	defer m.mutex.RUnlock()
-	for k, v := range m.m {
-		if rangeFunc(k, v) {
+// rangeLocal is local function for range over map. It should not be used externally
+func (m *SafeMap[K, V]) rangeLocal(rangeFunc func(key K) (doBreak bool, delete bool)) {
+	//Range map
+	for k, _ := range m.m {
+		//Call rangeFunc
+		doBreak, del := rangeFunc(k)
+
+		//Delete if needed
+		if del {
+			delete(m.m, k)
+		}
+
+		//Break if needed
+		if doBreak {
 			break
 		}
 	}
 }
 
-// RangeWithEmpty iterates trought map keys and values without creating slice but it removes values (goes from end).
+// RangeKeys iterates trought map keys without creating slice
 //
-// Map is locked, so no operations involving the map should be called in rangeFunc
-func (m *SafeMap[K, V]) RangeWithEmpty(rangeFunc func(key K, value V) (doBreak bool)) {
+// Map is locked, so no write operations involving the map should be called in rangeFunc
+func (m *SafeMap[K, V]) RangeKeys(rangeFunc func(key K) (doBreak bool, delete bool)) {
+	//Check if can run
 	if rangeFunc == nil {
 		return
 	}
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-	for k, v := range m.m {
-		delete(m.m, k)
-		if rangeFunc(k, v) {
-			break
-		}
+
+	//Lock
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+
+	//Range
+	m.rangeLocal(rangeFunc)
+}
+
+// RangeValues iterates trought map values without creating slice
+//
+// Map is locked, so no write operations involving the map should be called in rangeFunc
+func (m *SafeMap[K, V]) RangeValues(rangeFunc func(value V) (doBreak bool, delete bool)) {
+	//Check if can run
+	if rangeFunc == nil {
+		return
 	}
+
+	//Lock
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+
+	//Range
+	m.rangeLocal(func(key K) (doBreak bool, delete bool) {
+		return rangeFunc(m.m[key])
+	})
+}
+
+// RangeData iterates trought map keys and values without creating slice
+//
+// Map is locked, so no write operations involving the map should be called in rangeFunc
+func (m *SafeMap[K, V]) RangeData(rangeFunc func(key K, value V) (doBreak bool, delete bool)) {
+	//Check if can run
+	if rangeFunc == nil {
+		return
+	}
+
+	//Lock
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+
+	//Range
+	m.rangeLocal(func(key K) (doBreak bool, delete bool) {
+		return rangeFunc(key, m.m[key])
+	})
 }

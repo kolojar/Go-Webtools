@@ -67,7 +67,7 @@ func (db *RAMDatabase[T]) Get(key string) T {
 GetData gets all data from database
 */
 func (db *RAMDatabase[T]) GetData() []helpertools.KeyValuePair[string, T] {
-	return db.data.GetData()
+	return db.data.GetData(false)
 }
 
 /*
@@ -111,7 +111,7 @@ func (db *RAMDatabase[T]) Save() error {
 	//binary.Write(file, binary.BigEndian, db.oneValueLength)
 
 	//Write map values
-	for _, v := range db.data.GetData() {
+	for _, v := range db.data.GetData(false) {
 		ConvertStringToBytesDB(file, v.Key)
 		db.convertToBytesDBFunc(file, v.Value)
 		file.Sync()

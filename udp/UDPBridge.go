@@ -116,7 +116,7 @@ Stop stops bridge
 */
 func (br *Bridge) Stop() {
 	br.udpServer.Stop()
-	for _, v := range br.connetionUDPLocalToRemote.GetValues() {
+	for _, v := range br.connetionUDPLocalToRemote.GetValues(false) {
 		v.Close()
 	}
 }

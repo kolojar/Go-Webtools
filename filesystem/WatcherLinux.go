@@ -171,8 +171,8 @@ func (watcher *fileSystemWatcherInstance) StopWatching() {
 	}
 
 	//Stop subwatchers
-	for i := 0; i < len(watcher.subDirectoriesWatchers.GetValues()); i++ {
-		watcher.subDirectoriesWatchers.GetValues()[i].StopWatching()
+	for i := 0; i < len(watcher.subDirectoriesWatchers.GetValues(false)); i++ {
+		watcher.subDirectoriesWatchers.GetValues(false)[i].StopWatching()
 	}
 	watcher.mainParent.Logger.Log(helpertools.LogInfo, "Watching stopped for path: "+watcher.path)
 }

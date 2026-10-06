@@ -366,7 +366,7 @@ Shutdown shuts down all open UPnP ports
 */
 func (upnp *UPnPServiceManager) Shutdown() {
 	upnp.Logger.Log(helpertools.LogWarning, "Shutting down UPnP Service manager...")
-	for _, val := range upnp.mappedUrls.GetData() {
+	for _, val := range upnp.mappedUrls.GetData(false) {
 		upnp.RemoveUPnPPort(val.Key, val.Value)
 	}
 	upnp.Logger.Log(helpertools.LogWarning, "Shutting down UPnP Service manager complete.")

@@ -145,7 +145,7 @@ func (configManager *ConfigManager) LoadFrom(argStart int, path string) error {
 	}
 
 	//Parse valid options
-	for _, k := range configManager.values.GetData() {
+	for _, k := range configManager.values.GetData(false) {
 		if k.Value.option.ConfigurableViaConfigFile {
 			v, ok := readValues[k.Key]
 			if ok {
@@ -195,7 +195,7 @@ func (configManager *ConfigManager) SaveAs(path string) error {
 
 	//Write comments
 	writeValues := make(map[string]any)
-	for _, v := range configManager.values.GetData() {
+	for _, v := range configManager.values.GetData(false) {
 		if !v.Value.option.ConfigurableViaConfigFile {
 			continue
 		}
@@ -273,7 +273,7 @@ Copy creates copy of configManager
 */
 func (configManager *ConfigManager) Copy(newPath string) *ConfigManager {
 	result := NewConfigManager(newPath)
-	for _, v := range configManager.values.GetData() {
+	for _, v := range configManager.values.GetData(false) {
 		result.values.Set(v.Key, v.Value)
 	}
 	return result

@@ -51,8 +51,17 @@ func (m *SafeMapWithIndexSlice[K, V]) GetHas(key K) (V, bool) {
 
 // Set sets safely value to map
 func (m *SafeMapWithIndexSlice[K, V]) Set(key K, value V) {
+	//Lock
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
+
+	//Check if exist
+	_, ok := m.m[key]
+	if !ok {
+		m.s = append(m.s, key)
+	}
+
+	//Set value
 	m.m[key] = value
 }
 
@@ -61,6 +70,7 @@ func (m *SafeMapWithIndexSlice[K, V]) Delete(key K) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	delete(m.m, key)
+	m.s = RemoveElement(m.s, key)
 }
 
 // GetKeys gets keys safely value to map
@@ -160,7 +170,7 @@ func (m *SafeMapWithIndexSlice[K, V]) RangeWithEmpty(rangeFunc func(key K, value
 }
 
 // getRandomKeysLocal should not be called externally, helper function, gets random keys based on limit
-func (m SafeMapWithIndexSlice[K, V]) getRandomKeysLocal(limit uint, fallback func(key K)) {
+func (m SafeMapWithIndexSlice[K, V]) getRandomKeysLocal(limit uint, callback func(key K) (doBreak bool, delete bool)) {
 	//Copy keys
 	keysLocal := make([]K, len(m.s))
 	copy(keysLocal, m.s)
@@ -174,49 +184,68 @@ func (m SafeMapWithIndexSlice[K, V]) getRandomKeysLocal(limit uint, fallback fun
 
 		//Get random
 		index := rand.IntN(len(keysLocal))
-		fallback(keysLocal[index])
+		key := keysLocal[index]
+
+		//Call callback
+		doBreak, del := callback(key)
+
+		//Delete if needed
+		if del {
+			delete(m.m, key)
+			m.s = RemoveElement(m.s, key)
+		}
+
+		//Break if needed
+		if doBreak {
+			break
+		}
+
+		//Remove for loop
 		keysLocal = RemoveElementAtIndex(keysLocal, index)
 	}
 }
 
-// GetRandomKeys gets random list of keys
-func (m SafeMapWithIndexSlice[K, V]) GetRandomKeys(limit uint) []K {
+// GetRandomKeys gets random list of keys. Set delete to true when you want to delete key after usage
+func (m SafeMapWithIndexSlice[K, V]) GetRandomKeys(limit uint, delete bool) []K {
 	//Lock
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 
 	//Get keys
 	result := make([]K, limit)
-	m.getRandomKeysLocal(limit, func(key K) {
+	m.getRandomKeysLocal(limit, func(key K) (doBreak bool, _ bool) {
 		result = append(result, key)
+		return false, delete
 	})
 	return result
 }
 
-// GetRandomValues gets random list of values
-func (m SafeMapWithIndexSlice[K, V]) GetRandomValues(limit uint) []V {
+// GetRandomValues gets random list of values. Set delete to true when you want to delete value after usage
+func (m SafeMapWithIndexSlice[K, V]) GetRandomValues(limit uint, delete bool) []V {
 	//Lock
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 
 	//Get values
 	result := make([]V, limit)
-	m.getRandomKeysLocal(limit, func(key K) {
+	m.getRandomKeysLocal(limit, func(key K) (doBreak bool, _ bool) {
 		result = append(result, m.m[key])
+		return false, delete
 	})
 	return result
 }
 
-// GetRandomData gets random list of key-values
-func (m SafeMapWithIndexSlice[K, V]) GetRandomData(limit uint) []KeyValuePair[K, V] {
+// GetRandomData gets random list of key-values. Set delete to true when you want to delete key-value after usage
+func (m SafeMapWithIndexSlice[K, V]) GetRandomData(limit uint, delete bool) []KeyValuePair[K, V] {
 	//Lock
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 
 	//Get values
 	result := make([]KeyValuePair[K, V], limit)
-	m.getRandomKeysLocal(limit, func(key K) {
+	m.getRandomKeysLocal(limit, func(key K) (doBreak bool, _ bool) {
 		result = append(result, KeyValuePair[K, V]{Key: key, Value: m.m[key]})
+		return false, delete
 	})
 	return result
 }
@@ -224,7 +253,7 @@ func (m SafeMapWithIndexSlice[K, V]) GetRandomData(limit uint) []KeyValuePair[K,
 // GetRandomKeys gets random list of keys
 //
 // Map is locked, so no operations involving the map should be called in rangeFunc
-func (m SafeMapWithIndexSlice[K, V]) RangeRandomKeys(limit uint, rangeFunc func(key K)) {
+func (m SafeMapWithIndexSlice[K, V]) RangeRandomKeys(limit uint, rangeFunc func(key K) (doBreak bool, delete bool)) {
 	//Check if rangeFunc valid
 	if rangeFunc == nil {
 		return
@@ -241,7 +270,7 @@ func (m SafeMapWithIndexSlice[K, V]) RangeRandomKeys(limit uint, rangeFunc func(
 // GetRandomValues gets random list of values
 //
 // Map is locked, so no operations involving the map should be called in rangeFunc
-func (m SafeMapWithIndexSlice[K, V]) RangeRandomValues(limit uint, rangeFunc func(value V)) {
+func (m SafeMapWithIndexSlice[K, V]) RangeRandomValues(limit uint, rangeFunc func(value V) (doBreak bool, delete bool)) {
 	//Check if rangeFunc valid
 	if rangeFunc == nil {
 		return
@@ -252,15 +281,15 @@ func (m SafeMapWithIndexSlice[K, V]) RangeRandomValues(limit uint, rangeFunc fun
 	defer m.mutex.RUnlock()
 
 	//Get values
-	m.getRandomKeysLocal(limit, func(key K) {
-		rangeFunc(m.m[key])
+	m.getRandomKeysLocal(limit, func(key K) (doBreak bool, delete bool) {
+		return rangeFunc(m.m[key])
 	})
 }
 
 // GetRandomData gets random list of key-values
 //
 // Map is locked, so no operations involving the map should be called in rangeFunc
-func (m SafeMapWithIndexSlice[K, V]) RangeRandomData(limit uint, rangeFunc func(key K, value V)) {
+func (m SafeMapWithIndexSlice[K, V]) RangeRandomData(limit uint, rangeFunc func(key K, value V) (doBreak bool, delete bool)) {
 	//Check if rangeFunc valid
 	if rangeFunc == nil {
 		return
@@ -271,7 +300,7 @@ func (m SafeMapWithIndexSlice[K, V]) RangeRandomData(limit uint, rangeFunc func(
 	defer m.mutex.RUnlock()
 
 	//Get values
-	m.getRandomKeysLocal(limit, func(key K) {
-		rangeFunc(key, m.m[key])
+	m.getRandomKeysLocal(limit, func(key K) (doBreak bool, delete bool) {
+		return rangeFunc(key, m.m[key])
 	})
 }
