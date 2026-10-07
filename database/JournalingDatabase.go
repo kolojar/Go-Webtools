@@ -88,8 +88,8 @@ func (db *JournalingDatabase[T]) Get(key string) T {
 /*
 GetData gets all data from database
 */
-func (db *JournalingDatabase[T]) GetData() []helpertools.KeyValuePair[string, T] {
-	return db.data.GetData()
+func (db *JournalingDatabase[T]) GetData(deleteListedKeyValues bool) []helpertools.KeyValuePair[string, T] {
+	return db.data.GetData(deleteListedKeyValues)
 }
 
 /*
@@ -192,7 +192,7 @@ func (db *JournalingDatabase[T]) Save() error {
 	//binary.Write(file, binary.BigEndian, db.oneValueLength)
 
 	//Write map values
-	for _, v := range db.data.GetData() {
+	for _, v := range db.data.GetData(false) {
 		ConvertStringToBytesDB(file, v.Key)
 		db.convertToBytesDBFunc(file, v.Value)
 		file.Sync()
