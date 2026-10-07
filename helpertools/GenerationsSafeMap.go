@@ -34,7 +34,7 @@ type GenerationsSafeMap[K comparable, V any] struct {
 	capacity          int
 	current           map[K]V
 	next              map[K]V
-	mutex             *sync.RWMutex
+	mutex             *sync.Mutex
 	PresenceLevel     GenerationsSafeMapPreserveLevel
 	ticker            *time.Ticker
 	contextCancelFunc context.CancelFunc
@@ -45,7 +45,7 @@ type GenerationsSafeMap[K comparable, V any] struct {
 // Warning: Map can delete values if not configured correctly!
 func MakeGenerationsSafeMap[K comparable, V any](presenceLevel GenerationsSafeMapPreserveLevel, size ...int) GenerationsSafeMap[K, V] {
 	//Create map
-	result := GenerationsSafeMap[K, V]{mutex: &sync.RWMutex{}, PresenceLevel: presenceLevel, ticker: nil}
+	result := GenerationsSafeMap[K, V]{mutex: &sync.Mutex{}, PresenceLevel: presenceLevel, ticker: nil}
 
 	//Create capacity
 	result.capacity = 0
@@ -67,11 +67,11 @@ func (m *GenerationsSafeMap[K, V]) IsNil() bool {
 // Get gets safely value from map
 func (m *GenerationsSafeMap[K, V]) Get(key K) V {
 	//Lock
-	m.mutex.RLock()
-	defer m.mutex.RUnlock()
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
 
 	//Check if preserve on GET
-	if CheckBinaryContains(m.PresenceLevel, GetPreserveGenerationsSafeMapPreserveLevel) {
+	if CheckBinaryContains(m.PresenceLevel, GetPreserveGenerationsSafeMapPreserveLevel, false) {
 		m.next[key] = m.current[key]
 	}
 
@@ -82,11 +82,11 @@ func (m *GenerationsSafeMap[K, V]) Get(key K) V {
 // Has checks if value is in map
 func (m *GenerationsSafeMap[K, V]) Has(key K) bool {
 	//Lock
-	m.mutex.RLock()
-	defer m.mutex.RUnlock()
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
 
 	//Check if preserve on GET
-	if CheckBinaryContains(m.PresenceLevel, GetPreserveGenerationsSafeMapPreserveLevel) {
+	if CheckBinaryContains(m.PresenceLevel, GetPreserveGenerationsSafeMapPreserveLevel, false) {
 		m.next[key] = m.current[key]
 	}
 
@@ -98,11 +98,11 @@ func (m *GenerationsSafeMap[K, V]) Has(key K) bool {
 // GetHas gets safely value from map and returns if value is in map
 func (m *GenerationsSafeMap[K, V]) GetHas(key K) (V, bool) {
 	//Lock
-	m.mutex.RLock()
-	defer m.mutex.RUnlock()
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
 
 	//Check if preserve on GET
-	if CheckBinaryContains(m.PresenceLevel, GetPreserveGenerationsSafeMapPreserveLevel) {
+	if CheckBinaryContains(m.PresenceLevel, GetPreserveGenerationsSafeMapPreserveLevel, false) {
 		m.next[key] = m.current[key]
 	}
 
@@ -114,11 +114,11 @@ func (m *GenerationsSafeMap[K, V]) GetHas(key K) (V, bool) {
 // Set sets safely value to map
 func (m *GenerationsSafeMap[K, V]) Set(key K, value V) {
 	//Lock
-	m.mutex.RLock()
-	defer m.mutex.RUnlock()
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
 
 	//Check if preserve on SET
-	if CheckBinaryContains(m.PresenceLevel, SetPreserveGenerationsSafeMapPreserveLevel) {
+	if CheckBinaryContains(m.PresenceLevel, SetPreserveGenerationsSafeMapPreserveLevel, false) {
 		m.next[key] = value
 	}
 
@@ -129,11 +129,11 @@ func (m *GenerationsSafeMap[K, V]) Set(key K, value V) {
 // Delete deletes safely value to map
 func (m *GenerationsSafeMap[K, V]) Delete(key K) {
 	//Lock
-	m.mutex.RLock()
-	defer m.mutex.RUnlock()
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
 
 	//Check if preserve on SET
-	if CheckBinaryContains(m.PresenceLevel, SetPreserveGenerationsSafeMapPreserveLevel) {
+	if CheckBinaryContains(m.PresenceLevel, SetPreserveGenerationsSafeMapPreserveLevel, false) {
 		delete(m.next, key)
 	}
 
@@ -177,8 +177,8 @@ func (m *GenerationsSafeMap[K, V]) GetValues(deleteListedValues bool) []V {
 
 // Len retuns lenght of map
 func (m *GenerationsSafeMap[K, V]) Len() int {
-	m.mutex.RLock()
-	defer m.mutex.RUnlock()
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
 	return len(m.current)
 }
 
@@ -211,7 +211,7 @@ func (m *GenerationsSafeMap[K, V]) GetData(deleteListedKeyValues bool) []KeyValu
 }
 
 // SetMutex sets new Mutex
-func (m *GenerationsSafeMap[K, V]) SetMutex(mutex *sync.RWMutex) bool {
+func (m *GenerationsSafeMap[K, V]) SetMutex(mutex *sync.Mutex) bool {
 	if mutex == nil {
 		return false
 	}
@@ -220,7 +220,7 @@ func (m *GenerationsSafeMap[K, V]) SetMutex(mutex *sync.RWMutex) bool {
 }
 
 // GetMutex gets Mutex
-func (m *GenerationsSafeMap[K, V]) GetMutex() *sync.RWMutex {
+func (m *GenerationsSafeMap[K, V]) GetMutex() *sync.Mutex {
 	return m.mutex
 }
 
@@ -229,7 +229,7 @@ func (m *GenerationsSafeMap[K, V]) rangeLocal(rangeFunc func(key K) (doBreak boo
 	//Range map
 	for k, v := range m.current {
 		//Check if preserve on GET
-		if CheckBinaryContains(m.PresenceLevel, GetPreserveGenerationsSafeMapPreserveLevel) {
+		if CheckBinaryContains(m.PresenceLevel, GetPreserveGenerationsSafeMapPreserveLevel, false) {
 			m.next[k] = v
 		}
 
@@ -239,7 +239,7 @@ func (m *GenerationsSafeMap[K, V]) rangeLocal(rangeFunc func(key K) (doBreak boo
 		//Delete if needed
 		if del {
 			//Check if preserve on SET
-			if CheckBinaryContains(m.PresenceLevel, GetPreserveGenerationsSafeMapPreserveLevel) {
+			if CheckBinaryContains(m.PresenceLevel, GetPreserveGenerationsSafeMapPreserveLevel, false) {
 				delete(m.next, k)
 			}
 
@@ -264,8 +264,8 @@ func (m *GenerationsSafeMap[K, V]) RangeKeys(rangeFunc func(key K) (doBreak bool
 	}
 
 	//Lock
-	m.mutex.RLock()
-	defer m.mutex.RUnlock()
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
 
 	//Range
 	m.rangeLocal(rangeFunc)
@@ -281,8 +281,8 @@ func (m *GenerationsSafeMap[K, V]) RangeValues(rangeFunc func(value V) (doBreak 
 	}
 
 	//Lock
-	m.mutex.RLock()
-	defer m.mutex.RUnlock()
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
 
 	//Range
 	m.rangeLocal(func(key K) (doBreak bool, delete bool) {
@@ -300,8 +300,8 @@ func (m *GenerationsSafeMap[K, V]) RangeData(rangeFunc func(key K, value V) (doB
 	}
 
 	//Lock
-	m.mutex.RLock()
-	defer m.mutex.RUnlock()
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
 
 	//Range
 	m.rangeLocal(func(key K) (doBreak bool, delete bool) {

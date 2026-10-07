@@ -271,6 +271,10 @@ func CalculateCountOfUsedBytesOfNumber[valueType ~uint8 | ~uint16 | ~uint32 | ~u
 // CheckBinaryContains checks if value has set all bits for check.
 //
 // Example: value = 3, check = 1 -> true, value = 2, check = 1 -> false
-func CheckBinaryContains[valueType ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uint | ~int8 | ~int16 | ~int32 | ~int64 | ~int](value valueType, check valueType) bool {
-	return value&check == check
+func CheckBinaryContains[valueType ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uint | ~int8 | ~int16 | ~int32 | ~int64 | ~int](value valueType, check valueType, needToMatchAll bool) bool {
+	//Get value
+	v := value & check
+
+	//Check
+	return FormatByBool(needToMatchAll, v == check, v != 0)
 }
