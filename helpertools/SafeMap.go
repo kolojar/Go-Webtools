@@ -143,8 +143,10 @@ func (m *SafeMap[K, V]) GetData(deleteListedKeyValues bool) []KeyValuePair[K, V]
 
 	//Range map
 	result := make([]KeyValuePair[K, V], len(m.m))
+	i := 0
 	m.rangeLocal(func(key K) (doBreak bool, delete bool) {
-		result = append(result, KeyValuePair[K, V]{Key: key, Value: m.m[key]})
+		result[i] = KeyValuePair[K, V]{Key: key, Value: m.m[key]}
+		i++
 		return false, deleteListedKeyValues
 	})
 	return result

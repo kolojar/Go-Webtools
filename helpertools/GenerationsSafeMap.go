@@ -149,8 +149,10 @@ func (m *GenerationsSafeMap[K, V]) GetKeys(deleteListedKeys bool) []K {
 
 	//Range map
 	result := make([]K, len(m.current))
+	i := 0
 	m.rangeLocal(func(key K) (doBreak bool, delete bool) {
-		result = append(result, key)
+		result[i] = key
+		i++
 		return false, deleteListedKeys
 	})
 	return result
@@ -164,8 +166,10 @@ func (m *GenerationsSafeMap[K, V]) GetValues(deleteListedValues bool) []V {
 
 	//Range map
 	result := make([]V, len(m.current))
+	i := 0
 	m.rangeLocal(func(key K) (doBreak bool, delete bool) {
-		result = append(result, m.current[key])
+		result[i] = m.current[key]
+		i++
 		return false, deleteListedValues
 	})
 	return result
@@ -197,8 +201,10 @@ func (m *GenerationsSafeMap[K, V]) GetData(deleteListedKeyValues bool) []KeyValu
 
 	//Range map
 	result := make([]KeyValuePair[K, V], len(m.current))
+	i := 0
 	m.rangeLocal(func(key K) (doBreak bool, delete bool) {
-		result = append(result, KeyValuePair[K, V]{Key: key, Value: m.current[key]})
+		result[i] = KeyValuePair[K, V]{Key: key, Value: m.current[key]}
+		i++
 		return false, deleteListedKeyValues
 	})
 	return result
@@ -332,13 +338,12 @@ func (m *GenerationsSafeMap[K, V]) StartGenerationTimer(interval time.Duration) 
 // StopGenerationTimer stops generation timer
 func (m *GenerationsSafeMap[K, V]) StopGenerationTimer() {
 	//Check if can stop
-	if m.ticker == nil {
-		return
+	if m.ticker != nil {
+		m.ticker.Stop()
+		m.ticker = nil
 	}
 
-	//Stop
-	m.ticker.Stop()
-	m.ticker = nil
+	//Stop func
 	if m.contextCancelFunc != nil {
 		m.contextCancelFunc()
 	}
