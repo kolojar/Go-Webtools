@@ -309,10 +309,14 @@ func (m *GenerationsSafeMap[K, V]) RangeData(rangeFunc func(key K, value V) (doB
 	})
 }
 
-// StartGenerationTimer stars generation timer (generation switching and map sweeping). Locks exection thread
+// StartGenerationTimer stars generation timer (generation switching and map sweeping). Does not lock exection thread
 //
 // Warning: If map is configured wrongly it can cause loose of data
 func (m *GenerationsSafeMap[K, V]) StartGenerationTimer(interval time.Duration) bool {
+	//Lock
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
 	//Check if can start new
 	if m.ticker != nil {
 		return false
@@ -325,18 +329,25 @@ func (m *GenerationsSafeMap[K, V]) StartGenerationTimer(interval time.Duration) 
 	defer m.ticker.Stop()
 
 	//Run loop
-	for {
-		select {
-		case <-m.ticker.C:
-			m.NewGeneration()
-		case <-ctx.Done():
-			return true
+	go func() {
+		for {
+			select {
+			case <-m.ticker.C:
+				m.NewGeneration()
+			case <-ctx.Done():
+				return
+			}
 		}
-	}
+	}()
+	return true
 }
 
 // StopGenerationTimer stops generation timer
 func (m *GenerationsSafeMap[K, V]) StopGenerationTimer() {
+	//Lock
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
 	//Check if can stop
 	if m.ticker != nil {
 		m.ticker.Stop()
@@ -356,7 +367,7 @@ func (m *GenerationsSafeMap[K, V]) NewGeneration() {
 	defer m.mutex.Unlock()
 
 	//Copy when needed
-	if CheckBinaryContains(m.PresenceLevel, CopyOnSwapPreserveGenerationsSafeMapPreserveLevel) {
+	if CheckBinaryContains(m.PresenceLevel, CopyOnSwapPreserveGenerationsSafeMapPreserveLevel, false) {
 		maps.Copy(m.next, m.current)
 	}
 
