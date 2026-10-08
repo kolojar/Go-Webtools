@@ -11,6 +11,8 @@ import (
 type GenerationsSafeMapPreserveLevel uint8
 
 // NoPreserveGenerationsSafeMapPreserveLevel does not do any automatic preservation
+//
+// Warning: On generation swap it removes all data
 const NoPreserveGenerationsSafeMapPreserveLevel GenerationsSafeMapPreserveLevel = 0
 
 // GetPreserveGenerationsSafeMapPreserveLevel preserves value on Get
@@ -122,6 +124,12 @@ func (m *GenerationsSafeMap[K, V]) Set(key K, value V) {
 		m.next[key] = value
 	}
 
+	//Check if already exists in next
+	_, has := m.next[key]
+	if has {
+		m.next[key] = value
+	}
+
 	//Set
 	m.current[key] = value
 }
@@ -132,12 +140,8 @@ func (m *GenerationsSafeMap[K, V]) Delete(key K) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
-	//Check if preserve on SET
-	if CheckBinaryContains(m.PresenceLevel, SetPreserveGenerationsSafeMapPreserveLevel, false) {
-		delete(m.next, key)
-	}
-
 	//Delete
+	delete(m.next, key)
 	delete(m.current, key)
 }
 
@@ -238,12 +242,8 @@ func (m *GenerationsSafeMap[K, V]) rangeLocal(rangeFunc func(key K) (doBreak boo
 
 		//Delete if needed
 		if del {
-			//Check if preserve on SET
-			if CheckBinaryContains(m.PresenceLevel, GetPreserveGenerationsSafeMapPreserveLevel, false) {
-				delete(m.next, k)
-			}
-
 			//Delete
+			delete(m.next, k)
 			delete(m.current, k)
 		}
 
@@ -368,6 +368,7 @@ func (m *GenerationsSafeMap[K, V]) NewGeneration() {
 
 	//Copy when needed
 	if CheckBinaryContains(m.PresenceLevel, CopyOnSwapPreserveGenerationsSafeMapPreserveLevel, false) {
+		clear(m.next)
 		maps.Copy(m.next, m.current)
 	}
 

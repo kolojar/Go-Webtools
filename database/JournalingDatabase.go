@@ -23,40 +23,65 @@ type journalEntry[T any] struct {
 // LazyLoading is option for database. It sets when it should load data to RAM and when it should save them do disk and clear RAM.
 type LazyLoading uint8
 
-// LazyLoadingNone loads all to RAM and keeps all data in RAM (overwrites timeout)
-const LazyLoadingNone LazyLoading = 0
+// NoneLazyLoading loads all to RAM and keeps all data in RAM (overwrites timeout)
+const NoneLazyLoading LazyLoading = 0
 
-// LazyLoadingAllOnDisk loads data to RAM only for processing and clears them istantly after operation is done. (overwrites timeout)
-const LazyLoadingAllOnDisk LazyLoading = 1
+// NoneOptimalizeLazyLoading loads all to RAM and keeps all data in RAM, tries to optimalize RAM usage in performance disadvantige
+const NoneOptimalizeLazyLoading LazyLoading = 1
 
-// LazyLoadingOnGet loads data to RAM on GET and keeps them in RAM until timeout is reached (only GET updates timeout)
-const LazyLoadingOnGet LazyLoading = 2
+// AllOnDiskLazyLoading loads data to RAM only for processing and clears them instantly after operation is done. (overwrites timeout)
+const AllOnDiskLazyLoading LazyLoading = 2
 
-// LazyLoadingOnSet loads data to RAM on SET and keeps them in RAM until timeout is reached (only SET updates timeout)
-const LazyLoadingOnSet LazyLoading = 4
+// AllOnDiskWithCacheLazyLoading loads data to RAM only for processing and clears them after timeout.
+const AllOnDiskWithCacheLazyLoading LazyLoading = 3
 
-// LazyLoadingBoth loads data to RAM on GET or on SET and keeps tehm in RAM until timeout is reached
-const LazyLoadingBoth LazyLoading = 6
+// OnGetLazyLoading loads data to RAM on GET and keeps them in RAM until timeout is reached (only GET updates timeout)
+const OnGetLazyLoading LazyLoading = 4
+
+// OnSetLazyLoading loads data to RAM on SET and keeps them in RAM until timeout is reached (only SET updates timeout)
+const OnSetLazyLoading LazyLoading = 5
+
+// OnGetSetLazyLoading loads data to RAM on GET or on SET and keeps tehm in RAM until timeout is reached
+const OnGetSetLazyLoading LazyLoading = 6
+
+func (lazyLoading LazyLoading) GetSettings() (presenceLevel helpertools.GenerationsSafeMapPreserveLevel, runTimeout bool) {
+	switch lazyLoading {
+	case NoneLazyLoading:
+		return helpertools.CopyOnSwapPreserveGenerationsSafeMapPreserveLevel, false
+	case NoneOptimalizeLazyLoading:
+		return helpertools.CopyOnSwapPreserveGenerationsSafeMapPreserveLevel, true
+	case AllOnDiskLazyLoading:
+		return helpertools.NoPreserveGenerationsSafeMapPreserveLevel, false
+	case AllOnDiskWithCacheLazyLoading:
+		return helpertools.NoPreserveGenerationsSafeMapPreserveLevel, true
+	case OnGetLazyLoading:
+		return helpertools.GetPreserveGenerationsSafeMapPreserveLevel, true
+	case OnSetLazyLoading:
+		return helpertools.SetPreserveGenerationsSafeMapPreserveLevel, true
+	case OnGetSetLazyLoading:
+		return helpertools.GetSetPreserveGenerationsSafeMapPreserveLevel, true
+	}
+	return helpertools.CopyOnSwapPreserveGenerationsSafeMapPreserveLevel, true
+}
 
 /*
-JournalingDatabase is database that is completly stored in RAM and loaded from disk on start (if lazyLoading is false). After inactivity set in automaticUnload is offloaded to disk. Data is saved only after amount of operations or on save. Otherwise everything is stored in Journal.
+JournalingDatabase is database that is stored in RAM. After inactivity data can be offloaded to disk. Data is saved only after amount of operations or on save. Otherwise everything is stored in Journal.
 */
 type JournalingDatabase[T any] struct {
-	lazyLoading                    LazyLoading
-	automaticUnload                time.Duration
 	journalItemCountBeforeAutosave uint32
 	journalLen                     atomic.Uint32
-	data                           helpertools.SafeMapWithIndexSlice[string, T]
+	data                           helpertools.GenerationsSafeMap[string, T]
 	path                           string
 	Logger                         helpertools.ConsoleLogger
 	convertToBytesDBFunc           func(writer io.Writer, data T) error
 	parseDBFunc                    func(reader io.Reader) (T, error)
+	lazyLoading                    LazyLoading
 }
 
 /*
-NewJournalingRAMDatabase creates new Journaling RAM Database. Set journalItemCountBeforeAutosave to 0 for disabled autosave
+NewJournalingRAMDatabase creates new Journaling RAM Database. Set journalItemCountBeforeAutosave to 0 for disabled autosave. LazyTimeout specifies how long will value stay in RAM based on lazyLoading settings (when should swap happen)
 */
-func NewJournalingRAMDatabase[T any](path string, journalItemCountBeforeAutosave uint32, convertToBytesDBFunc func(writer io.Writer, data T) error, parseDBFunc func(reader io.Reader) (T, error)) (*JournalingDatabase[T], error) {
+func NewJournalingRAMDatabase[T any](lazyLoading LazyLoading, path string, journalItemCountBeforeAutosave uint32, convertToBytesDBFunc func(writer io.Writer, data T) error, parseDBFunc func(reader io.Reader) (T, error)) (*JournalingDatabase[T], error) {
 	//Calculate one valueLength
 	//emptyObjectBytes := bytes.NewBuffer(nil)
 	//err := emptyObject.ConvertToBytesDB(emptyObjectBytes)
@@ -64,14 +89,17 @@ func NewJournalingRAMDatabase[T any](path string, journalItemCountBeforeAutosave
 	//	return nil, err
 	//}
 
+	//Check if can run
 	if convertToBytesDBFunc == nil || parseDBFunc == nil {
 		return nil, os.ErrInvalid
 	}
 
+	//Calculate presenceLevel
+	presenceLevel, _ := lazyLoading.GetSettings()
+
 	//Create object
-	var inst = JournalingDatabase[T]{convertToBytesDBFunc: convertToBytesDBFunc, parseDBFunc: parseDBFunc, journalItemCountBeforeAutosave: journalItemCountBeforeAutosave}
-	//inst.oneValueLength = uint64(emptyObjectBytes.Len())
-	inst.data = helpertools.MakeSafeMapWithIndexSlice[string, T]()
+	var inst = JournalingDatabase[T]{convertToBytesDBFunc: convertToBytesDBFunc, parseDBFunc: parseDBFunc, journalItemCountBeforeAutosave: journalItemCountBeforeAutosave, lazyLoading: lazyLoading}
+	inst.data = helpertools.MakeGenerationsSafeMap[string, T](presenceLevel)
 	inst.path = path
 	inst.Logger = helpertools.MakeConsoleLoggerForTraffic("JRAMDB", false)
 	inst.journalLen.Store(0)
@@ -319,6 +347,24 @@ func (db *JournalingDatabase[T]) Load() error {
 			db.Logger.Log(helpertools.LogError, "Error saving database after journal process: "+err.Error())
 			return err
 		}
+	}
+	return nil
+}
+
+// Start starts database. lazyInterval sets how long will data stay in RAM, configured using lazyLoading
+func (db *JournalingDatabase[T]) Start(lazyInterval time.Duration) error {
+	//Load all on start
+	if db.lazyLoading == NoneLazyLoading || db.lazyLoading == NoneOptimalizeLazyLoading {
+		err := db.Load()
+		if err != nil {
+			return err
+		}
+	}
+
+	//Start timeout
+	_, runTimeout := db.lazyLoading.GetSettings()
+	if runTimeout {
+		db.data.StartGenerationTimer(lazyInterval)
 	}
 	return nil
 }
