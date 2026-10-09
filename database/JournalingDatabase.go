@@ -368,3 +368,12 @@ func (db *JournalingDatabase[T]) Start(lazyInterval time.Duration) error {
 	}
 	return nil
 }
+
+// Stop stops DB and safely saves it to disk (every time)
+func (db *JournalingDatabase[T]) Stop() error {
+	//Stop timeout
+	db.data.StopGenerationTimer()
+
+	//Save data
+	return db.Save()
+}

@@ -11,6 +11,56 @@ import (
 	"github.com/kolojar/Go-Webtools/helpertools"
 )
 
+// DBReadAnyHolderType is type of read value (what is the holder)
+type DBReadAnyHolderType uint8
+
+// NoneDBReadAnyHolderType is when variable does not have any parent (only value)
+//
+// Format: key = nil, value = value
+const NoneDBReadAnyHolderType DBReadAnyHolderType = 0
+
+// ArrayDBReadAnyHolderType is when parent is array: []string
+//
+// Format: key = index, value = value
+const ArrayDBReadAnyHolderType DBReadAnyHolderType = 1
+
+// MapDBReadAnyHolderType is when parent is map: map[string]int
+//
+// Format: key = key, value = value
+const MapDBReadAnyHolderType DBReadAnyHolderType = 2
+
+// StructDBReadAnyHolderType is when parent is struct: {value int}
+//
+// Format: key = fieldName, value = value
+const StructDBReadAnyHolderType DBReadAnyHolderType = 3
+
+func (typ DBReadAnyHolderType) appendToTarget(target any, key any, value any) any {
+	if typ == NoneDBReadAnyHolderType {
+		if target != nil {
+			panic("cant append to non appendable type")
+		}
+		return value
+	} else if typ == ArrayDBReadAnyHolderType {
+		if target == nil {
+			return append(make([]any, 0), value)
+		}
+		return append(target.([]any), value)
+	} else if typ == MapDBReadAnyHolderType {
+		if target == nil {
+			target = make(map[any]any, 0)
+		}
+		target.(map[any]any)[key] = value
+		return target
+	} else if typ == StructDBReadAnyHolderType {
+		if target == nil {
+			target = make(map[string]any, 0)
+		}
+		target.(map[string]any)[key.(string)] = value
+		return target
+	}
+	return target
+}
+
 /*
 ICustomDBType is interface for creating custom data types for DB
 It must be registered and it does not provide compatibility for fixing (when standard of the custom type changes, data will be lost)
@@ -661,7 +711,7 @@ func getSeekPos(reader io.ReadSeeker) {
 	fmt.Println("Pos at file:", seek)
 }
 
-func readDataDBAny(reader io.Reader, schemaString string, schemaStringPos int, interactiveRepair bool) (int, any, error) {
+func readDataDBAny(reader io.Reader, schemaString string, schemaStringPos int, interactiveRepair bool, readItemFunc func(key any, data any, typ DBReadAnyHolderType)) (int, error) {
 	fmt.Println("Reading data any:", schemaString, schemaStringPos)
 	//getSeekPos(reader)
 	if schemaString[schemaStringPos] == '[' {
@@ -669,52 +719,59 @@ func readDataDBAny(reader io.Reader, schemaString string, schemaStringPos int, i
 		schemaStringPos += 2
 		count, err := ParseDynamicUintBytesDB(reader)
 		if err != nil {
-			return schemaStringPos, true, err
+			return schemaStringPos, err
 		}
 		fmt.Println("Reading array any:", count)
 		//getSeekPos(reader)
 
 		// Read items
 		newPos := schemaStringPos
-		result := make([]any, 0)
 		for i := uint64(0); i < count; i++ {
-			pos, val, err := readDataDBAny(reader, schemaString, schemaStringPos, interactiveRepair)
+			pos, err := readDataDBAny(reader, schemaString, schemaStringPos, interactiveRepair, func(key, data any, typ DBReadAnyHolderType) {
+				if readItemFunc != nil {
+					readItemFunc(i, data, ArrayDBReadAnyHolderType)
+				}
+			})
 			if pos > newPos {
 				newPos = pos
 			}
 			if err != nil {
-				return schemaStringPos, result, err
+				return schemaStringPos, err
 			}
-			result = append(result, val)
 		}
-		return newPos, result, nil
+		return newPos, nil
 	}
 	if schemaString[schemaStringPos] == '<' {
 		// Is map
 		schemaParts, newPos := buildStructSchemaStringParts(schemaString, schemaStringPos)
 		count, err := ParseDynamicUintBytesDB(reader)
 		if err != nil {
-			return schemaStringPos, true, err
+			return schemaStringPos, err
 		}
 		fmt.Println("Reading any map with schema parts:", schemaParts, "with count:", count)
 
 		// Read items
-		m := make(map[any]any, 0)
 		for i := uint64(0); i < count; i++ {
 			// Read key
-			_, key, err := readDataDBAny(reader, schemaParts[0], 0, interactiveRepair)
+			var key any
+			_, err := readDataDBAny(reader, schemaParts[0], 0, interactiveRepair, func(_, data any, typ DBReadAnyHolderType) {
+				key = data
+			})
 			if err != nil {
-				return schemaStringPos, true, err
+				return schemaStringPos, err
 			}
 
 			// Read val
-			_, val, err := readDataDBAny(reader, schemaParts[1], 0, interactiveRepair)
+			_, err = readDataDBAny(reader, schemaParts[1], 0, interactiveRepair, func(_, data any) {
+				if readItemFunc != nil {
+					readItemFunc(key, data)
+				}
+			})
 			if err != nil {
-				return schemaStringPos, true, err
+				return schemaStringPos, err
 			}
-			m[key] = val
 		}
-		return newPos, m, nil
+		return newPos, nil
 	}
 	if schemaString[schemaStringPos] == '{' {
 		// Is struct
@@ -724,37 +781,53 @@ func readDataDBAny(reader io.Reader, schemaString string, schemaStringPos int, i
 		// Run each subschema
 		m := make(map[string]any, 0)
 		for _, schema := range schemaParts {
-			_, item, err := readDataDBAny(reader, schema, 0, interactiveRepair)
+			var item any
+			_, err := readDataDBAny(reader, schema, 0, interactiveRepair, func(key, data any) {
+				item = data
+			})
 			if err != nil {
-				return newPos, m, err
+				if readItemFunc != nil {
+					readItemFunc(nil, m)
+				}
+				return newPos, err
 			}
 			if item == nil {
-				return newPos, m, os.ErrNotExist
+				if readItemFunc != nil {
+					readItemFunc(nil, m)
+				}
+				return newPos, os.ErrNotExist
 			}
 			//name := strings.SplitN(schema, "-", 2)[0]
 			for k, v := range item.(map[string]any) {
 				m[k] = v
 			}
 		}
-		return newPos, m, nil
+		return newPos, nil
 	}
 
 	// Remove name and parse
 	split := strings.SplitN(schemaString[schemaStringPos:], ":", 2)
 	if len(split) == 2 {
-		newPos, val, err := readDataDBAny(reader, split[1], 0, interactiveRepair)
+		var val any
+		newPos, err := readDataDBAny(reader, split[1], 0, interactiveRepair, func(key, data any) {
+			val = data
+		})
 		if err != nil {
-			return schemaStringPos + newPos, nil, err
+			return schemaStringPos + newPos, err
 		}
-		result := make(map[string]any, 0)
-		result[split[0]] = val
-		return schemaStringPos + newPos, result, err
+		if readItemFunc != nil {
+			readItemFunc(split[0], val)
+		}
+		return schemaStringPos + newPos, err
 	} else {
 		// Normal type - do parse by string
 		fmt.Println("Reading any value:", schemaString)
 		val, err := parseAnyValueToBytesDBValue(reader, split[0], nil, true, interactiveRepair)
 		//getSeekPos(reader)
-		return len(schemaString), val, err
+		if readItemFunc != nil {
+			readItemFunc(nil, val)
+		}
+		return len(schemaString), err
 	}
 }
 
@@ -766,7 +839,7 @@ func readDataDB(reader io.Reader, target *reflect.Value, schemaString string, sc
 		if target == nil {
 			//Move to any
 			fmt.Println("Skipping array")
-			newPos, _, err := readDataDBAny(reader, schemaString, schemaStringPos, interactiveRepair)
+			newPos, err := readDataDBAny(reader, schemaString, schemaStringPos, interactiveRepair, func(key, data any) {})
 			return newPos, err
 		}
 
@@ -817,7 +890,7 @@ func readDataDB(reader io.Reader, target *reflect.Value, schemaString string, sc
 		if target == nil {
 			//Move to any
 			fmt.Println("Skipping map")
-			newPos, _, err := readDataDBAny(reader, schemaString, schemaStringPos, interactiveRepair)
+			newPos, err := readDataDBAny(reader, schemaString, schemaStringPos, interactiveRepair, func(key, data any) {})
 			return newPos, err
 		}
 
@@ -878,7 +951,7 @@ func readDataDB(reader io.Reader, target *reflect.Value, schemaString string, sc
 		if target == nil {
 			//Move to any
 			fmt.Println("Skipping struct")
-			newPos, _, err := readDataDBAny(reader, schemaString, schemaStringPos, interactiveRepair)
+			newPos, err := readDataDBAny(reader, schemaString, schemaStringPos, interactiveRepair, func(key, data any) {})
 			return newPos, err
 		}
 
