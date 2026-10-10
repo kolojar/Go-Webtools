@@ -5,6 +5,7 @@ Please keep in mind that these databases are really simple
 package database
 
 import (
+	"bufio"
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
@@ -348,14 +349,48 @@ type IDatabaseObject interface {
 	ParseBytesDB(reader io.Reader) error
 }
 
+// ConvertToBufioReader converts reader to *bufio.Reader
+func ConvertToBufioReader(reader io.Reader) *bufio.Reader {
+	bufReader, ok := reader.(*bufio.Reader)
+	if !ok {
+		bufReader = bufio.NewReader(reader)
+	}
+	return bufReader
+}
+
+// ConvertToBufioWriter converts to *buffio.Writer and check if writer was *buffio.Writer or not, if yes then isNewBuffioWriter is false and functions should not Flush automatically.
+//
+// automaticFlushFunc should be called on defer
+func ConvertToBufioWriter(writer io.Writer, onFlushError func(errFlush error)) (buffWriter *bufio.Writer, automaticFlushFunc func()) {
+	buffWriter, ok := writer.(*bufio.Writer)
+	if !ok {
+		buffWriter = bufio.NewWriter(writer)
+	}
+	return buffWriter, func() {
+		if !ok {
+			err := buffWriter.Flush()
+			if err != nil {
+				onFlushError(err)
+			}
+		}
+	}
+}
+
 /*
 ConvertStringToBytesDB converts string to bytes
 */
-func ConvertStringToBytesDB(writer io.Writer, data string) error {
+func ConvertStringToBytesDB(writer io.Writer, data string) (err error) {
+	//Convert to bufio
+	writer, automaticFlush := ConvertToBufioWriter(writer, func(errFlush error) {
+		err = errFlush
+	})
+	defer automaticFlush()
+
+	//Convert to bytes
 	dataString := []byte(data)
 
 	//Write length
-	err := ConvertDynamicUintToBytesDB(writer, uint64(len(dataString)))
+	err = ConvertDynamicUintToBytesDB(writer, uint64(len(dataString)))
 	if err != nil {
 		return err
 	}
@@ -369,6 +404,9 @@ func ConvertStringToBytesDB(writer io.Writer, data string) error {
 ParseStringDB parses bytes from reader to string
 */
 func ParseStringDB(reader io.Reader) (string, error) {
+	//Convert to bufio
+	reader = ConvertToBufioReader(reader)
+
 	//Read length
 	lenght, err := ParseDynamicUintBytesDB(reader)
 	if err != nil {
@@ -387,11 +425,17 @@ func ParseStringDB(reader io.Reader) (string, error) {
 /*
 ConvertUintXToBytesDB converts uint64 to X/8 bytes. Parameter size is X = 8 bites = 1 byte = uint8, ...
 */
-func ConvertUintXToBytesDB(writer io.Writer, data uint64, size uint8) error {
+func ConvertUintXToBytesDB(writer io.Writer, data uint64, size uint8) (err error) {
+	//Convert to bufio
+	writer, automaticFlush := ConvertToBufioWriter(writer, func(errFlush error) {
+		err = errFlush
+	})
+	defer automaticFlush()
+
 	//Write number
 	dataByte := make([]byte, 8)
 	binary.LittleEndian.PutUint64(dataByte, data)
-	_, err := writer.Write(dataByte[0:(helpertools.CeilDivision(size, 8))])
+	_, err = writer.Write(dataByte[0:(helpertools.CeilDivision(size, 8))])
 	return err
 }
 
@@ -399,6 +443,9 @@ func ConvertUintXToBytesDB(writer io.Writer, data uint64, size uint8) error {
 ParseUintXDB parses X/8 bytes from reader to uint64. Parameter size is X = 8 bites = 1 byte = uint8, ...
 */
 func ParseUintXDB(reader io.Reader, size uint8) (uint64, error) {
+	//Convert to bufio
+	reader = ConvertToBufioReader(reader)
+
 	//Read number
 	dataByte := make([]byte, helpertools.CeilDivision(size, 8))
 	_, err := reader.Read(dataByte)
@@ -415,7 +462,13 @@ func ParseUintXDB(reader io.Reader, size uint8) (uint64, error) {
 /*
 ConvertDynamicUintToBytesDB converts uint64 to dynamic count of bytes
 */
-func ConvertDynamicUintToBytesDB(writer io.Writer, data uint64) error {
+func ConvertDynamicUintToBytesDB(writer io.Writer, data uint64) (err error) {
+	//Convert to bufio
+	writer, automaticFlush := ConvertToBufioWriter(writer, func(errFlush error) {
+		err = errFlush
+	})
+	defer automaticFlush()
+
 	//Get byte size
 	size := helpertools.FormatByBool(data == 0, 0, calculateByteSizeFromInt(uint(data)))
 	if size == 255 {
@@ -423,7 +476,7 @@ func ConvertDynamicUintToBytesDB(writer io.Writer, data uint64) error {
 	}
 
 	//Write byte size of length
-	err := ConvertUint8ToBytesDB(writer, size)
+	err = ConvertUint8ToBytesDB(writer, size)
 	if err != nil || size == 0 {
 		return err
 	}
@@ -436,6 +489,9 @@ func ConvertDynamicUintToBytesDB(writer io.Writer, data uint64) error {
 ParseDynamicUintBytesDB parses to uint64 using dynamic count of bytes
 */
 func ParseDynamicUintBytesDB(reader io.Reader) (uint64, error) {
+	//Convert to bufio
+	reader = ConvertToBufioReader(reader)
+
 	//Read byte size of length
 	size, err := ParseUint8DB(reader)
 	if err != nil || size == 0 {
@@ -458,11 +514,17 @@ func calculateByteSizeFromInt(value uint) uint8 {
 /*
 ConvertUint64ToBytesDB converts uint64 to bytes
 */
-func ConvertUint64ToBytesDB(writer io.Writer, data uint64) error {
+func ConvertUint64ToBytesDB(writer io.Writer, data uint64) (err error) {
+	//Convert to bufio
+	writer, automaticFlush := ConvertToBufioWriter(writer, func(errFlush error) {
+		err = errFlush
+	})
+	defer automaticFlush()
+
 	//Write number
 	dataByte := make([]byte, 8)
 	binary.BigEndian.PutUint64(dataByte, data)
-	_, err := writer.Write(dataByte)
+	_, err = writer.Write(dataByte)
 	return err
 }
 
@@ -470,6 +532,9 @@ func ConvertUint64ToBytesDB(writer io.Writer, data uint64) error {
 ParseUint64DB parses bytes from reader to uint64
 */
 func ParseUint64DB(reader io.Reader) (uint64, error) {
+	//Convert to bufio
+	reader = ConvertToBufioReader(reader)
+
 	//Read number
 	dataByte := make([]byte, 8)
 	_, err := reader.Read(dataByte)
@@ -482,11 +547,17 @@ func ParseUint64DB(reader io.Reader) (uint64, error) {
 /*
 ConvertUint16ToBytesDB converts uint16 to bytes
 */
-func ConvertUint16ToBytesDB(writer io.Writer, data uint16) error {
+func ConvertUint16ToBytesDB(writer io.Writer, data uint16) (err error) {
+	//Convert to bufio
+	writer, automaticFlush := ConvertToBufioWriter(writer, func(errFlush error) {
+		err = errFlush
+	})
+	defer automaticFlush()
+
 	//Write number
 	dataByte := make([]byte, 2)
 	binary.BigEndian.PutUint16(dataByte, data)
-	_, err := writer.Write(dataByte)
+	_, err = writer.Write(dataByte)
 	return err
 }
 
@@ -494,6 +565,9 @@ func ConvertUint16ToBytesDB(writer io.Writer, data uint16) error {
 ParseUint16DB parses bytes from reader to uint16
 */
 func ParseUint16DB(reader io.Reader) (uint16, error) {
+	//Convert to bufio
+	reader = ConvertToBufioReader(reader)
+
 	//Read number
 	dataByte := make([]byte, 2)
 	_, err := reader.Read(dataByte)
@@ -506,11 +580,17 @@ func ParseUint16DB(reader io.Reader) (uint16, error) {
 /*
 ConvertUint32ToBytesDB converts uint32 to bytes
 */
-func ConvertUint32ToBytesDB(writer io.Writer, data uint32) error {
+func ConvertUint32ToBytesDB(writer io.Writer, data uint32) (err error) {
+	//Convert to bufio
+	writer, automaticFlush := ConvertToBufioWriter(writer, func(errFlush error) {
+		err = errFlush
+	})
+	defer automaticFlush()
+
 	//Write number
 	dataByte := make([]byte, 4)
 	binary.BigEndian.PutUint32(dataByte, data)
-	_, err := writer.Write(dataByte)
+	_, err = writer.Write(dataByte)
 	return err
 }
 
@@ -518,6 +598,9 @@ func ConvertUint32ToBytesDB(writer io.Writer, data uint32) error {
 ParseUint32DB parses bytes from reader to uint32
 */
 func ParseUint32DB(reader io.Reader) (uint32, error) {
+	//Convert to bufio
+	reader = ConvertToBufioReader(reader)
+
 	//Read number
 	dataByte := make([]byte, 4)
 	_, err := reader.Read(dataByte)
@@ -530,9 +613,15 @@ func ParseUint32DB(reader io.Reader) (uint32, error) {
 /*
 ConvertUint8ToBytesDB converts uint8 to bytes
 */
-func ConvertUint8ToBytesDB(writer io.Writer, data uint8) error {
+func ConvertUint8ToBytesDB(writer io.Writer, data uint8) (err error) {
+	//Convert to bufio
+	writer, automaticFlush := ConvertToBufioWriter(writer, func(errFlush error) {
+		err = errFlush
+	})
+	defer automaticFlush()
+
 	//Write number
-	_, err := writer.Write([]byte{data})
+	_, err = writer.Write([]byte{data})
 	return err
 }
 
@@ -540,6 +629,9 @@ func ConvertUint8ToBytesDB(writer io.Writer, data uint8) error {
 ParseUint8DB parses bytes from reader to uint8
 */
 func ParseUint8DB(reader io.Reader) (uint8, error) {
+	//Convert to bufio
+	reader = ConvertToBufioReader(reader)
+
 	//Read number
 	dataByte := make([]byte, 1)
 	_, err := reader.Read(dataByte)
@@ -614,6 +706,9 @@ func ParseUint8DB(reader io.Reader) (uint8, error) {
 ParsePasswordObjectDB parses bytes from reader to PasswordObject
 */
 func ParsePasswordObjectDB(reader io.Reader) (encryption.PasswordObject, error) {
+	//Convert to bufio
+	reader = ConvertToBufioReader(reader)
+
 	//Read salt
 	var salt = make([]byte, 64)
 	_, err := reader.Read(salt)
@@ -641,7 +736,13 @@ func ParsePasswordObjectDB(reader io.Reader) (encryption.PasswordObject, error) 
 /*
 ConvertPasswordObjectToBytesDB converts PasswordObject to bytes
 */
-func ConvertPasswordObjectToBytesDB(writer io.Writer, data encryption.PasswordObject) error {
+func ConvertPasswordObjectToBytesDB(writer io.Writer, data encryption.PasswordObject) (err error) {
+	//Convert to bufio
+	writer, automaticFlush := ConvertToBufioWriter(writer, func(errFlush error) {
+		err = errFlush
+	})
+	defer automaticFlush()
+
 	//Prepare salt
 	salt, err := hex.DecodeString(data.Salt)
 	if err != nil {
@@ -658,24 +759,33 @@ func ConvertPasswordObjectToBytesDB(writer io.Writer, data encryption.PasswordOb
 	}
 
 	//Write salt
-	writer.Write(salt)
+	_, err = writer.Write(salt)
+	if err != nil {
+		return err
+	}
 
 	//Write hash
-	writer.Write(hash)
-	return nil
+	_, err = writer.Write(hash)
+	return err
 }
 
 /*
 ConvertBoolToBytesDB converts bool to bytes
 */
-func ConvertBoolToBytesDB(writer io.Writer, data bool) error {
+func ConvertBoolToBytesDB(writer io.Writer, data bool) (err error) {
+	//Convert to bufio
+	writer, automaticFlush := ConvertToBufioWriter(writer, func(errFlush error) {
+		err = errFlush
+	})
+	defer automaticFlush()
+
 	//Write bool
 	dataByte := make([]byte, 1)
 	dataByte[0] = 1
 	if data {
 		dataByte[0] = 2
 	}
-	_, err := writer.Write(dataByte)
+	_, err = writer.Write(dataByte)
 	return err
 }
 
@@ -683,6 +793,9 @@ func ConvertBoolToBytesDB(writer io.Writer, data bool) error {
 ParseBoolDB parses bytes from reader to bool
 */
 func ParseBoolDB(reader io.Reader) (bool, error) {
+	//Convert to bufio
+	reader = ConvertToBufioReader(reader)
+
 	//Read bool
 	dataByte := make([]byte, 1)
 	_, err := reader.Read(dataByte)
@@ -695,15 +808,24 @@ func ParseBoolDB(reader io.Reader) (bool, error) {
 /*
 ConvertTimeToBytesDB converts time to bytes
 */
-func ConvertTimeToBytesDB(writer io.Writer, data time.Time) {
+func ConvertTimeToBytesDB(writer io.Writer, data time.Time) (err error) {
+	//Convert to bufio
+	writer, automaticFlush := ConvertToBufioWriter(writer, func(errFlush error) {
+		err = errFlush
+	})
+	defer automaticFlush()
+
 	//Write time
-	ConvertUint64ToBytesDB(writer, uint64(data.UnixNano()))
+	return ConvertUint64ToBytesDB(writer, uint64(data.UnixNano()))
 }
 
 /*
 ParseTimeDB parses bytes from reader to time
 */
 func ParseTimeDB(reader io.Reader) (time.Time, error) {
+	//Convert to bufio
+	reader = ConvertToBufioReader(reader)
+
 	//Read time
 	timeNum, err := ParseUint64DB(reader)
 	if err != nil {
@@ -715,14 +837,25 @@ func ParseTimeDB(reader io.Reader) (time.Time, error) {
 /*
 ConvertMapToBytesDB converts map to bytes
 */
-func ConvertMapToBytesDB[K comparable, V any](writer io.Writer, data map[K]V, keyConvertDBFunc func(writer io.Writer, data K) error, valueConvertDBFunc func(writer io.Writer, data V) error) error {
+func ConvertMapToBytesDB[K comparable, V any](writer io.Writer, data map[K]V, keyConvertDBFunc func(writer io.Writer, data K) error, valueConvertDBFunc func(writer io.Writer, data V) error) (err error) {
+	//Check if can run
 	if keyConvertDBFunc == nil || valueConvertDBFunc == nil {
 		return os.ErrInvalid
 	}
-	err := ConvertDynamicUintToBytesDB(writer, uint64(len(data)))
+
+	//Convert to bufio
+	writer, automaticFlush := ConvertToBufioWriter(writer, func(errFlush error) {
+		err = errFlush
+	})
+	defer automaticFlush()
+
+	//Convert item count
+	err = ConvertDynamicUintToBytesDB(writer, uint64(len(data)))
 	if err != nil {
 		return err
 	}
+
+	//Write entries
 	for k, v := range data {
 		err = keyConvertDBFunc(writer, k)
 		if err != nil {
@@ -740,9 +873,13 @@ func ConvertMapToBytesDB[K comparable, V any](writer io.Writer, data map[K]V, ke
 ParseMapDB parses bytes from reader to map
 */
 func ParseMapDB[K comparable, V any](reader io.Reader, keyParseDBFunc func(reader io.Reader) (K, error), valueParseDBFunc func(reader io.Reader) (V, error)) (map[K]V, error) {
+	//Check if can run
 	if keyParseDBFunc == nil || valueParseDBFunc == nil {
 		return nil, os.ErrInvalid
 	}
+
+	//Convert to bufio
+	reader = ConvertToBufioReader(reader)
 
 	//Read count
 	count, err := ParseDynamicUintBytesDB(reader)
@@ -769,41 +906,56 @@ func ParseMapDB[K comparable, V any](reader io.Reader, keyParseDBFunc func(reade
 /*
 ConvertSafeMapToBytesDB converts safeMap to bytes
 */
-func ConvertSafeMapToBytesDB[K comparable, V any](writer io.Writer, data helpertools.SafeMap[K, V], keyConvertDBFunc func(writer io.Writer, data K) error, valueConvertDBFunc func(writer io.Writer, data V) error) error {
+func ConvertSafeMapToBytesDB[K comparable, V any](writer io.Writer, data helpertools.SafeMap[K, V], keyConvertDBFunc func(writer io.Writer, data K) error, valueConvertDBFunc func(writer io.Writer, data V) error) (err error) {
+	//Check if can run
 	if keyConvertDBFunc == nil || valueConvertDBFunc == nil {
 		return os.ErrInvalid
 	}
-	err := ConvertDynamicUintToBytesDB(writer, uint64(data.Len()))
+
+	//Convert to bufio
+	writer, automaticFlush := ConvertToBufioWriter(writer, func(errFlush error) {
+		err = errFlush
+	})
+	defer automaticFlush()
+
+	//Convert count
+	err = ConvertDynamicUintToBytesDB(writer, uint64(data.Len()))
 	if err != nil {
 		return err
 	}
-	for _, v := range data.GetData(false) {
-		err = keyConvertDBFunc(writer, v.Key)
+
+	//Write entries
+	return data.RangeData(func(key K, value V) (doBreak bool, delete bool, err error) {
+		err = keyConvertDBFunc(writer, key)
 		if err != nil {
-			return err
+			return true, false, err
 		}
-		err = valueConvertDBFunc(writer, v.Value)
 		if err != nil {
-			return err
+			err = valueConvertDBFunc(writer, value)
+			return true, false, err
 		}
-	}
-	return nil
+		return false, false, nil
+	})
 }
 
 /*
 ParseSafeMapDB parses bytes from reader to safeMap
 */
 func ParseSafeMapDB[K comparable, V any](reader io.Reader, keyParseDBFunc func(reader io.Reader) (K, error), valueParseDBFunc func(reader io.Reader) (V, error)) (helpertools.SafeMap[K, V], error) {
-	data := helpertools.MakeSafeMap[K, V]()
+	//Check if can run
 	if keyParseDBFunc == nil || valueParseDBFunc == nil {
-		return data, os.ErrInvalid
+		return helpertools.SafeMap[K, V]{}, os.ErrInvalid
 	}
+
+	//Convert to bufio
+	reader = ConvertToBufioReader(reader)
 
 	//Read count
 	count, err := ParseDynamicUintBytesDB(reader)
 	if err != nil {
-		return data, err
+		return helpertools.SafeMap[K, V]{}, err
 	}
+	data := helpertools.MakeSafeMap[K, V](int(count))
 
 	//Read rows
 	for i := 0; i < int(count); i++ {
@@ -821,21 +973,59 @@ func ParseSafeMapDB[K comparable, V any](reader io.Reader, keyParseDBFunc func(r
 }
 
 /*
-ConvertSliceToBytesDB converts array to bytes
+ConvertArrayToBytesDB converts array to bytes
 */
-func ConvertSliceToBytesDB[V any](writer io.Writer, data []V, convertDBFunc func(writer io.Writer, data V) error) error {
+func ConvertArrayToBytesDB[V any](writer io.Writer, data []V, convertDBFunc func(writer io.Writer, data V) error) (err error) {
+	//Check if can run
 	if convertDBFunc == nil {
 		return os.ErrInvalid
 	}
-	err := ConvertDynamicUintToBytesDB(writer, uint64(len(data)))
+
+	//Convert to bufio
+	writer, automaticFlush := ConvertToBufioWriter(writer, func(errFlush error) {
+		err = errFlush
+	})
+	defer automaticFlush()
+
+	//Convert count
+	err = ConvertDynamicUintToBytesDB(writer, uint64(len(data)))
 	if err != nil {
 		return err
 	}
+
+	//Write data
 	for _, v := range data {
 		err = convertDBFunc(writer, v)
 		if err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// RangeArrayDB parses values from bytes and puts it in rangeFunc as separate values
+func RangeArrayDB[V any](reader io.Reader, parseDBFunc func(reader io.Reader) (V, error), rangeFunc func(value V)) error {
+	//Check if can read
+	if rangeFunc == nil {
+		return os.ErrInvalid
+	}
+
+	//Convert to bufio
+	reader = ConvertToBufioReader(reader)
+
+	//Read count
+	count, err := ParseDynamicUintBytesDB(reader)
+	if err != nil {
+		return err
+	}
+
+	//Read rows
+	for i := 0; i < int(count); i++ {
+		val, err := parseDBFunc(reader)
+		if err != nil {
+			return err
+		}
+		rangeFunc(val)
 	}
 	return nil
 }
@@ -849,19 +1039,26 @@ func ParseArrayDB[V any](reader io.Reader, parseDBFunc func(reader io.Reader) (V
 		return data, os.ErrInvalid
 	}
 
-	//Read count
-	count, err := ParseDynamicUintBytesDB(reader)
-	if err != nil {
-		return data, err
-	}
+	//Read data
+	err := RangeArrayDB(reader, parseDBFunc, func(value V) {
+		data = append(data, value)
+	})
+	return data, err
+}
 
-	//Read rows
-	for i := 0; i < int(count); i++ {
-		val, err := parseDBFunc(reader)
-		if err != nil {
-			return nil, err
-		}
-		data = append(data, val)
-	}
-	return data, nil
+// ConvertByteArrayToBytesDB converts byte array to bytes
+func ConvertByteArrayToBytesDB[V any](writer io.Writer, data []byte) (err error) {
+	//Convert to bufio
+	writer, automaticFlush := ConvertToBufioWriter(writer, func(errFlush error) {
+		err = errFlush
+	})
+	defer automaticFlush()
+
+	//Write
+	return ConvertArrayToBytesDB(writer, data, ConvertUint8ToBytesDB)
+}
+
+// ParseByteArrayDB parses bytes from reader to byte array
+func ParseByteArrayDB(reader io.Reader) ([]byte, error) {
+	return ParseArrayDB(reader, ParseUint8DB)
 }
