@@ -123,3 +123,7 @@ func (limitedString *LimitedString) InteractiveRepairDB() (bool, error) {
 	limitedString.lengthStoreByteSize = uint8(num)
 	return true, nil
 }
+
+func (limitedString *LimitedString) ValueOnNilPointer() *ICustomDBType {
+	return nil
+}

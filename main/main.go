@@ -4,6 +4,7 @@ Package main provides example usages
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"net"
 	"os"
@@ -327,35 +328,39 @@ func main() {
 			var v = make([]testdbExample, 0)
 			for i := 0; i < 1; i++ {
 				v = append(v, testdbExample{
-					//A: []string{"a", "b", "c", strconv.Itoa(i)},
+					A: []string{"a", "b", "c", strconv.Itoa(i)},
 					B: append(make([]testdbSubExample, 0), testdbSubExample{C: "textC", D: 1}),
-					//E: &map[int]database.LimitedString{5: lim1, 8: lim2},
+					E: &map[int]database.LimitedString{5: lim1, 8: lim2},
 					P: p2p.UPnPXMLService{},
 					Q: lim,
+					T: nil,
 				})
 			}
 
 			//fmt.Println(v[0].E)
 			field, schema := database.BuildDBSchema(reflect.TypeOf(v))
+			fmt.Println(field)
 			fmt.Println(schema)
-			fmt.Println(database.BuildDBSchemaString(field))
+			buff := bytes.NewBuffer(make([]byte, 0))
+			database.BuildDBSchemaBytes(buff, field)
+			fmt.Println(buff.String())
 			fmt.Println("@")
 			_, schema = database.BuildDBSchema(reflect.TypeOf(v))
 			fmt.Println(schema)
 
 			//Test write
 			//Delete file if exists
-			//os.Remove("test.db")
-			os.Remove("test.json")
+			os.Remove("test.db")
+			//os.Remove("test.json")
 
 			//Create DB file
-			//file, err := os.Create("test.db")
-			//if err != nil {
-			//	panic(err)
-			//}
-			//defer file.Close()
-			//database.ConvertAnyToBytesDB(file, v)
-			//file.Close()
+			file, err := os.Create("test.db")
+			if err != nil {
+				panic(err)
+			}
+			defer file.Close()
+			database.ConvertAnyToBytesDB(file, v)
+			file.Close()
 
 			//Create JSON example
 			//file, err = os.Create("test.json")
@@ -370,7 +375,7 @@ func main() {
 			//Open file
 			database.RegisterCustomDBType[*database.LimitedString]()
 			fmt.Println("Reading")
-			file, err := os.Open("test.db")
+			file, err = os.Open("test.db")
 			if err != nil {
 				panic(err)
 			}
@@ -383,7 +388,7 @@ func main() {
 				Q: lim,
 				//E: &map[int]database.LimitedString{5: lim1, 8: lim2},
 			})
-			err = database.ParseAnyToObjectDB(file, &result, true)
+			//err = database.ParseAnyToObjectDB(file, &result, true)
 			fmt.Println(result[0].Q.Get())
 			//a := (*result[0].E)[6]
 			//fmt.Println(a.Get())
@@ -481,17 +486,17 @@ func main() {
 				time.Sleep(1 * time.Second)
 			}
 		}
-	case "journalDB":
-		{
-			//Create new journal DB
-			db, _ := database.NewJournalingRAMDatabase("./journalDB.db", 2, database.ConvertDynamicUintToBytesDB, database.ParseDynamicUintBytesDB)
-			db.Load()
-			db.Set("abc", 5)
-			db.Set("cde", 6)
-			//db.Set("abc", 3)
-			//db.Save()
-			fmt.Println(db.GetData())
-		}
+		//case "journalDB":
+		//	{
+		//		//Create new journal DB
+		//		db, _ := database.NewJournalingRAMDatabase("./journalDB.db", 2, database.ConvertDynamicUintToBytesDB, database.ParseDynamicUintBytesDB)
+		//		db.Load()
+		//		db.Set("abc", 5)
+		//		db.Set("cde", 6)
+		//		//db.Set("abc", 3)
+		//		//db.Save()
+		//		fmt.Println(db.GetData())
+		//	}
 	}
 }
 
@@ -501,11 +506,12 @@ type testdbSubExample struct {
 }
 
 type testdbExample struct {
-	//A []string                        `db:"a"`
-	B []testdbSubExample `db:"b"`
-	//E *map[int]database.LimitedString `db:"e"`
-	P p2p.UPnPXMLService "db:\"P\""
+	A []string                        `db:"a"`
+	B []testdbSubExample              `db:"b"`
+	E *map[int]database.LimitedString `db:"e"`
+	P p2p.UPnPXMLService              "db:\"P\""
 	Q database.LimitedString
+	T *int
 }
 
 func filesystemEvent(path string, operation filesystem.FileSystemEventType, isDir bool, newPath string) {

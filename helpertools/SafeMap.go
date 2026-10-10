@@ -97,9 +97,9 @@ func (m *SafeMap[K, V]) GetKeys(deleteListedKeys bool) []K {
 
 	//Range map
 	result := make([]K, len(m.m))
-	m.rangeLocal(func(key K) (doBreak bool, delete bool) {
+	m.rangeLocal(func(key K) (doBreak bool, delete bool, err error) {
 		result = append(result, key)
-		return false, deleteListedKeys
+		return false, deleteListedKeys, nil
 	})
 	return result
 }
@@ -112,9 +112,9 @@ func (m *SafeMap[K, V]) GetValues(deleteListedValues bool) []V {
 
 	//Range map
 	result := make([]V, len(m.m))
-	m.rangeLocal(func(key K) (doBreak bool, delete bool) {
+	m.rangeLocal(func(key K) (doBreak bool, delete bool, err error) {
 		result = append(result, m.m[key])
-		return false, deleteListedValues
+		return false, deleteListedValues, nil
 	})
 	return result
 }
@@ -144,10 +144,10 @@ func (m *SafeMap[K, V]) GetData(deleteListedKeyValues bool) []KeyValuePair[K, V]
 	//Range map
 	result := make([]KeyValuePair[K, V], len(m.m))
 	i := 0
-	m.rangeLocal(func(key K) (doBreak bool, delete bool) {
+	m.rangeLocal(func(key K) (doBreak bool, delete bool, err error) {
 		result[i] = KeyValuePair[K, V]{Key: key, Value: m.m[key]}
 		i++
-		return false, deleteListedKeyValues
+		return false, deleteListedKeyValues, nil
 	})
 	return result
 }
@@ -167,11 +167,14 @@ func (m *SafeMap[K, V]) GetMutex() *sync.RWMutex {
 }
 
 // rangeLocal is local function for range over map. It should not be used externally
-func (m *SafeMap[K, V]) rangeLocal(rangeFunc func(key K) (doBreak bool, delete bool)) {
+func (m *SafeMap[K, V]) rangeLocal(rangeFunc func(key K) (doBreak bool, delete bool, err error)) error {
 	//Range map
 	for k, _ := range m.m {
 		//Call rangeFunc
-		doBreak, del := rangeFunc(k)
+		doBreak, del, err := rangeFunc(k)
+		if err != nil {
+			return err
+		}
 
 		//Delete if needed
 		if del {
@@ -183,15 +186,16 @@ func (m *SafeMap[K, V]) rangeLocal(rangeFunc func(key K) (doBreak bool, delete b
 			break
 		}
 	}
+	return nil
 }
 
 // RangeKeys iterates trought map keys without creating slice
 //
 // Map is locked, so no write operations involving the map should be called in rangeFunc
-func (m *SafeMap[K, V]) RangeKeys(rangeFunc func(key K) (doBreak bool, delete bool)) {
+func (m *SafeMap[K, V]) RangeKeys(rangeFunc func(key K) (doBreak bool, delete bool, err error)) error {
 	//Check if can run
 	if rangeFunc == nil {
-		return
+		return nil
 	}
 
 	//Lock
@@ -199,16 +203,16 @@ func (m *SafeMap[K, V]) RangeKeys(rangeFunc func(key K) (doBreak bool, delete bo
 	defer m.mutex.RUnlock()
 
 	//Range
-	m.rangeLocal(rangeFunc)
+	return m.rangeLocal(rangeFunc)
 }
 
 // RangeValues iterates trought map values without creating slice
 //
 // Map is locked, so no write operations involving the map should be called in rangeFunc
-func (m *SafeMap[K, V]) RangeValues(rangeFunc func(value V) (doBreak bool, delete bool)) {
+func (m *SafeMap[K, V]) RangeValues(rangeFunc func(value V) (doBreak bool, delete bool, err error)) error {
 	//Check if can run
 	if rangeFunc == nil {
-		return
+		return nil
 	}
 
 	//Lock
@@ -216,7 +220,7 @@ func (m *SafeMap[K, V]) RangeValues(rangeFunc func(value V) (doBreak bool, delet
 	defer m.mutex.RUnlock()
 
 	//Range
-	m.rangeLocal(func(key K) (doBreak bool, delete bool) {
+	return m.rangeLocal(func(key K) (doBreak bool, delete bool, err error) {
 		return rangeFunc(m.m[key])
 	})
 }
@@ -224,10 +228,10 @@ func (m *SafeMap[K, V]) RangeValues(rangeFunc func(value V) (doBreak bool, delet
 // RangeData iterates trought map keys and values without creating slice
 //
 // Map is locked, so no write operations involving the map should be called in rangeFunc
-func (m *SafeMap[K, V]) RangeData(rangeFunc func(key K, value V) (doBreak bool, delete bool)) {
+func (m *SafeMap[K, V]) RangeData(rangeFunc func(key K, value V) (doBreak bool, delete bool, err error)) error {
 	//Check if can run
 	if rangeFunc == nil {
-		return
+		return nil
 	}
 
 	//Lock
@@ -235,7 +239,7 @@ func (m *SafeMap[K, V]) RangeData(rangeFunc func(key K, value V) (doBreak bool, 
 	defer m.mutex.RUnlock()
 
 	//Range
-	m.rangeLocal(func(key K) (doBreak bool, delete bool) {
+	return m.rangeLocal(func(key K) (doBreak bool, delete bool, err error) {
 		return rangeFunc(key, m.m[key])
 	})
 }

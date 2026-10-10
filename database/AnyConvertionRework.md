@@ -1,0 +1,37 @@
+# File structure
+## Header
+ - SKIPPED FOR NOW: Start every placeholder type definition with: 26 (SUB)
+ - Start database definition: 01 (STH)
+ - Standard types (type to binary):
+  - Int: 65 = A = 41h
+  - Int8: 66 = B = 42h
+  - Int16: 67 = C = 43h
+  - Int32: 68 = D = 44h
+  - Int64: 69 = E = 45h
+  - Uint: 70 = F = 46h
+  - Uint8: 71 = G = 47h
+  - Uint16: 72 = H = 48h
+  - Uint32: 73 = I = 49h
+  - Uint64: 74 = J = 4Ah
+  - Float32: 75 = K = 4Bh
+  - Float64: 76 = L = 4Ch
+  - Complex64: 77 = M = 4Dh
+  - Complex128: 78 = N = 4Eh
+  - String: 79 = O = 4Fh
+  - Bool: 80 = P = 50h
+- Special types (type to binary):
+  - Next type is Map (start + key): 60 = < = 3Ch
+  - Next type is Map (value): 94 = ^ = 5Eh
+  - Next type is Map (end): 62 = > = 3Eh
+  - Next type is Struct (start): 123 = { = 7Bh
+  - Next type is Struct (end): 125 = } = 7Dh
+  - Next type is User type: 33 = ! = 21h
+  - Next type is Type placeholder reference: 35 = # = 23h
+- Special types - modifiers (type to binary):
+  - Next type is Array: 64 = @ = 40h
+  - Next type is Slice: 36 = $ = 24h
+  - Next type is Pointer: 42 = * = 2Ah
+## Data
+ - Start data section with: 02 (STX)
+ - End data section with: 03 (ETX)
+ - If value is null write: 00 (NUL)
