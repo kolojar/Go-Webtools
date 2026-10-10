@@ -20,13 +20,11 @@
   - String: 79 = O = 4Fh
   - Bool: 80 = P = 50h
 - Special types (type to binary):
-  - Next type is Map (start + key): 60 = < = 3Ch
-  - Next type is Map (value): 94 = ^ = 5Eh
-  - Next type is Map (end): 62 = > = 3Eh
+  - Next type is Map: 35 = # = 23h
   - Next type is Struct (start): 123 = { = 7Bh
   - Next type is Struct (end): 125 = } = 7Dh
   - Next type is User type: 33 = ! = 21h
-  - Next type is Type placeholder reference: 35 = # = 23h
+  - Next type is Type placeholder reference: UNUSED h
 - Special types - modifiers (type to binary):
   - Next type is Array: 64 = @ = 40h
   - Next type is Slice: 36 = $ = 24h

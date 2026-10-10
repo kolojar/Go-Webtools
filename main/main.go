@@ -4,7 +4,7 @@ Package main provides example usages
 package main
 
 import (
-	"bytes"
+	"encoding/json"
 	"fmt"
 	"net"
 	"os"
@@ -341,9 +341,6 @@ func main() {
 			field, schema := database.BuildDBSchema(reflect.TypeOf(v))
 			fmt.Println(field)
 			fmt.Println(schema)
-			buff := bytes.NewBuffer(make([]byte, 0))
-			database.BuildDBSchemaBytes(buff, field)
-			fmt.Println(buff.String())
 			fmt.Println("@")
 			_, schema = database.BuildDBSchema(reflect.TypeOf(v))
 			fmt.Println(schema)
@@ -388,6 +385,11 @@ func main() {
 				Q: lim,
 				//E: &map[int]database.LimitedString{5: lim1, 8: lim2},
 			})
+			schemaField, err := database.ParseDBSchema(file)
+			fmt.Println(schemaField.FieldModifiers)
+			fmt.Println()
+			x, _ := json.MarshalIndent(schemaField, "", " ")
+			fmt.Println("schema:", string(x))
 			//err = database.ParseAnyToObjectDB(file, &result, true)
 			fmt.Println(result[0].Q.Get())
 			//a := (*result[0].E)[6]

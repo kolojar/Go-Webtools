@@ -38,5 +38,17 @@
     "buildFlags": [],
     "env": {},
     "dlvFlags": ["--headless", "--api-version=2", "--check-go-version=false"]
+  },
+  {
+    "adapter": "Delve",
+    "label": "Debug UDP Test DB",
+    "request": "launch",
+    "mode": "debug",
+    "program": "./main/main.go",
+    "cwd": "$ZED_DIRNAME",
+    "args": ["testdb"],
+    "buildFlags": [],
+    "env": {},
+    "dlvFlags": ["--headless", "--api-version=2", "--check-go-version=false"]
   }
 ]

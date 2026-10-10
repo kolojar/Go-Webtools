@@ -1,7 +1,9 @@
 package database
 
 import (
+	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -66,7 +68,7 @@ type DBFieldType uint8
 const NormalDataTypeFieldType DBFieldType = 0
 
 // MapFieldType is map data type
-const MapFieldType DBFieldType = 1
+const MapFieldType DBFieldType = 35
 
 // UserCustomDataTypeField is custom registered data type
 const UserCustomDataTypeField DBFieldType = 33
@@ -93,10 +95,10 @@ const ArrayFieldModifier DBFieldModifier = 64
 const PointerFieldModifier DBFieldModifier = 42
 
 // MapKeyFieldModifier is map key data type, has to be first modifier
-const MapKeyFieldModifier DBFieldModifier = 60
+const MapKeyFieldModifier DBFieldModifier = 255
 
 // MapValueFieldModifier is map value data type, has to be first modifier
-const MapValueFieldModifier DBFieldModifier = 94
+const MapValueFieldModifier DBFieldModifier = 254
 
 // DBField is cache structure for faster reflection for dynamic database
 type DBField struct {
@@ -130,7 +132,7 @@ func buildDBSchemaField(t reflect.Type, name string, index int) DBField {
 		}
 		if tElem.Kind() == reflect.Array {
 			// Is array
-			modifiers = append(modifiers, SliceFieldModifier)
+			modifiers = append(modifiers, ArrayFieldModifier)
 			tElem = tElem.Elem()
 			continue
 		}
@@ -203,7 +205,8 @@ func convertReflectKindToByte(kind reflect.Kind) byte {
 	return 0
 }
 
-func BuildDBSchemaBytes(buffer *bytes.Buffer, field DBField) {
+// buildDBSchemaBytes builds DBField schema and bytes
+func buildDBSchemaBytes(buffer *bytes.Buffer, field DBField, root bool) {
 	//Write modifiers
 	hasMapModifier := false
 	for _, v := range field.FieldModifiers {
@@ -212,18 +215,19 @@ func BuildDBSchemaBytes(buffer *bytes.Buffer, field DBField) {
 				panic("cant have multiple map modifiers in one field")
 			}
 			hasMapModifier = true
+			continue
 		}
 		buffer.WriteByte(byte(v))
 	}
 
 	//Write map field
 	if field.FieldType == MapFieldType {
-		BuildDBSchemaBytes(buffer, field.Fields[0])
-		BuildDBSchemaBytes(buffer, field.Fields[1])
-		if !hasMapModifier {
+		buffer.WriteByte(byte(field.FieldType))
+		buildDBSchemaBytes(buffer, field.Fields[0], false)
+		buildDBSchemaBytes(buffer, field.Fields[1], false)
+		if !hasMapModifier && !root {
 			ConvertStringToBytesDB(buffer, field.Name)
 		}
-		buffer.WriteByte(byte(MapEndFieldType))
 		return
 	}
 
@@ -231,7 +235,7 @@ func BuildDBSchemaBytes(buffer *bytes.Buffer, field DBField) {
 	if field.FieldType == UserCustomDataTypeField {
 		buffer.WriteByte(byte(field.FieldType))
 		ConvertStringToBytesDB(buffer, field.ValueType.String())
-		if !hasMapModifier {
+		if !hasMapModifier && !root {
 			ConvertStringToBytesDB(buffer, field.Name)
 		}
 		return
@@ -242,16 +246,19 @@ func BuildDBSchemaBytes(buffer *bytes.Buffer, field DBField) {
 		buffer.WriteByte(byte(StructFieldType))
 		if field.Fields != nil {
 			for _, v := range field.Fields {
-				BuildDBSchemaBytes(buffer, v)
+				buildDBSchemaBytes(buffer, v, false)
 			}
 		}
 		buffer.WriteByte(byte(StructEndFieldType))
+		if !hasMapModifier && !root {
+			ConvertStringToBytesDB(buffer, field.Name)
+		}
 		return
 	}
 
 	//Write normal type
 	buffer.WriteByte(convertReflectKindToByte(field.ValueType.Kind()))
-	if !hasMapModifier {
+	if !hasMapModifier && !root {
 		ConvertStringToBytesDB(buffer, field.Name)
 	}
 }
@@ -311,7 +318,7 @@ func BuildDBSchema(t reflect.Type) (DBField, []byte) {
 
 	//Create schema bytes
 	buffer := bytes.NewBuffer(make([]byte, 0))
-	BuildDBSchemaBytes(buffer, schema)
+	buildDBSchemaBytes(buffer, schema, true)
 	dbFieldSchemas[t] = helpertools.KeyValuePair[DBField, []byte]{Key: schema, Value: buffer.Bytes()}
 	return schema, dbFieldSchemas[t].Value
 }
@@ -686,4 +693,168 @@ func parseAnyValueToBytesDBValue(reader io.Reader, valType string, objectValue *
 		}
 	}
 	return result, err
+}
+
+// DBFieldParse is parsed field from schema
+type DBFieldParse struct {
+	Name           string
+	CustomTypeName string
+	FieldModifiers []DBFieldModifier
+	Fields         []DBFieldParse
+	FieldType      DBFieldType
+}
+
+// ParseDBSchema parses DB schema from reader
+func ParseDBSchema(reader io.Reader) (field DBFieldParse, err error) {
+	//Convert to bufio
+	bufioReader := ConvertToBufioReader(reader)
+
+	//Read first bit
+	b, err := bufioReader.ReadByte()
+	if err != nil {
+		return DBFieldParse{}, err
+	}
+	if b != 1 {
+		return DBFieldParse{}, errors.New("invalid first bit of DB file")
+	}
+
+	//Parse field
+	field, err, _ = parseDBSchemaField(bufioReader, 2)
+	return field, err
+}
+
+// parseDBSchemaField parses field data
+func parseDBSchemaField(reader *bufio.Reader, endType byte) (field DBFieldParse, err error, hitEndType bool) {
+	//Create new field
+	field = DBFieldParse{
+		FieldModifiers: make([]DBFieldModifier, 0),
+		FieldType:      NormalDataTypeFieldType,
+	}
+
+	//Get bytes until not at type
+	for true {
+		//Read type
+		typ, err := reader.ReadByte()
+		if err != nil {
+			return field, err, false
+		}
+
+		//Check for end
+		if typ == endType {
+			return field, nil, true
+		}
+
+		//Check if modifier
+		mTyp := DBFieldModifier(typ)
+		if ArrayFieldModifier == mTyp || SliceFieldModifier == mTyp || PointerFieldModifier == mTyp {
+			field.FieldModifiers = append(field.FieldModifiers, mTyp)
+			continue
+		}
+
+		//Check if valid modifier starter
+		if mTyp == MapKeyFieldModifier {
+			field.FieldType = MapFieldType
+			break
+		}
+
+		//Check if valid type
+		tType := DBFieldType(typ)
+		if tType == MapFieldType || tType == StructFieldType || tType == NormalDataTypeFieldType || tType == UserCustomDataTypeField {
+			field.FieldType = tType
+			break
+		}
+
+		//Check if valid normal range type
+		if typ >= 65 && typ <= 80 {
+			field.FieldType = DBFieldType(typ)
+			break
+		}
+
+		//Invalid type
+		return field, errors.New("invalid type for: " + string(rune(typ))), false
+	}
+
+	//Valid types
+	switch field.FieldType {
+	case MapFieldType:
+		//Parse map key
+		field.Fields = make([]DBFieldParse, 0)
+		mapKey, err, _ := parseDBSchemaField(reader, byte(MapValueFieldModifier))
+		if err != nil {
+			return field, err, false
+		}
+		mapKey.Name = "mapKey"
+		mapKey.FieldModifiers = append(mapKey.FieldModifiers, MapKeyFieldModifier)
+		field.Fields = append(field.Fields, mapKey)
+
+		//Parse map value
+		mapValue, err, _ := parseDBSchemaField(reader, byte(MapEndFieldType))
+		if err != nil {
+			return field, err, false
+		}
+		mapValue.Name = "mapVal"
+		mapValue.FieldModifiers = append(mapKey.FieldModifiers, MapValueFieldModifier)
+		field.Fields = append(field.Fields, mapValue)
+
+		//Get name
+		if endType != 2 && endType != byte(MapValueFieldModifier) && endType != byte(MapEndFieldType) {
+			field.Name, err = ParseStringDB(reader)
+			if err != nil {
+				return field, err, false
+			}
+		}
+		return field, nil, false
+	case UserCustomDataTypeField:
+		//User custom type
+		field.CustomTypeName, err = ParseStringDB(reader)
+		if err != nil {
+			return field, err, false
+		}
+
+		//Get name
+		if endType != 2 && endType != byte(MapValueFieldModifier) && endType != byte(MapEndFieldType) {
+			field.Name, err = ParseStringDB(reader)
+			if err != nil {
+				return field, err, false
+			}
+		}
+		return field, nil, false
+	case StructFieldType:
+		//Struct
+		field.Fields = make([]DBFieldParse, 0)
+		for true {
+			//Parse
+			f, err, hit := parseDBSchemaField(reader, byte(StructEndFieldType))
+			if err != nil {
+				return field, err, false
+			}
+
+			//Got to end of struct
+			if hit {
+				//Get name
+				if endType != 2 && endType != byte(MapValueFieldModifier) && endType != byte(MapEndFieldType) {
+					field.Name, err = ParseStringDB(reader)
+					if err != nil {
+						return field, err, false
+					}
+				}
+				return field, nil, false
+			}
+
+			//Append field
+			field.Fields = append(field.Fields, f)
+		}
+	}
+
+	//Primitive type
+	if field.FieldType >= 65 && field.FieldType <= 80 {
+		if endType != 2 && endType != byte(MapValueFieldModifier) && endType != byte(MapEndFieldType) {
+			field.Name, err = ParseStringDB(reader)
+			if err != nil {
+				return field, err, false
+			}
+		}
+		return field, nil, false
+	}
+	return field, errors.New("invalid type for: " + string(rune(field.FieldType))), false
 }
