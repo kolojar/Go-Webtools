@@ -930,8 +930,8 @@ func ConvertSafeMapToBytesDB[K comparable, V any](writer io.Writer, data helpert
 		if err != nil {
 			return true, false, err
 		}
+		err = valueConvertDBFunc(writer, value)
 		if err != nil {
-			err = valueConvertDBFunc(writer, value)
 			return true, false, err
 		}
 		return false, false, nil
@@ -1047,7 +1047,7 @@ func ParseArrayDB[V any](reader io.Reader, parseDBFunc func(reader io.Reader) (V
 }
 
 // ConvertByteArrayToBytesDB converts byte array to bytes
-func ConvertByteArrayToBytesDB[V any](writer io.Writer, data []byte) (err error) {
+func ConvertByteArrayToBytesDB(writer io.Writer, data []byte) (err error) {
 	//Convert to bufio
 	writer, automaticFlush := ConvertToBufioWriter(writer, func(errFlush error) {
 		err = errFlush
