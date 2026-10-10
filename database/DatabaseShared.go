@@ -358,9 +358,9 @@ func ConvertToBufioReader(reader io.Reader) *bufio.Reader {
 	return bufReader
 }
 
-// ConvertToBufioWriter converts to *buffio.Writer and check if writer was *buffio.Writer or not, if yes then isNewBuffioWriter is false and functions should not Flush automatically.
+// ConvertToBufioWriter converts to *buffio.Writer
 //
-// automaticFlushFunc should be called on defer
+// automaticFlushFunc should be called on defer (flushes only when writer was not *bufio.Writer)
 func ConvertToBufioWriter(writer io.Writer, onFlushError func(errFlush error)) (buffWriter *bufio.Writer, automaticFlushFunc func()) {
 	buffWriter, ok := writer.(*bufio.Writer)
 	if !ok {
