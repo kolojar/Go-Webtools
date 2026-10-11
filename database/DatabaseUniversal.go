@@ -1,14 +1,15 @@
 package database
 
 import (
-	"bufio"
 	"bytes"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"reflect"
+	"strconv"
 
+	"github.com/kolojar/Go-Webtools/debugtools"
 	"github.com/kolojar/Go-Webtools/helpertools"
 )
 
@@ -514,35 +515,35 @@ func parseAnyValueToBytesDBValue(reader io.Reader, valType string, objectValue *
 	var err error
 	var result any
 	switch valType {
-	case "bool":
+	case "80":
 		result, err = ParseBoolDB(reader)
-	case "uint":
+	case "70":
 		result, err = ParseDynamicUintBytesDB(reader)
 		result = uint(result.(uint64))
-	case "int":
+	case "65":
 		result, err = ParseDynamicUintBytesDB(reader)
 		result = int(int64(result.(uint64)))
-	case "uint64":
+	case "64":
 		result, err = ParseDynamicUintBytesDB(reader)
-	case "int64":
+	case "74":
 		result, err = ParseDynamicUintBytesDB(reader)
 		result = int64(result.(uint64))
-	case "uint8":
+	case "71":
 		result, err = ParseUint8DB(reader)
-	case "int8":
-		result, err = ParseBoolDB(reader)
+	case "66":
+		result, err = ParseUint8DB(reader)
 		result = int8(result.(uint8))
-	case "string":
+	case "79":
 		result, err = ParseStringDB(reader)
-	case "int16":
+	case "67":
 		result, err = ParseUint16DB(reader)
 		result = int16(result.(uint16))
-	case "int32":
+	case "68":
 		result, err = ParseDynamicUintBytesDB(reader)
 		result = int32(result.(uint32))
-	case "uint16":
+	case "72":
 		result, err = ParseUint16DB(reader)
-	case "uint32":
+	case "73":
 		result, err = ParseDynamicUintBytesDB(reader)
 	default:
 		//Check user defined types
@@ -724,7 +725,7 @@ func ParseDBSchema(reader io.Reader) (field DBFieldParse, err error) {
 }
 
 // parseDBSchemaField parses field data
-func parseDBSchemaField(reader *bufio.Reader, endType byte) (field DBFieldParse, err error, hitEndType bool) {
+func parseDBSchemaField(reader io.ReadSeeker, endType byte) (field DBFieldParse, err error, hitEndType bool) {
 	//Create new field
 	field = DBFieldParse{
 		FieldModifiers: make([]DBFieldModifier, 0),
@@ -857,4 +858,134 @@ func parseDBSchemaField(reader *bufio.Reader, endType byte) (field DBFieldParse,
 		return field, nil, false
 	}
 	return field, errors.New("invalid type for: " + string(rune(field.FieldType))), false
+}
+
+func readDataDBAny(reader io.ReadSeeker, field DBFieldParse, modifierSkip int, interactiveRepair bool, checkForNil bool) (result any, err error) {
+	//Check for nil
+	if checkForNil {
+		//Read
+		b := make([]byte, 1)
+		_, err := reader.Read(b)
+		if err != nil {
+			return nil, err
+		}
+		reader.Seek(-1, io.SeekCurrent)
+
+		//Check b
+		if b[0] == 0 {
+			return nil, nil
+		}
+	}
+
+	//Parse modifiers
+	for i := modifierSkip; i < len(field.FieldModifiers); i++ {
+		switch field.FieldModifiers[i] {
+		case PointerFieldModifier:
+			{
+				//Read
+				v, err := readDataDBAny(reader, field, i+1, interactiveRepair, true)
+				if err != nil {
+					return nil, err
+				}
+
+				//Convert to pointer
+				if v == nil {
+					return nil, nil
+				}
+				return &v, nil
+			}
+		case ArrayFieldModifier, SliceFieldModifier:
+			{
+				// Read length
+				l, err := ParseDynamicUintBytesDB(reader)
+				if err != nil {
+					return nil, err
+				}
+
+				// Read data
+				result := make([]any, l)
+				for range l {
+					//Read
+					v, err := readDataDBAny(reader, field, i+1, interactiveRepair, false)
+					if err != nil {
+						return nil, err
+					}
+					result = append(result, v)
+				}
+				return result, nil
+			}
+		}
+	}
+
+	//Sort type
+	switch field.FieldType {
+	case MapFieldType:
+		{
+			// Read length
+			l, err := ParseDynamicUintBytesDB(reader)
+			if err != nil {
+				return nil, err
+			}
+
+			// Read data
+			result := make(map[any]any, l)
+			for i := uint64(0); i < l; i++ {
+				//Read key
+				k, err := readDataDBAny(reader, field.Fields[0], 0, interactiveRepair, false)
+				if err != nil {
+					return nil, err
+				}
+
+				//Read value
+				v, err := readDataDBAny(reader, field.Fields[1], 0, interactiveRepair, false)
+				if err != nil {
+					return nil, err
+				}
+				result[k] = v
+			}
+			return result, nil
+		}
+	case StructFieldType:
+		{
+			// Read data
+			result := make(map[string]any, len(field.Fields))
+			for _, f := range field.Fields {
+				//Read value
+				v, err := readDataDBAny(reader, f, 0, interactiveRepair, false)
+				if err != nil {
+					return nil, err
+				}
+				result[f.Name] = v
+			}
+			return result, nil
+		}
+	case UserCustomDataTypeField:
+		{
+			//Read
+			return parseAnyValueToBytesDBValue(reader, field.CustomTypeName, nil, true, interactiveRepair)
+		}
+	}
+
+	//Normal value
+	if field.FieldType >= 65 && field.FieldType <= 80 {
+		//Read
+		return parseAnyValueToBytesDBValue(reader, strconv.Itoa(int(field.FieldType)), nil, true, interactiveRepair)
+	}
+	return nil, errors.New("unknown field type for: " + string(rune(field.FieldType)))
+}
+
+// ParseAnyToObjectDB parses bytes to generic target object -> Returns map or array of maps
+func ParseAnyToValueMapDB(reader io.ReadSeeker, interactiveRepair bool) (any, error) {
+	//Convert to bufio
+	reader = debugtools.NewReadSeekerReporter(reader, true)
+
+	// Read structure string
+	field, err := ParseDBSchema(reader)
+	if err != nil {
+		return nil, err
+	}
+
+	// Read data to map
+	result, err := readDataDBAny(reader, field, 0, interactiveRepair, false)
+	return result, err
 }

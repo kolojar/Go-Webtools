@@ -4,7 +4,6 @@ Package main provides example usages
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"net"
 	"os"
@@ -385,16 +384,19 @@ func main() {
 				Q: lim,
 				//E: &map[int]database.LimitedString{5: lim1, 8: lim2},
 			})
-			schemaField, err := database.ParseDBSchema(file)
-			fmt.Println(schemaField.FieldModifiers)
-			fmt.Println()
-			x, _ := json.MarshalIndent(schemaField, "", " ")
-			fmt.Println("schema:", string(x))
+			//schemaField, err := database.ParseDBSchema(file)
+			//fmt.Println(schemaField.FieldModifiers)
+			//fmt.Println()
+			//x, _ := json.MarshalIndent(schemaField, "", " ")
+			//fmt.Println("schema:", string(x))
+			read, err := database.ParseAnyToValueMapDB(file, true)
+			fmt.Println("read:", read, "err:"+err.Error())
 			//err = database.ParseAnyToObjectDB(file, &result, true)
-			fmt.Println(result[0].Q.Get())
+			//fmt.Println(result[0].Q.Get())
 			//a := (*result[0].E)[6]
 			//fmt.Println(a.Get())
 			fmt.Println(result)
+
 		}
 	case "fs":
 		{
