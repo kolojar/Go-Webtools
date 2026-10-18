@@ -2,6 +2,7 @@ package database
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -708,6 +709,7 @@ type DBFieldParse struct {
 // ParseDBSchema parses DB schema from reader
 func ParseDBSchema(reader io.ReadSeeker) (field DBFieldParse, err error) {
 	//Convert to bufio
+	fmt.Println("Reading schema")
 	bufioReader := debugtools.NewReadSeekerReporter(reader, true)
 
 	//Read first bit
@@ -721,7 +723,27 @@ func ParseDBSchema(reader io.ReadSeeker) (field DBFieldParse, err error) {
 	}
 
 	//Parse field
-	field, err, _ = parseDBSchemaField(bufioReader, 2)
+	field, err, hitEnd := parseDBSchemaField(bufioReader, 2)
+
+	//Check if hit end
+	if !hitEnd {
+		//Read last bit for DB structure end
+		check := make([]byte, 1)
+		_, err = reader.Read(check)
+
+		//Check error
+		if err != nil {
+			return DBFieldParse{}, err
+		}
+
+		//Check bit
+		if check[0] != 2 {
+			return DBFieldParse{}, errors.New("invalid last bit of structure of DB file")
+		}
+	}
+
+	m, _ := json.Marshal(field)
+	fmt.Println("Reading schema done:", string(m), "; Hit end:", hitEnd)
 	return field, err
 }
 
@@ -871,12 +893,12 @@ func readDataDBAny(reader io.ReadSeeker, field DBFieldParse, modifierSkip int, i
 		if err != nil {
 			return nil, err
 		}
-		reader.Seek(-1, io.SeekCurrent)
 
 		//Check b
 		if b[0] == 0 {
 			return nil, nil
 		}
+		reader.Seek(-1, io.SeekCurrent)
 	}
 
 	//Parse modifiers
@@ -885,6 +907,7 @@ func readDataDBAny(reader io.ReadSeeker, field DBFieldParse, modifierSkip int, i
 		case PointerFieldModifier:
 			{
 				//Read
+				fmt.Println("Reading pointer")
 				v, err := readDataDBAny(reader, field, i+1, interactiveRepair, true)
 				if err != nil {
 					return nil, err
@@ -903,9 +926,10 @@ func readDataDBAny(reader io.ReadSeeker, field DBFieldParse, modifierSkip int, i
 				if err != nil {
 					return nil, err
 				}
+				fmt.Println("Reading Array/Slice with size:", l)
 
 				// Read data
-				result := make([]any, l)
+				result := make([]any, 0, l)
 				for range l {
 					//Read
 					v, err := readDataDBAny(reader, field, i+1, interactiveRepair, false)
@@ -928,10 +952,11 @@ func readDataDBAny(reader io.ReadSeeker, field DBFieldParse, modifierSkip int, i
 			if err != nil {
 				return nil, err
 			}
+			fmt.Println("Reading map with size:", l)
 
 			// Read data
 			result := make(map[any]any, l)
-			for i := uint64(0); i < l; i++ {
+			for range l {
 				//Read key
 				k, err := readDataDBAny(reader, field.Fields[0], 0, interactiveRepair, false)
 				if err != nil {
@@ -989,5 +1014,23 @@ func ParseAnyToValueMapDB(reader io.ReadSeeker, interactiveRepair bool) (any, er
 
 	// Read data to map
 	result, err := readDataDBAny(reader, field, 0, interactiveRepair, false)
+	if err != nil {
+		return nil, err
+	}
+
+	//Read last bit for DB end
+	check := make([]byte, 1)
+	_, err = reader.Read(check)
+
+	//Check error
+	if err != nil {
+		return DBFieldParse{}, err
+	}
+
+	//Check bit
+	if check[0] != 3 {
+		return DBFieldParse{}, errors.New("invalid last bit of of DB file")
+	}
+
 	return result, err
 }

@@ -8,7 +8,7 @@ import (
 
 // ReadSeekerReporter is debug tool for writing how many bytes have been read from reader and how far reader is
 type ReadSeekerReporter struct {
-	reader                  io.Reader
+	reader                  io.ReadSeeker
 	distance                int
 	reportDistanceToConsole bool
 }
@@ -32,9 +32,10 @@ func (reader *ReadSeekerReporter) Read(p []byte) (n int, err error) {
 	}
 
 	//Move distance
+	current := reader.distance
 	reader.distance += n
 	if reader.reportDistanceToConsole {
-		fmt.Println("Read bytes:", n, "Current position in file:", reader.distance)
+		fmt.Println("Read bytes:", n, "Starting position in file:", current)
 	}
 	return n, nil
 }
@@ -47,5 +48,5 @@ func (reader *ReadSeekerReporter) Seek(offset int64, whence int) (int64, error) 
 	}
 
 	//Seek
-	return reader.Seek(offset, whence)
+	return reader.reader.Seek(offset, whence)
 }

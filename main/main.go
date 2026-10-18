@@ -4,6 +4,7 @@ Package main provides example usages
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"os"
@@ -329,7 +330,7 @@ func main() {
 				v = append(v, testdbExample{
 					A: []string{"a", "b", "c", strconv.Itoa(i)},
 					B: append(make([]testdbSubExample, 0), testdbSubExample{C: "textC", D: 1}),
-					E: &map[int]database.LimitedString{5: lim1, 8: lim2},
+					//E: &map[int]database.LimitedString{5: lim1, 8: lim2},
 					P: p2p.UPnPXMLService{},
 					Q: lim,
 					T: nil,
@@ -381,7 +382,7 @@ func main() {
 			lim1.Set("")
 			lim2.Set("")
 			var result = append(make([]testdbExample, 0), testdbExample{
-				Q: lim,
+				//Q: lim,
 				//E: &map[int]database.LimitedString{5: lim1, 8: lim2},
 			})
 			//schemaField, err := database.ParseDBSchema(file)
@@ -390,9 +391,19 @@ func main() {
 			//x, _ := json.MarshalIndent(schemaField, "", " ")
 			//fmt.Println("schema:", string(x))
 			read, err := database.ParseAnyToValueMapDB(file, true)
-			fmt.Println("read:", read, "err:"+err.Error())
+			if err != nil {
+				fmt.Println("Read error:" + err.Error())
+				return
+			}
+			m, _ := json.Marshal(read)
+			fmt.Println("read:", string(m))
+			//for _, v := range read.([]any) {
+			//	if v != nil {
+			//		fmt.Println("read:", debugtools.MapToString(v.(map[string]any)))
+			//	}
+			//}
 			//err = database.ParseAnyToObjectDB(file, &result, true)
-			//fmt.Println(result[0].Q.Get())
+			fmt.Println((read.([]any)[0].(map[string]any))["Q"].(*database.LimitedString).Get())
 			//a := (*result[0].E)[6]
 			//fmt.Println(a.Get())
 			fmt.Println(result)
@@ -510,10 +521,10 @@ type testdbSubExample struct {
 }
 
 type testdbExample struct {
-	A []string                        `db:"a"`
-	B []testdbSubExample              `db:"b"`
-	E *map[int]database.LimitedString `db:"e"`
-	P p2p.UPnPXMLService              "db:\"P\""
+	A []string           `db:"a"`
+	B []testdbSubExample `db:"b"`
+	//E *map[int]database.LimitedString `db:"e"`
+	P p2p.UPnPXMLService "db:\"P\""
 	Q database.LimitedString
 	T *int
 }

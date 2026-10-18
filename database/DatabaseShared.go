@@ -9,6 +9,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"time"
@@ -425,9 +426,14 @@ func ParseStringDB(reader io.Reader) (string, error) {
 }
 
 /*
-ConvertUintXToBytesDB converts uint64 to X/8 bytes. Parameter size is X = 8 bites = 1 byte = uint8, ...
+ConvertUintXToBytesDB converts uint64 to X/8 bytes. Parameter size is X in bytes = 1 byte = 8 bites = uint8, ...
 */
 func ConvertUintXToBytesDB(writer io.Writer, data uint64, size uint8) (err error) {
+	//Check if size is valid
+	if size > 8 {
+		return errors.New("size value out of range")
+	}
+
 	//Convert to bufio
 	writer, automaticFlush := ConvertToBufioWriter(writer, func(errFlush error) {
 		err = errFlush
@@ -437,19 +443,20 @@ func ConvertUintXToBytesDB(writer io.Writer, data uint64, size uint8) (err error
 	//Write number
 	dataByte := make([]byte, 8)
 	binary.LittleEndian.PutUint64(dataByte, data)
-	_, err = writer.Write(dataByte[0:(helpertools.CeilDivision(size, 8))])
+	_, err = writer.Write(dataByte[0:size])
 	return err
 }
 
 /*
-ParseUintXDB parses X/8 bytes from reader to uint64. Parameter size is X = 8 bites = 1 byte = uint8, ...
+ParseUintXDB parses X/8 bytes from reader to uint64. Parameter size is X in bytes = 1 byte = 8 bites = uint8, ...
 */
 func ParseUintXDB(reader io.Reader, size uint8) (uint64, error) {
 	//Convert to bufio
 	reader = ConvertToBufioReader(reader)
 
 	//Read number
-	dataByte := make([]byte, helpertools.CeilDivision(size, 8))
+	dataByte := make([]byte, size)
+	fmt.Println("Reading UINTX with size:")
 	_, err := reader.Read(dataByte)
 	if err != nil {
 		return 0, err
@@ -499,6 +506,8 @@ func ParseDynamicUintBytesDB(reader io.Reader) (uint64, error) {
 	if err != nil || size == 0 {
 		return 0, err
 	}
+
+	fmt.Println("Parsing dynamic UINT with size:", size)
 
 	//Write number
 	return ParseUintXDB(reader, size)

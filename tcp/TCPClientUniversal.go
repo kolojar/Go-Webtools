@@ -8,6 +8,7 @@ import (
 	"time"
 
 	webtools "github.com/kolojar/Go-Webtools"
+	"github.com/kolojar/Go-Webtools/debugtools"
 	"github.com/kolojar/Go-Webtools/encryption"
 	"github.com/kolojar/Go-Webtools/helpertools"
 )
@@ -201,7 +202,7 @@ func (cl *ClientUniversal) readNextFunc() {
 func (cl *ClientUniversal) localReadFunc(data []byte, otherData map[string]any) {
 	if cl.useEncryption {
 		// Decrypt
-		cl.Logger.Log(helpertools.LogTraffic, "Reading enrypted from: "+cl.conn.RemoteAddr().String()+" connected locally to: "+cl.conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data)+" | Other data: "+helpertools.MapToString(otherData))
+		cl.Logger.Log(helpertools.LogTraffic, "Reading enrypted from: "+cl.conn.RemoteAddr().String()+" connected locally to: "+cl.conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data)+" | Other data: "+debugtools.MapToString(otherData))
 		var err error
 		data, err = encryption.DecryptSymmetric([]byte(cl.encryptionPassword), data)
 		if err != nil {
@@ -211,7 +212,7 @@ func (cl *ClientUniversal) localReadFunc(data []byte, otherData map[string]any) 
 	}
 
 	// Read
-	cl.Logger.Log(helpertools.LogTraffic, "Reading from: "+cl.conn.RemoteAddr().String()+" connected locally to: "+cl.conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data)+" | Other data: "+helpertools.MapToString(otherData))
+	cl.Logger.Log(helpertools.LogTraffic, "Reading from: "+cl.conn.RemoteAddr().String()+" connected locally to: "+cl.conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data)+" | Other data: "+debugtools.MapToString(otherData))
 	if cl.currentHandlers.ReadFunc != nil {
 		cl.currentHandlers.ReadFunc(cl, data, webtools.ReadDataStatus, otherData)
 	}
@@ -239,7 +240,7 @@ func (cl *ClientUniversal) Send(data []byte, otherData map[string]any) {
 
 	// Write
 	if cl.currentHandlers.WriteHandler != nil {
-		cl.Logger.Log(helpertools.LogTraffic, "Writing to: "+cl.conn.RemoteAddr().String()+" connected locally to: "+cl.conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data)+" | Other data: "+helpertools.MapToString(otherData))
+		cl.Logger.Log(helpertools.LogTraffic, "Writing to: "+cl.conn.RemoteAddr().String()+" connected locally to: "+cl.conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data)+" | Other data: "+debugtools.MapToString(otherData))
 		if cl.useEncryption {
 			// Encrypt
 			var err error
@@ -248,7 +249,7 @@ func (cl *ClientUniversal) Send(data []byte, otherData map[string]any) {
 				cl.Logger.Log(helpertools.LogError, "Error encrypting: "+err.Error())
 				return
 			}
-			cl.Logger.Log(helpertools.LogTraffic, "Writing enrypted from: "+cl.conn.RemoteAddr().String()+" connected locally to: "+cl.conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data)+" | Other data: "+helpertools.MapToString(otherData))
+			cl.Logger.Log(helpertools.LogTraffic, "Writing enrypted from: "+cl.conn.RemoteAddr().String()+" connected locally to: "+cl.conn.LocalAddr().String()+" | Data lenght: "+strconv.Itoa(len(data))+" | Data in hex: "+hex.EncodeToString(data)+" | Other data: "+debugtools.MapToString(otherData))
 		}
 
 		// Write

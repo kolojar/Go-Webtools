@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"strings"
 	"time"
 )
 
@@ -98,17 +97,6 @@ func FormatByBool[T any](b bool, trueVal T, falseVal T) T {
 		return trueVal
 	}
 	return falseVal
-}
-
-// MapToString converts map to string
-func MapToString[K comparable, V any](m map[K]V) string {
-	result := "{"
-	for k, v := range m {
-		result += "[" + fmt.Sprint(k) + ", " + fmt.Sprint(v) + "], "
-	}
-	result = strings.TrimSuffix(result, ", ")
-	result += "}"
-	return result
 }
 
 // MakeConsoleLoggerForTraffic creates new ConsoleLogger with option to disable traffic report.
