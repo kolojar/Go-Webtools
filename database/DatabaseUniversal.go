@@ -1,6 +1,7 @@
 package database
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"errors"
@@ -10,7 +11,6 @@ import (
 	"reflect"
 	"strconv"
 
-	"github.com/kolojar/Go-Webtools/debugtools"
 	"github.com/kolojar/Go-Webtools/helpertools"
 )
 
@@ -707,10 +707,10 @@ type DBFieldParse struct {
 }
 
 // ParseDBSchema parses DB schema from reader
-func ParseDBSchema(reader io.ReadSeeker) (field DBFieldParse, err error) {
+func ParseDBSchema(reader io.Reader) (field DBFieldParse, err error) {
 	//Convert to bufio
 	fmt.Println("Reading schema")
-	bufioReader := debugtools.NewReadSeekerReporter(reader, true)
+	bufioReader := ConvertToBufioReader(reader)
 
 	//Read first bit
 	b := make([]byte, 1)
@@ -748,7 +748,7 @@ func ParseDBSchema(reader io.ReadSeeker) (field DBFieldParse, err error) {
 }
 
 // parseDBSchemaField parses field data
-func parseDBSchemaField(reader io.ReadSeeker, endType byte) (field DBFieldParse, err error, hitEndType bool) {
+func parseDBSchemaField(reader io.Reader, endType byte) (field DBFieldParse, err error, hitEndType bool) {
 	//Create new field
 	field = DBFieldParse{
 		FieldModifiers: make([]DBFieldModifier, 0),
@@ -884,21 +884,23 @@ func parseDBSchemaField(reader io.ReadSeeker, endType byte) (field DBFieldParse,
 	return field, errors.New("invalid type for: " + string(rune(field.FieldType))), false
 }
 
-func readDataDBAny(reader io.ReadSeeker, field DBFieldParse, modifierSkip int, interactiveRepair bool, checkForNil bool) (result any, err error) {
+func readDataDBAny(reader *bufio.Reader, field DBFieldParse, modifierSkip int, interactiveRepair bool, checkForNil bool) (result any, err error) {
 	//Check for nil
 	if checkForNil {
 		//Read
-		b := make([]byte, 1)
-		_, err := reader.Read(b)
+		b, err := reader.ReadByte()
 		if err != nil {
 			return nil, err
 		}
 
 		//Check b
-		if b[0] == 0 {
+		if b == 0 {
 			return nil, nil
 		}
-		reader.Seek(-1, io.SeekCurrent)
+
+		//Unread b
+		err = reader.UnreadByte()
+		return nil, err
 	}
 
 	//Parse modifiers
@@ -907,7 +909,7 @@ func readDataDBAny(reader io.ReadSeeker, field DBFieldParse, modifierSkip int, i
 		case PointerFieldModifier:
 			{
 				//Read
-				fmt.Println("Reading pointer")
+				//fmt.Println("Reading pointer")
 				v, err := readDataDBAny(reader, field, i+1, interactiveRepair, true)
 				if err != nil {
 					return nil, err
@@ -926,7 +928,7 @@ func readDataDBAny(reader io.ReadSeeker, field DBFieldParse, modifierSkip int, i
 				if err != nil {
 					return nil, err
 				}
-				fmt.Println("Reading Array/Slice with size:", l)
+				//fmt.Println("Reading Array/Slice with size:", l)
 
 				// Read data
 				result := make([]any, 0, l)
@@ -952,7 +954,7 @@ func readDataDBAny(reader io.ReadSeeker, field DBFieldParse, modifierSkip int, i
 			if err != nil {
 				return nil, err
 			}
-			fmt.Println("Reading map with size:", l)
+			//fmt.Println("Reading map with size:", l)
 
 			// Read data
 			result := make(map[any]any, l)
@@ -1002,25 +1004,24 @@ func readDataDBAny(reader io.ReadSeeker, field DBFieldParse, modifierSkip int, i
 }
 
 // ParseAnyToObjectDB parses bytes to generic target object -> Returns map or array of maps
-func ParseAnyToValueMapDB(reader io.ReadSeeker, interactiveRepair bool) (any, error) {
+func ParseAnyToValueMapDB(reader io.Reader, interactiveRepair bool) (any, error) {
 	//Convert to bufio
-	reader = debugtools.NewReadSeekerReporter(reader, true)
+	bufioReader := ConvertToBufioReader(reader)
 
 	// Read structure string
-	field, err := ParseDBSchema(reader)
+	field, err := ParseDBSchema(bufioReader)
 	if err != nil {
 		return nil, err
 	}
 
 	// Read data to map
-	result, err := readDataDBAny(reader, field, 0, interactiveRepair, false)
+	result, err := readDataDBAny(bufioReader, field, 0, interactiveRepair, false)
 	if err != nil {
 		return nil, err
 	}
 
 	//Read last bit for DB end
-	check := make([]byte, 1)
-	_, err = reader.Read(check)
+	check, err := bufioReader.ReadByte()
 
 	//Check error
 	if err != nil {
@@ -1028,7 +1029,7 @@ func ParseAnyToValueMapDB(reader io.ReadSeeker, interactiveRepair bool) (any, er
 	}
 
 	//Check bit
-	if check[0] != 3 {
+	if check != 3 {
 		return DBFieldParse{}, errors.New("invalid last bit of of DB file")
 	}
 

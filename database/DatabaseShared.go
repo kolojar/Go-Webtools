@@ -9,7 +9,6 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"time"
@@ -351,9 +350,7 @@ type IDatabaseObject interface {
 }
 
 // ConvertToBufioReader converts reader to *bufio.Reader
-func ConvertToBufioReader(reader io.Reader) io.Reader {
-	return reader
-	//TODO FIX
+func ConvertToBufioReader(reader io.Reader) *bufio.Reader {
 	bufReader, ok := reader.(*bufio.Reader)
 	if !ok {
 		bufReader = bufio.NewReader(reader)
@@ -456,7 +453,7 @@ func ParseUintXDB(reader io.Reader, size uint8) (uint64, error) {
 
 	//Read number
 	dataByte := make([]byte, size)
-	fmt.Println("Reading UINTX with size:")
+	//fmt.Println("Reading UINTX with size:")
 	_, err := reader.Read(dataByte)
 	if err != nil {
 		return 0, err
@@ -507,7 +504,7 @@ func ParseDynamicUintBytesDB(reader io.Reader) (uint64, error) {
 		return 0, err
 	}
 
-	fmt.Println("Parsing dynamic UINT with size:", size)
+	//fmt.Println("Parsing dynamic UINT with size:", size)
 
 	//Write number
 	return ParseUintXDB(reader, size)
