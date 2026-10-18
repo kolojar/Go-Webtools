@@ -706,16 +706,17 @@ type DBFieldParse struct {
 }
 
 // ParseDBSchema parses DB schema from reader
-func ParseDBSchema(reader io.Reader) (field DBFieldParse, err error) {
+func ParseDBSchema(reader io.ReadSeeker) (field DBFieldParse, err error) {
 	//Convert to bufio
-	bufioReader := ConvertToBufioReader(reader)
+	bufioReader := debugtools.NewReadSeekerReporter(reader, true)
 
 	//Read first bit
-	b, err := bufioReader.ReadByte()
+	b := make([]byte, 1)
+	_, err = bufioReader.Read(b)
 	if err != nil {
 		return DBFieldParse{}, err
 	}
-	if b != 1 {
+	if b[0] != 1 {
 		return DBFieldParse{}, errors.New("invalid first bit of DB file")
 	}
 
@@ -735,18 +736,19 @@ func parseDBSchemaField(reader io.ReadSeeker, endType byte) (field DBFieldParse,
 	//Get bytes until not at type
 	for true {
 		//Read type
-		typ, err := reader.ReadByte()
+		typ := make([]byte, 1)
+		_, err = reader.Read(typ)
 		if err != nil {
 			return field, err, false
 		}
 
 		//Check for end
-		if typ == endType {
+		if typ[0] == endType {
 			return field, nil, true
 		}
 
 		//Check if modifier
-		mTyp := DBFieldModifier(typ)
+		mTyp := DBFieldModifier(typ[0])
 		if ArrayFieldModifier == mTyp || SliceFieldModifier == mTyp || PointerFieldModifier == mTyp {
 			field.FieldModifiers = append(field.FieldModifiers, mTyp)
 			continue
@@ -759,20 +761,20 @@ func parseDBSchemaField(reader io.ReadSeeker, endType byte) (field DBFieldParse,
 		}
 
 		//Check if valid type
-		tType := DBFieldType(typ)
+		tType := DBFieldType(typ[0])
 		if tType == MapFieldType || tType == StructFieldType || tType == NormalDataTypeFieldType || tType == UserCustomDataTypeField {
 			field.FieldType = tType
 			break
 		}
 
 		//Check if valid normal range type
-		if typ >= 65 && typ <= 80 {
-			field.FieldType = DBFieldType(typ)
+		if typ[0] >= 65 && typ[0] <= 80 {
+			field.FieldType = DBFieldType(typ[0])
 			break
 		}
 
 		//Invalid type
-		return field, errors.New("invalid type for: " + string(rune(typ))), false
+		return field, errors.New("invalid type for: " + string(rune(typ[0]))), false
 	}
 
 	//Valid types

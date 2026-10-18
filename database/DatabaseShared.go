@@ -350,7 +350,9 @@ type IDatabaseObject interface {
 }
 
 // ConvertToBufioReader converts reader to *bufio.Reader
-func ConvertToBufioReader(reader io.Reader) *bufio.Reader {
+func ConvertToBufioReader(reader io.Reader) io.Reader {
+	return reader
+	//TODO FIX
 	bufReader, ok := reader.(*bufio.Reader)
 	if !ok {
 		bufReader = bufio.NewReader(reader)
@@ -405,7 +407,7 @@ ParseStringDB parses bytes from reader to string
 */
 func ParseStringDB(reader io.Reader) (string, error) {
 	//Convert to bufio
-	reader = ConvertToBufioReader(reader)
+	//reader = ConvertToBufioReader(reader)
 
 	//Read length
 	lenght, err := ParseDynamicUintBytesDB(reader)
