@@ -271,15 +271,16 @@ func (sv *WebSocketInstanceServer) accessFuncLocal(server *Server, w http.Respon
 	}
 
 	//Check cookies
+	var newInst *WebSocketInstanceServerInstance
 	if err1 != nil || err2 != nil {
 		//Invalid
 		//sv.createNewInstancePage(CreateURLFromParameters(r.URL.Path, params), w)
-		sv.createNewInstance(w, r)
+		newInst = sv.createNewInstance(w, r)
 		//return true
 	} else if !sv.checkCookies(serverIDCookie, instanceIDCookie) {
 		//Invalid
 		//sv.createNewInstancePage(CreateURLFromParameters(r.URL.Path, params), w)
-		sv.createNewInstance(w, r)
+		newInst = sv.createNewInstance(w, r)
 		//return true
 	}
 
@@ -294,6 +295,9 @@ func (sv *WebSocketInstanceServer) accessFuncLocal(server *Server, w http.Respon
 
 	//Pass to accessFunc
 	if sv.accessFunc != nil {
+		if newInst != nil {
+			return sv.accessFunc(newInst, server, w, r, params)
+		}
 		return sv.accessFunc(sv.instances.Get(instanceIDCookie.Value), server, w, r, params)
 	}
 	return false
