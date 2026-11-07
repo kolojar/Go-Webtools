@@ -426,6 +426,7 @@ func (sv *WebSocketServer) readFuncLocal(cl *tcp.ClientUniversal, data []byte, s
 		if readFunc != nil {
 			readFunc(httpConn, data, status, httpConn.IsBinary)
 		}
+		return
 	}
 
 	//Get isBinary

@@ -8,7 +8,6 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"time"
 
 	webtools "github.com/kolojar/Go-Webtools"
 	"github.com/kolojar/Go-Webtools/helpertools"
@@ -143,7 +142,7 @@ func (sv *WebSocketInstanceServer) checkCookies(serverIDCookie *http.Cookie, ins
 	return serverIDCookie.Value == sv.id && sv.instances.Has(instanceIDCookie.Value)
 }
 
-func (sv *WebSocketInstanceServer) createNewInstance(requestedURL string, w http.ResponseWriter) {
+func (sv *WebSocketInstanceServer) createNewInstancePage(requestedURL string, w http.ResponseWriter) {
 	//Locks HTML creator
 	sv.htmlCreatorRedirectMutex.Lock()
 
@@ -189,6 +188,34 @@ func (sv *WebSocketInstanceServer) checkIfNoInstanceNeeded(path string) bool {
 	return noNeeds
 }
 
+func (sv *WebSocketInstanceServer) createNewInstance(w http.ResponseWriter, r *http.Request) *WebSocketInstanceServerInstance {
+	//Generate new ID
+	id := helpertools.GenerateRandomID()
+	sv.wsServer.httpServer.Logger.Log(helpertools.LogWarning, "Creating new instance for: "+r.RemoteAddr+" with id: "+id)
+
+	//Set cookies
+	http.SetCookie(w, &http.Cookie{
+		Name:     "instanceServerUniqueId",
+		Value:    sv.id,
+		Path:     "/",
+		HttpOnly: true,
+		MaxAge:   0,
+		SameSite: http.SameSiteLaxMode,
+	})
+	http.SetCookie(w, &http.Cookie{
+		Name:     "instanceServerInstanceId",
+		Value:    id,
+		Path:     "/",
+		HttpOnly: true,
+		MaxAge:   0,
+		SameSite: http.SameSiteLaxMode,
+	})
+	//time.Sleep(time.Millisecond)
+	instance := &WebSocketInstanceServerInstance{Parameters: helpertools.MakeSafeMap[string, any](), id: id, owner: sv, webSocketConns: make([]*WebSocketServerConn, 0)}
+	sv.instances.Set(id, instance)
+	return instance
+}
+
 func (sv *WebSocketInstanceServer) readFuncLocal(conn *WebSocketServerConn, data []byte, status webtools.NetworkStatus, isBinary bool) {
 	//Check if need to validate cookies
 	if sv.checkIfNoInstanceNeeded(conn.sourceURL) {
@@ -230,36 +257,14 @@ func (sv *WebSocketInstanceServer) accessFuncLocal(server *Server, w http.Respon
 	serverIDCookie, err1 := r.Cookie("instanceServerUniqueId")
 	instanceIDCookie, err2 := r.Cookie("instanceServerInstanceId")
 	if r.URL.Path == "/instanceServerWebsocketNewInstance" && r.Method == http.MethodPost {
-		//Generate new ID
-		id := helpertools.GenerateRandomID()
-		sv.wsServer.httpServer.Logger.Log(helpertools.LogWarning, "Creating new instance for: "+r.RemoteAddr+" with id: "+id)
-
-		//Set cookies
-		http.SetCookie(w, &http.Cookie{
-			Name:     "instanceServerUniqueId",
-			Value:    sv.id,
-			Path:     "/",
-			HttpOnly: true,
-			MaxAge:   0,
-			SameSite: http.SameSiteLaxMode,
-		})
-		http.SetCookie(w, &http.Cookie{
-			Name:     "instanceServerInstanceId",
-			Value:    id,
-			Path:     "/",
-			HttpOnly: true,
-			MaxAge:   0,
-			SameSite: http.SameSiteLaxMode,
-		})
-		time.Sleep(time.Second)
-		instance := &WebSocketInstanceServerInstance{Parameters: helpertools.MakeSafeMap[string, any](), id: id, owner: sv, webSocketConns: make([]*WebSocketServerConn, 0)}
+		//Create instance
+		instance := sv.createNewInstance(w, r)
 
 		//Read URL
 		nextURL, err := io.ReadAll(r.Body)
 		if err == nil {
 			instance.Parameters.Set("nextURLAfterInvalid", string(nextURL))
 		}
-		sv.instances.Set(id, instance)
 		w.WriteHeader(http.StatusCreated)
 		fmt.Fprint(w, "done")
 		return true
@@ -268,13 +273,14 @@ func (sv *WebSocketInstanceServer) accessFuncLocal(server *Server, w http.Respon
 	//Check cookies
 	if err1 != nil || err2 != nil {
 		//Invalid
-		sv.createNewInstance(CreateURLFromParameters(r.URL.Path, params), w)
-		return true
-	}
-	if !sv.checkCookies(serverIDCookie, instanceIDCookie) {
+		//sv.createNewInstancePage(CreateURLFromParameters(r.URL.Path, params), w)
+		sv.createNewInstance(w, r)
+		//return true
+	} else if !sv.checkCookies(serverIDCookie, instanceIDCookie) {
 		//Invalid
-		sv.createNewInstance(CreateURLFromParameters(r.URL.Path, params), w)
-		return true
+		//sv.createNewInstancePage(CreateURLFromParameters(r.URL.Path, params), w)
+		sv.createNewInstance(w, r)
+		//return true
 	}
 
 	if r.URL.Path == "/instanceServerWebsocketNewInstance" && r.Method == http.MethodGet && params["action"] == "delete" {
@@ -283,7 +289,6 @@ func (sv *WebSocketInstanceServer) accessFuncLocal(server *Server, w http.Respon
 		}
 		sv.instances.Delete(instanceIDCookie.Value)
 		sv.wsServer.httpServer.Logger.Log(helpertools.LogWarning, "Removed instance for: "+r.RemoteAddr+" with id: "+instanceIDCookie.Value)
-		fmt.Fprint(w, "Instance removed")
 		return true
 	}
 

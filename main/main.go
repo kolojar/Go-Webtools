@@ -255,56 +255,62 @@ func main() {
 			//upnp.RemoveUPnPPort(5555, "TCP")
 			upnp.Shutdown()
 		}
-	/*case "p2ppsu":
-		{
-			proxy, _ := proxy.NewP2PProxyServerUDP("127.0.0.1:1234", 5678, "127.0.0.1:7777", true)
-			proxy.Start()
-		}
-	case "p2ppcu":
-		{
-			data, _ := helpertools.ReadLineFromConsole("Enter target id: ")
-			proxy, _ := proxy.NewP2PProxyClientUDP("127.0.0.1:1234", 5679, []byte(strings.ReplaceAll(string(data), "\n", "")), "127.0.0.1:17777", true)
-			proxy.Connect()
-			for {
-				time.Sleep(100 * time.Millisecond)
+		/*case "p2ppsu":
+			{
+				proxy, _ := proxy.NewP2PProxyServerUDP("127.0.0.1:1234", 5678, "127.0.0.1:7777", true)
+				proxy.Start()
 			}
-		}
-	case "checkcgnat":
-		{
-			p2p, _ := p2p.NewP2PClient("127.0.0.1:1234", 5678, nil, true)
-			p2p.SetupUPnP(upnp)
-			if p2p.ConnectToCoordinator() {
-				p2p.CheckCGNAT()
+		case "p2ppcu":
+			{
+				data, _ := helpertools.ReadLineFromConsole("Enter target id: ")
+				proxy, _ := proxy.NewP2PProxyClientUDP("127.0.0.1:1234", 5679, []byte(strings.ReplaceAll(string(data), "\n", "")), "127.0.0.1:17777", true)
+				proxy.Connect()
+				for {
+					time.Sleep(100 * time.Millisecond)
+				}
 			}
-			p2p.Stop()
-			upnp.Shutdown()
-		}
+		case "checkcgnat":
+			{
+				p2p, _ := p2p.NewP2PClient("127.0.0.1:1234", 5678, nil, true)
+				p2p.SetupUPnP(upnp)
+				if p2p.ConnectToCoordinator() {
+					p2p.CheckCGNAT()
+				}
+				p2p.Stop()
+				upnp.Shutdown()
+			}
+		case "wsis":
+			{
+				sv := httptools.NewWebSocketInstanceServer("127.0.0.1:1234", readFuncHTTPWsInstanceSv, nil, "", false, true, true)
+				sv.GetWSServer().GetHTTPServer().HostPaths["/test"] = "./test"
+				sv.Start()
+			}
+		case "p2pps":
+			{
+				proxy, _ := proxy.NewP2PProxyServerUniversal("127.0.0.1:1234", 5678, false)
+				proxy.ProxiedServices["u7777"] = webtools.KeyValuePair[bool, string]{Key: true, Value: "127.0.0.1:7777"}
+				proxy.ProxiedServices["t7777"] = webtools.KeyValuePair[bool, string]{Key: false, Value: "127.0.0.1:7777"}
+				proxy.ProxiedServices["t8888"] = webtools.KeyValuePair[bool, string]{Key: false, Value: "127.0.0.1:8888"}
+				proxy.SetupFramingP2PClient(framer)
+				proxy.Start()
+			}
+		case "p2ppc":
+			{
+				data, _ := helpertools.ReadLineFromConsole("Enter target id: ")
+				proxy, _ := proxy.NewP2PProxyClientUniversal("127.0.0.1:1234", 5679, []byte(strings.ReplaceAll(string(data), "\n", "")),
+					map[string]string{"u7777": "127.0.0.1:17777", "t7777": "127.0.0.1:17777", "t8888": "127.0.0.1:18888"}, false)
+				proxy.SetupFramingP2PClient(framer)
+				proxy.Connect()
+				for {
+					time.Sleep(100 * time.Millisecond)
+				}
+			}*/
 	case "wsis":
 		{
 			sv := httptools.NewWebSocketInstanceServer("127.0.0.1:1234", readFuncHTTPWsInstanceSv, nil, "", false, true, true)
 			sv.GetWSServer().GetHTTPServer().HostPaths["/test"] = "./test"
 			sv.Start()
 		}
-	case "p2pps":
-		{
-			proxy, _ := proxy.NewP2PProxyServerUniversal("127.0.0.1:1234", 5678, false)
-			proxy.ProxiedServices["u7777"] = webtools.KeyValuePair[bool, string]{Key: true, Value: "127.0.0.1:7777"}
-			proxy.ProxiedServices["t7777"] = webtools.KeyValuePair[bool, string]{Key: false, Value: "127.0.0.1:7777"}
-			proxy.ProxiedServices["t8888"] = webtools.KeyValuePair[bool, string]{Key: false, Value: "127.0.0.1:8888"}
-			proxy.SetupFramingP2PClient(framer)
-			proxy.Start()
-		}
-	case "p2ppc":
-		{
-			data, _ := helpertools.ReadLineFromConsole("Enter target id: ")
-			proxy, _ := proxy.NewP2PProxyClientUniversal("127.0.0.1:1234", 5679, []byte(strings.ReplaceAll(string(data), "\n", "")),
-				map[string]string{"u7777": "127.0.0.1:17777", "t7777": "127.0.0.1:17777", "t8888": "127.0.0.1:18888"}, false)
-			proxy.SetupFramingP2PClient(framer)
-			proxy.Connect()
-			for {
-				time.Sleep(100 * time.Millisecond)
-			}
-		}*/
 	case "testdb":
 		{
 			/*v := struct {
