@@ -287,35 +287,41 @@ func JSONCToJSON(jsonc []byte) []byte {
 	isInInlineCommment := false
 	isInString := false
 	result := make([]byte, 0)
+	skip := 0
 	for i := range jsonc {
 		// Get previous char
-		var prev byte
-		if i > 0 {
-			prev = jsonc[i-1]
+		var next byte
+		if i < len(jsonc)-1 {
+			next = jsonc[i+1]
 		}
 
 		// Sort commnet cases
-		if prev != '\\' && jsonc[i] == '"' && !isInInlineCommment && !isInStarComment {
+		if jsonc[i] != '\\' && next == '"' && !isInInlineCommment && !isInStarComment {
 			isInString = !isInString
 		}
-		if prev == '/' && jsonc[i] == '*' && !isInString && !isInInlineCommment {
+		if jsonc[i] == '/' && next == '*' && !isInString && !isInInlineCommment {
 			isInStarComment = true
+			skip++
 		}
-		if prev == '*' && jsonc[i] == '/' && !isInString && !isInInlineCommment {
+		if jsonc[i] == '*' && next == '/' && !isInString && !isInInlineCommment {
 			isInStarComment = false
+			skip++
 		}
-		if !isInStarComment && !isInString && prev == '/' && jsonc[i] == '/' {
+		if !isInStarComment && !isInString && jsonc[i] == '/' && next == '/' {
 			isInInlineCommment = true
+			skip++
 		}
-		if isInInlineCommment && jsonc[i] == '\n' {
+		skipNewLine := isInInlineCommment && jsonc[i] == '\n'
+		if skipNewLine {
 			isInInlineCommment = false
+			skip++
 		}
 
 		// Write to buffer
-		if jsonc[i] == '\n' {
+		if jsonc[i] == '\n' && !skipNewLine {
 			result = append(result, '\n')
 		} else if isInInlineCommment || isInStarComment {
-			result = append(result, ' ')
+			//result = append(result, ' ')
 		} else {
 			result = append(result, jsonc[i])
 		}
