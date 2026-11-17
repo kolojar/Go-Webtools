@@ -312,6 +312,7 @@ func JSONCToJSON(jsonc []byte) []byte {
 		if jsonc[i] == '*' && next == '/' && !isInString && !isInInlineCommment {
 			isInStarComment = false
 			skip++
+			continue
 		}
 		if !isInStarComment && !isInString && jsonc[i] == '/' && next == '/' {
 			isInInlineCommment = true
@@ -322,6 +323,7 @@ func JSONCToJSON(jsonc []byte) []byte {
 			isInInlineCommment = false
 			skip++
 		}
+		skipNewLine = skipNewLine || (jsonc[i] == '\n' && isInStarComment)
 
 		// Write to buffer
 		if jsonc[i] == '\n' && !skipNewLine {
