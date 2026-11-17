@@ -330,6 +330,7 @@ func JSONCToJSON(jsonc []byte) []byte {
 			result = append(result, '\n')
 		} else if isInInlineCommment || isInStarComment {
 			//result = append(result, ' ')
+			continue
 		} else {
 			result = append(result, jsonc[i])
 		}
