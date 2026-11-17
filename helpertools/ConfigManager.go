@@ -289,6 +289,12 @@ func JSONCToJSON(jsonc []byte) []byte {
 	result := make([]byte, 0)
 	skip := 0
 	for i := range jsonc {
+		//Skip
+		if skip > 0 {
+			skip--
+			continue
+		}
+
 		// Get previous char
 		var next byte
 		if i < len(jsonc)-1 {
