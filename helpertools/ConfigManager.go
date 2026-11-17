@@ -200,7 +200,7 @@ func (configManager *ConfigManager) SaveAs(path string) error {
 		if !v.Value.option.ConfigurableViaConfigFile {
 			continue
 		}
-		if !v.Value.setInArgument && v.Value.setInConfigFile {
+		if v.Value.setInConfigFile {
 			writeValues[v.Key] = v.Value.value
 		}
 		defaultValue, err := json.Marshal(v.Value.option.DefaultValue)
