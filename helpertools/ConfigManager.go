@@ -36,6 +36,7 @@ type configManagerValue struct {
 	setInConfigFile bool
 	setInArgument   bool
 	value           any
+	valueInArgument any
 }
 
 /*
@@ -161,7 +162,7 @@ func (configManager *ConfigManager) LoadFrom(argStart int, path string) error {
 			if ok {
 				val := configManager.values.Get(k.Key)
 				val.setInArgument = true
-				val.value = v
+				val.valueInArgument = v
 				configManager.values.Set(k.Key, val)
 			}
 		}
@@ -246,7 +247,7 @@ GetPureValue gets value
 */
 func (configManager *ConfigManager) GetPureValue(key string) any {
 	val := configManager.values.Get(key)
-	return val.value
+	return FormatByBool(val.setInArgument, val.valueInArgument, val.value)
 }
 
 /*
@@ -254,11 +255,11 @@ GetValue gets value and its settings
 */
 func (configManager *ConfigManager) GetValue(key string) (setInConfigFile bool, setInArgument bool, value any) {
 	val := configManager.values.Get(key)
-	return val.setInConfigFile, val.setInArgument, val.value
+	return val.setInConfigFile, val.setInArgument, FormatByBool(val.setInArgument, val.valueInArgument, val.value)
 }
 
 /*
-SetValue sets value in configFile (will be written to file if saved)
+SetValue sets value in configFile (will be written to file if saved and overwrites argument setting)
 */
 func (configManager *ConfigManager) SetValue(key string, value any) {
 	val := configManager.values.Get(key)
