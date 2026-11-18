@@ -150,7 +150,7 @@ func (configManager *ConfigManager) LoadFrom(argStart int, path string) error {
 			}
 		} else {
 			//Invalid user argument
-			if optionName != "saveArgsToConfig" {
+			if optionName == "saveArgsToConfig" {
 				saveArgsAfterLoad = true
 				continue
 			}
