@@ -90,6 +90,7 @@ func (configManager *ConfigManager) LoadFrom(argStart int, path string) error {
 	}
 
 	//Load arguments
+	saveArgsAfterLoad := false
 	args := make(map[string]any)
 	for i := argStart + 1; i < len(os.Args); i++ {
 		if !strings.HasPrefix(os.Args[i], "--") {
@@ -114,7 +115,7 @@ func (configManager *ConfigManager) LoadFrom(argStart int, path string) error {
 				}
 				i++
 			} else {
-				//TODO: DO PARSING LOGIC
+				//Parse
 				switch option.option.ValueType {
 				case AnyType:
 					args[optionName] = os.Args[i+1]
@@ -148,61 +149,70 @@ func (configManager *ConfigManager) LoadFrom(argStart int, path string) error {
 				i += 2
 			}
 		} else {
-			//Invalid command
-			if optionName == "help" {
-				//Print usage
-				fmt.Print("Usage: " + os.Args[0])
-				for _, v := range configManager.helpRequiredValues {
-					fmt.Print(" <" + v + ">")
-				}
-				fmt.Println(" [arguments]")
-
-				//Print static arguments
-				fmt.Println("--help   Displays this help")
-				if configManager.allowSaveArgsToFileArgument {
-					fmt.Println("--saveArgsToConfig   Saves all possible arguments to config file")
-				}
-
-				//Print arguments
-				configManager.values.Range(func(key string, value configManagerValue) (doBreak bool) {
-					//Check if valid argument
-					if !value.option.ConfigurableViaArgument {
-						return
-					}
-
-					//Start line
-					fmt.Print("--" + key + "   " + "Value type: ")
-
-					//Write type
-					switch value.option.ValueType {
-					case AnyType:
-						{
-							fmt.Print("any")
-						}
-					case BoolType:
-						{
-							fmt.Print("bool (true/false, if only argument is present, it is parsed as true)")
-						}
-					case IntType:
-						{
-							fmt.Print("int")
-						}
-					case FloatType:
-						{
-							fmt.Print("float32")
-						}
-					case StringType:
-						{
-							fmt.Print("string")
-						}
-					}
-
-					//Write description
-					fmt.Println("; " + value.option.Description)
-					return false
-				})
-				return ErrConfigUsedHelpArgument
+			//Invalid user argument
+			if optionName != "saveArgsToConfig" {
+				saveArgsAfterLoad = true
+				continue
 			}
+
+			//Show error message
+			if optionName != "help" {
+				fmt.Println("Error: --" + optionName + " is invalid argument.")
+			}
+
+			//Print usage
+			fmt.Print("Usage: " + os.Args[0])
+			for _, v := range configManager.helpRequiredValues {
+				fmt.Print(" <" + v + ">")
+			}
+			fmt.Println(" [arguments]")
+			fmt.Println("Arguments:")
+
+			//Print static arguments
+			fmt.Println(" --help   Displays this help")
+			if configManager.allowSaveArgsToFileArgument {
+				fmt.Println(" --saveArgsToConfig   Saves all possible arguments to config file")
+			}
+
+			//Print arguments
+			configManager.values.Range(func(key string, value configManagerValue) (doBreak bool) {
+				//Check if valid argument
+				if !value.option.ConfigurableViaArgument {
+					return
+				}
+
+				//Start line
+				fmt.Print(" --" + key + "   " + "Value type: ")
+
+				//Write type
+				switch value.option.ValueType {
+				case AnyType:
+					{
+						fmt.Print("any")
+					}
+				case BoolType:
+					{
+						fmt.Print("bool (true/false, if only argument is present, it is parsed as true)")
+					}
+				case IntType:
+					{
+						fmt.Print("int")
+					}
+				case FloatType:
+					{
+						fmt.Print("float32")
+					}
+				case StringType:
+					{
+						fmt.Print("string")
+					}
+				}
+
+				//Write description
+				fmt.Println("; " + value.option.Description)
+				return false
+			})
+			return ErrConfigUsedHelpArgument
 		}
 	}
 
@@ -227,6 +237,23 @@ func (configManager *ConfigManager) LoadFrom(argStart int, path string) error {
 				configManager.values.Set(k.Key, val)
 			}
 		}
+	}
+
+	//Save if needed
+	if saveArgsAfterLoad {
+		for _, v := range configManager.values.GetData() {
+			//Check if can copy
+			if !v.Value.option.ConfigurableViaArgument || !v.Value.option.ConfigurableViaConfigFile {
+				continue
+			}
+
+			//Copy
+			v.Value.value = v.Value.valueInArgument
+			configManager.values.Set(v.Key, v.Value)
+		}
+
+		//Save
+		return configManager.Save()
 	}
 	return nil
 }
