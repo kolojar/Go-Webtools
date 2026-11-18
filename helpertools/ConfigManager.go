@@ -146,7 +146,7 @@ func (configManager *ConfigManager) LoadFrom(argStart int, path string) error {
 					fmt.Println("Option " + optionName + " has invalid value type: " + strconv.FormatUint((uint64)(option.option.ValueType), 10))
 					return os.ErrInvalid
 				}
-				i += 2
+				i++
 			}
 		} else {
 			//Invalid user argument
