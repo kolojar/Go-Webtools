@@ -113,7 +113,7 @@ func (configManager *ConfigManager) LoadFrom(argStart int, path string) error {
 				if option.option.ValueType == BoolType {
 					args[optionName] = true
 				}
-				i++
+				//i++
 			} else {
 				//Parse
 				switch option.option.ValueType {
