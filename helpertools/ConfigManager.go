@@ -243,12 +243,13 @@ func (configManager *ConfigManager) LoadFrom(argStart int, path string) error {
 	if saveArgsAfterLoad {
 		for _, v := range configManager.values.GetData() {
 			//Check if can copy
-			if !v.Value.option.ConfigurableViaArgument || !v.Value.option.ConfigurableViaConfigFile {
+			if !v.Value.option.ConfigurableViaArgument || !v.Value.option.ConfigurableViaConfigFile || v.Value.setInArgument {
 				continue
 			}
 
 			//Copy
 			v.Value.value = v.Value.valueInArgument
+			v.Value.setInConfigFile = true
 			configManager.values.Set(v.Key, v.Value)
 		}
 
