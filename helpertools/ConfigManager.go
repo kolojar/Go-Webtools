@@ -2,24 +2,29 @@ package helpertools
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
 )
 
+var ErrConfigUsedHelpArgument = errors.New("used help argument")
+
 type ConfigManager struct {
-	path   string
-	values SafeMap[string, configManagerValue]
+	path                        string
+	values                      SafeMap[string, configManagerValue]
+	helpRequiredValues          []string
+	allowSaveArgsToFileArgument bool
 }
 
-/*
-NewConfigManager creates new instance of ConfigManager
-*/
-func NewConfigManager(path string) *ConfigManager {
+// NewConfigManager creates new instance of ConfigManager
+func NewConfigManager(path string, allowSaveArgsToFileArgument bool, helpRequiredValues ...string) *ConfigManager {
 	return &ConfigManager{
-		path:   path,
-		values: MakeSafeMap[string, configManagerValue](),
+		path:                        path,
+		values:                      MakeSafeMap[string, configManagerValue](),
+		helpRequiredValues:          helpRequiredValues,
+		allowSaveArgsToFileArgument: allowSaveArgsToFileArgument,
 	}
 }
 
@@ -141,6 +146,62 @@ func (configManager *ConfigManager) LoadFrom(argStart int, path string) error {
 					return os.ErrInvalid
 				}
 				i += 2
+			}
+		} else {
+			//Invalid command
+			if optionName == "help" {
+				//Print usage
+				fmt.Print("Usage: " + os.Args[0])
+				for _, v := range configManager.helpRequiredValues {
+					fmt.Print(" <" + v + ">")
+				}
+				fmt.Println(" [arguments]")
+
+				//Print static arguments
+				fmt.Println("--help   Displays this help")
+				if configManager.allowSaveArgsToFileArgument {
+					fmt.Println("--saveArgsToConfig   Saves all possible arguments to config file")
+				}
+
+				//Print arguments
+				configManager.values.Range(func(key string, value configManagerValue) (doBreak bool) {
+					//Check if valid argument
+					if !value.option.ConfigurableViaArgument {
+						return
+					}
+
+					//Start line
+					fmt.Print("--" + key + "   " + "Value type: ")
+
+					//Write type
+					switch value.option.ValueType {
+					case AnyType:
+						{
+							fmt.Print("any")
+						}
+					case BoolType:
+						{
+							fmt.Print("bool (true/false, if only argument is present, it is parsed as true)")
+						}
+					case IntType:
+						{
+							fmt.Print("int")
+						}
+					case FloatType:
+						{
+							fmt.Print("float32")
+						}
+					case StringType:
+						{
+							fmt.Print("string")
+						}
+					}
+
+					//Write description
+					fmt.Println("; " + value.option.Description)
+					return false
+				})
+				return ErrConfigUsedHelpArgument
 			}
 		}
 	}
@@ -273,7 +334,7 @@ func (configManager *ConfigManager) SetValue(key string, value any) {
 Copy creates copy of configManager
 */
 func (configManager *ConfigManager) Copy(newPath string) *ConfigManager {
-	result := NewConfigManager(newPath)
+	result := NewConfigManager(newPath, configManager.allowSaveArgsToFileArgument)
 	for _, v := range configManager.values.GetData() {
 		result.values.Set(v.Key, v.Value)
 	}
