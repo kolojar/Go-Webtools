@@ -216,7 +216,7 @@ func (configManager *ConfigManager) LoadFrom(argStart int, path string) error {
 				}
 
 				//Write description
-				fmt.Println("> " + value.option.Description)
+				fmt.Println(">   " + value.option.Description)
 				return false
 			})
 			return ErrConfigUsedHelpArgument
