@@ -10,6 +10,7 @@ import (
 )
 
 var ErrConfigUsedHelpArgument = errors.New("used help argument")
+var ErrConfigMissingArgumentParameter = errors.New("missing argument parameter")
 
 type ConfigManager struct {
 	path                        string
@@ -98,7 +99,7 @@ func (configManager *ConfigManager) LoadFrom(argStart int, path string) error {
 		}
 		optionName := os.Args[i][2:]
 		option, hasOption := configManager.values.GetHas(optionName)
-		hasValueAfter := len(os.Args) > i+1 && !strings.HasPrefix(os.Args[i+1], "--")
+		hasValueAfter := len(os.Args) > i+1 && (!strings.HasPrefix(os.Args[i+1], "--") || option.option.ValueType == StringType || option.option.ValueType == AnyType)
 		if hasOption {
 			//Check if configurable
 			if !option.option.ConfigurableViaArgument {
@@ -113,6 +114,11 @@ func (configManager *ConfigManager) LoadFrom(argStart int, path string) error {
 				if option.option.ValueType == BoolType {
 					args[optionName] = true
 				}
+
+				//Missing argument
+				fmt.Println("Argument --" + optionName + " is missing parameter, see --help for more information.")
+				return ErrConfigMissingArgumentParameter
+
 				//i++
 			} else {
 				//Parse
@@ -182,7 +188,7 @@ func (configManager *ConfigManager) LoadFrom(argStart int, path string) error {
 				}
 
 				//Start line
-				fmt.Print(" --" + key + "   " + "Value type: ")
+				fmt.Print(" --" + key + " <")
 
 				//Write type
 				switch value.option.ValueType {
@@ -209,7 +215,7 @@ func (configManager *ConfigManager) LoadFrom(argStart int, path string) error {
 				}
 
 				//Write description
-				fmt.Println("; " + value.option.Description)
+				fmt.Println("> " + value.option.Description)
 				return false
 			})
 			return ErrConfigUsedHelpArgument
