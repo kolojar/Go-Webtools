@@ -176,9 +176,9 @@ func (configManager *ConfigManager) LoadFrom(argStart int, path string) error {
 			fmt.Println("Arguments:")
 
 			//Print static arguments
-			fmt.Println(" --help   Displays this help")
+			fmt.Println(" --help Displays this help")
 			if configManager.allowSaveArgsToFileArgument {
-				fmt.Println(" --saveArgsToConfig   Saves all possible arguments to config file")
+				fmt.Println(" --saveArgsToConfig Saves all possible arguments to config file")
 			}
 
 			//Print arguments
@@ -216,7 +216,7 @@ func (configManager *ConfigManager) LoadFrom(argStart int, path string) error {
 				}
 
 				//Write description
-				fmt.Println(">   " + value.option.Description)
+				fmt.Println("> " + value.option.Description)
 				return false
 			})
 			return ErrConfigUsedHelpArgument
