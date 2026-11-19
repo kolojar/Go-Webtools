@@ -113,6 +113,7 @@ func (configManager *ConfigManager) LoadFrom(argStart int, path string) error {
 			if !hasValueAfter {
 				if option.option.ValueType == BoolType {
 					args[optionName] = true
+					continue
 				}
 
 				//Missing argument
